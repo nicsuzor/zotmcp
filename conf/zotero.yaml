@@ -1,0 +1,33 @@
+# ZotMCP Configuration
+# Used by the MCP server to access the Zotero library vector database
+
+storage:
+  # Vector database for Zotero library
+  zotero_vectors:
+    type: chromadb
+    collection_name: prosocial_zot
+    persist_directory: .cache/zotero-prosocial-fulltext/files
+    embedding_model: gemini-embedding-001
+    dimensionality: 3072
+
+# Metadata fields to extract from Zotero items
+zotero_fields:
+  bibliographic:
+    - title
+    - creators
+    - date
+    - publicationTitle
+    - publisher
+    - DOI
+    - url
+    - itemType
+    - abstractNote
+    - pages
+    - volume
+    - issue
+
+  technical:
+    - item_key
+    - document_id
+    - chunk_index
+    - embedding_model
