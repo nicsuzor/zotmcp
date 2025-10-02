@@ -43,20 +43,21 @@ echo ""
 
 cd "$PROJECT_DIR"
 
-# Detect gcloud config location
-GCLOUD_CONFIG="${GCLOUD_CONFIG:-$HOME/.config/gcloud}"
-
-if [ ! -d "$GCLOUD_CONFIG" ]; then
-    echo "❌ Error: gcloud config not found at $GCLOUD_CONFIG"
-    echo "   Make sure you're authenticated: gcloud auth login"
+# Check if ChromaDB exists locally
+if [ ! -d "$PROJECT_DIR/.cache/zotero-prosocial-fulltext/files" ]; then
+    echo "❌ Error: ChromaDB not found at .cache/zotero-prosocial-fulltext/files"
+    echo ""
+    echo "Please download it first:"
+    echo "  ./scripts/package_for_distribution.sh download"
+    echo ""
     exit 1
 fi
 
-echo "   Using gcloud config: ${GCLOUD_CONFIG}"
+CHROMADB_SIZE=$(du -sh "$PROJECT_DIR/.cache/zotero-prosocial-fulltext" | cut -f1)
+echo "   ChromaDB size: ${CHROMADB_SIZE}"
 echo ""
 
 # Build the image with cache date
-# Note: Uses host's gcloud credentials via bind mount (read-only)
 docker build \
     -f containers/deploy/Dockerfile \
     -t "${IMAGE_NAME}:${TAG}" \
