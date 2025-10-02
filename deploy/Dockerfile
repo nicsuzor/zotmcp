@@ -80,7 +80,7 @@ COPY conf/ ${APP_PATH}/conf/
 COPY templates/ ${APP_PATH}/templates/
 
 # Copy startup script
-COPY containers/deploy/startup.sh /usr/local/bin/startup.sh
+COPY deploy/startup.sh /usr/local/bin/startup.sh
 RUN chmod +x /usr/local/bin/startup.sh
 
 # Expose port for HTTP mode (optional)

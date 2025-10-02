@@ -63,7 +63,7 @@ export ZOTERO_LOCAL="false"  # Set to "true" for local-only testing
 python src/main.py
 
 # 2. Rebuild Docker image
-cd containers/deploy
+cd deploy
 ./build.sh --refresh-chromadb --push
 
 # 3. Users pull new image

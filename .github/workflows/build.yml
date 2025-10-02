@@ -74,7 +74,7 @@ jobs:
           provenance: false
           sbom: false
           platforms: linux/amd64
-          file: ./containers/deploy/Dockerfile
+          file: ./deploy/Dockerfile
           build-args: |
             CACHE_DATE=${{ steps.docker_tag.outputs.cache_date }}
           tags: |

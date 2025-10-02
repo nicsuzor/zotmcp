@@ -109,7 +109,7 @@ zotmcp/
 
 ```bash
 # Build locally
-cd containers/deploy
+cd deploy
 ./build.sh
 
 # Build and push to registry

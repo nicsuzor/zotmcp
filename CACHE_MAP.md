@@ -94,7 +94,7 @@ upload:   .cache/zotero-prosocial-fulltext/files → gs://...
 # Syncs to: gs://prosocial-dev/data/zotero-prosocial-fulltext/files
 
 # 2. Build Docker with updated ChromaDB
-./containers/deploy/build.sh --refresh-chromadb --push
+./deploy/build.sh --refresh-chromadb --push
 
 # 3. Users pull new image (ChromaDB baked in)
 docker pull us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest

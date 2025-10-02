@@ -14,7 +14,7 @@
 set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 IMAGE_NAME="us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp"
 TAG="${TAG:-latest}"
@@ -59,7 +59,7 @@ echo ""
 
 # Build the image with cache date
 docker build \
-    -f containers/deploy/Dockerfile \
+    -f deploy/Dockerfile \
     -t "${IMAGE_NAME}:${TAG}" \
     --build-arg CACHE_DATE="${CACHE_DATE}" \
     --progress=plain \

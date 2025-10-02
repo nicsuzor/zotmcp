@@ -63,7 +63,7 @@ The Docker image:
 ### Local build
 
 ```bash
-cd containers/deploy
+cd deploy
 ./build.sh
 ```
 
@@ -139,7 +139,7 @@ When the Zotero library is updated:
 
 1. **Update ChromaDB** (via Buttermilk pipeline)
 2. **Download to project**: `./scripts/package_for_distribution.sh download`
-3. **Rebuild image**: `./containers/deploy/build.sh --push`
+3. **Rebuild image**: `./deploy/build.sh --push`
 4. **Notify users**: They pull the new image with `docker pull ...`
 
 ## Dockerfile Structure

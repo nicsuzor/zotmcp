@@ -4,6 +4,7 @@
 # Usage: python -m buttermilk.pipeline.runner --config-path conf --config-name vectorize
 
 defaults:
+  - zotero
   - _self_
 
 run:
@@ -30,14 +31,6 @@ infrastructure:
   logging:
     type: local
     verbose: true
-
-storage:
-  zotero_vectors:
-    type: chromadb
-    collection_name: prosocial_zot
-    persist_directory: gs://prosocial-dev/data/zotero-prosocial-fulltext/files
-    embedding_model: gemini-embedding-001
-    dimensionality: 3072
 
 pipeline:
   _target_: buttermilk.pipeline.PipelineOrchestrator
