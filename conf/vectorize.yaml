@@ -1,0 +1,87 @@
+# @package _global_
+# Zotero Vectorization Pipeline for ZotMCP
+#
+# Usage: python -m buttermilk.pipeline.runner --config-path conf --config-name vectorize
+
+defaults:
+  - _self_
+
+run:
+  mode: pipeline
+
+bm:
+  _target_: buttermilk._core.bm_init.BM
+  session_info:
+    name: zotmcp
+    job: vectorize_zotero
+    cache_dir: ${oc.env:HOME}/.cache/zotmcp
+    template_paths:
+      - templates
+
+infrastructure:
+  clouds:
+    - type: gcp
+      _target_: buttermilk._core.cloud_config.GCPConfig
+      project_id: prosocial-443205
+      region: us-central1
+      location: us-central1
+      storage_bucket: prosocial-dev
+
+  logging:
+    type: local
+    verbose: true
+
+storage:
+  zotero_vectors:
+    type: chromadb
+    collection_name: prosocial_zot
+    persist_directory: gs://prosocial-dev/data/zotero-prosocial-fulltext/files
+    embedding_model: gemini-embedding-001
+    dimensionality: 3072
+
+pipeline:
+  _target_: buttermilk.pipeline.PipelineOrchestrator
+  pipeline_name: zotero_vectorization
+  concurrency: 5
+  max_records: 50000
+
+  # Source: Zotero library
+  source:
+    _target_: buttermilk.libs.zotero.ZotDownloader
+    library: ${oc.env:ZOTERO_LIBRARY_ID}
+    save_dir: ${oc.env:HOME}/.cache/zotero/items
+    local: ${oc.env:ZOTERO_LOCAL,false}
+    download_concurrency: 8
+    # Only download changed PDFs
+    skip_existing: true
+
+  processors:
+    # 1. Extract PDF text
+    - _target_: buttermilk.tools.pdf_extractor.PdfTextExtractor
+      save_dir: ${pipeline.source.save_dir}
+      use_cache: true
+
+    # 2. Generate citations using LLM
+    - _target_: buttermilk.tools.citator.Citator
+      model: gemini25flash
+      template: citation
+
+    # 3. Chunk text semantically
+    - _target_: buttermilk.data.vector.SemanticSplitter
+      chunk_size: 1000
+      chunk_overlap: 250
+
+    # 4. Generate embeddings
+    - _target_: buttermilk.processors.embeddings.EmbeddingGenerator
+      embedding_model: ${storage.zotero_vectors.embedding_model}
+      dimensionality: ${storage.zotero_vectors.dimensionality}
+      task: RETRIEVAL_DOCUMENT
+      embedding_batch_size: 100
+
+    # 5. Upload to ChromaDB
+    - _target_: buttermilk.processors.chromadb_uploader.ChromaDBUploader
+      collection_name: ${storage.zotero_vectors.collection_name}
+      persist_directory: ${storage.zotero_vectors.persist_directory}
+      sync_batch_size: 50
+      sync_interval_minutes: 10
+      deduplication_strategy: both
