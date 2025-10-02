@@ -8,14 +8,22 @@ The Dockerfile uses a multi-stage build with smart layer caching:
 ┌─────────────────────────────────────────┐
 │ 1. Base Layer (Buttermilk)             │ ← Cached forever
 │    - Python, Node.js, system deps      │
-│    - gcloud, gsutil tools               │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│ 2a. ChromaDB Downloader (Build-time)   │ ← Uses HOST credentials
+│     - google/cloud-sdk:slim image       │   (read-only mount)
+│     - Mounts ~/.config/gcloud from host │
+│     - Downloads from GCS with gsutil    │
+│     - NO credentials in final image     │
 └─────────────────────────────────────────┘
            ↓
 ┌─────────────────────────────────────────┐
-│ 2. ChromaDB Layer                       │ ← Cached MONTHLY
-│    - Downloads from GCS                 │   (via CACHE_DATE)
-│    - ~2-3GB of vectors                  │
-│    - Only rebuilds when forced          │
+│ 2b. ChromaDB Layer (Static)             │ ← Cached MONTHLY
+│     - FROM scratch (empty base)         │   (via CACHE_DATE)
+│     - Just the downloaded data          │
+│     - ~2-3GB of vectors                 │
+│     - No credentials, no tools          │
 └─────────────────────────────────────────┘
            ↓
 ┌─────────────────────────────────────────┐
@@ -26,12 +34,25 @@ The Dockerfile uses a multi-stage build with smart layer caching:
            ↓
 ┌─────────────────────────────────────────┐
 │ 4. Final Layer                          │ ← Rebuilds on code changes
-│    - Copies ChromaDB (from layer 2)     │
+│    - Copies ChromaDB (from layer 2b)    │
 │    - Copies venv (from layer 3)         │
 │    - Copies application code            │
 │    - Total: ~3-4GB                      │
 └─────────────────────────────────────────┘
 ```
+
+## Security Model
+
+**Build-time credentials (your machine):**
+- Your `~/.config/gcloud` is mounted **read-only** during build
+- Only used in the `chromadb-downloader` stage
+- Credentials are **never** copied into the final image
+
+**Runtime (end users):**
+- Final image contains ChromaDB data only
+- No GCP credentials needed
+- No network access required
+- Completely offline operation
 
 ## Why `--rm` is OK
 

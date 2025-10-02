@@ -43,7 +43,20 @@ echo ""
 
 cd "$PROJECT_DIR"
 
+# Detect gcloud config location
+GCLOUD_CONFIG="${GCLOUD_CONFIG:-$HOME/.config/gcloud}"
+
+if [ ! -d "$GCLOUD_CONFIG" ]; then
+    echo "❌ Error: gcloud config not found at $GCLOUD_CONFIG"
+    echo "   Make sure you're authenticated: gcloud auth login"
+    exit 1
+fi
+
+echo "   Using gcloud config: ${GCLOUD_CONFIG}"
+echo ""
+
 # Build the image with cache date
+# Note: Uses host's gcloud credentials via bind mount (read-only)
 docker build \
     -f containers/deploy/Dockerfile \
     -t "${IMAGE_NAME}:${TAG}" \

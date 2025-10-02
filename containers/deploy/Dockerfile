@@ -15,25 +15,32 @@ ARG GCS_CHROMADB_PATH="gs://prosocial-dev/data/zotero-prosocial-fulltext/files"
 FROM ${BUTTERMILK_IMAGE} AS base
 
 ################################
-# CHROMADB - Download and cache ChromaDB in separate layer
-# This layer is cached monthly and only rebuilds if --build-arg CACHE_DATE changes
+# CHROMADB-DOWNLOADER - Use host's gcloud to download ChromaDB
+# This runs on the host machine using your credentials
 ################################
-FROM base AS chromadb-layer
-ARG APP_PATH
+FROM google/cloud-sdk:slim AS chromadb-downloader
 ARG GCS_CHROMADB_PATH
 ARG CACHE_DATE
+ARG APP_PATH="/app/zotmcp"
 
 WORKDIR ${APP_PATH}
 
-# Download ChromaDB from GCS
-# This layer will be cached unless CACHE_DATE changes
-RUN --mount=type=secret,id=gcp_credentials \
-    if [ -f /run/secrets/gcp_credentials ]; then \
-        export GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp_credentials; \
-    fi && \
+# Download ChromaDB from GCS using host's gcloud credentials
+# The --mount=type=bind mounts your ~/.config/gcloud from host (read-only)
+RUN --mount=type=bind,source=/home/nic/.config/gcloud,target=/root/.config/gcloud,readonly \
     mkdir -p .cache/zotero-prosocial-fulltext && \
-    gsutil -m cp -r ${GCS_CHROMADB_PATH} .cache/zotero-prosocial-fulltext/ || \
-    echo "Warning: ChromaDB download failed. Container will need external mount."
+    gsutil -m cp -r ${GCS_CHROMADB_PATH} .cache/zotero-prosocial-fulltext/ && \
+    echo "✅ ChromaDB downloaded successfully (cache date: ${CACHE_DATE})"
+
+################################
+# CHROMADB - Static layer with downloaded data
+# This layer is cached monthly and only rebuilds if CACHE_DATE changes
+################################
+FROM scratch AS chromadb-layer
+ARG APP_PATH="/app/zotmcp"
+
+# Copy the downloaded ChromaDB from the downloader stage
+COPY --from=chromadb-downloader ${APP_PATH}/.cache ${APP_PATH}/.cache
 
 ################################
 # BUILDER - Install zotmcp dependencies
