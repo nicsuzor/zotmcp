@@ -44,10 +44,13 @@ jobs:
 
       - name: Download ChromaDB from GCS
         run: |
-          echo "📥 Downloading ChromaDB from GCS..."
-          mkdir -p .cache/zotero-prosocial-fulltext
-          gsutil -m cp -r gs://prosocial-dev/data/zotero-prosocial-fulltext/files .cache/zotero-prosocial-fulltext/
-          echo "✅ ChromaDB downloaded"
+          echo "📥 Syncing ChromaDB from GCS (incremental)..."
+          mkdir -p .cache/zotero-prosocial-fulltext/files
+
+          # Use rsync for faster incremental downloads (only changed files)
+          gsutil -m rsync -r gs://prosocial-dev/data/zotero-prosocial-fulltext/files .cache/zotero-prosocial-fulltext/files
+
+          echo "✅ ChromaDB synced"
           du -sh .cache/zotero-prosocial-fulltext
 
       - name: Set Docker tag

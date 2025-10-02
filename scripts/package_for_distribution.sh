@@ -18,10 +18,14 @@ VECTORS_DIR="$CACHE_DIR/zotero-prosocial-fulltext/files"
 
 # Command: download ChromaDB from GCS
 if [ "$1" == "download" ]; then
-    echo "📥 Downloading Zotero library ChromaDB from GCS..."
-    mkdir -p "$CACHE_DIR/zotero-prosocial-fulltext"
-    gsutil -m cp -r "$GCS_PATH" "$CACHE_DIR/zotero-prosocial-fulltext/"
-    echo "✅ Zotero library downloaded to $VECTORS_DIR"
+    echo "📥 Syncing Zotero library ChromaDB from GCS..."
+    mkdir -p "$VECTORS_DIR"
+
+    # Use rsync for incremental updates (only downloads changed files)
+    gsutil -m rsync -r "$GCS_PATH" "$VECTORS_DIR"
+
+    echo "✅ Zotero library synced to $VECTORS_DIR"
+    du -sh "$VECTORS_DIR"
     exit 0
 fi
 
@@ -31,9 +35,13 @@ if [ "$1" == "upload" ]; then
         echo "❌ ChromaDB not found at $VECTORS_DIR"
         exit 1
     fi
-    echo "📤 Uploading Zotero library ChromaDB to GCS..."
-    gsutil -m cp -r "$VECTORS_DIR" "$(dirname $GCS_PATH)/"
-    echo "✅ Zotero library uploaded to $GCS_PATH"
+    echo "📤 Syncing Zotero library ChromaDB to GCS..."
+
+    # Use rsync for incremental updates (only uploads changed files)
+    # -d flag deletes files in GCS that aren't local (cleanup old files)
+    gsutil -m rsync -r -d "$VECTORS_DIR" "$GCS_PATH"
+
+    echo "✅ Zotero library synced to $GCS_PATH"
     exit 0
 fi
 
