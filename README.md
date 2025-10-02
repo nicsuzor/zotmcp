@@ -12,6 +12,21 @@ MCP server for semantic search and literature review across a shared Zotero acad
 
 ## Quick Start
 
+### Option A: Docker (Recommended for Distribution)
+
+```bash
+# 1. Pull the image
+docker pull us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest
+
+# 2. Configure your MCP client (see examples/claude_desktop_config_docker.json)
+
+# 3. Restart your MCP client - done!
+```
+
+See [DOCKER.md](DOCKER.md) for full Docker deployment guide.
+
+### Option B: Local Development
+
 ```bash
 # 1. Install dependencies
 uv sync
@@ -27,13 +42,36 @@ Then configure your MCP client (see below).
 
 ## MCP Client Configuration
 
-See `examples/` directory for config templates for Claude Desktop, Claude Code, and Gemini CLI.
+### Docker (Recommended)
 
-**Key points:**
+```json
+{
+  "mcpServers": {
+    "zotero": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"]
+    }
+  }
+}
+```
 
-- Use absolute paths to the project directory
-- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+### Local Development
+
+```json
+{
+  "mcpServers": {
+    "zotero": {
+      "command": "uv",
+      "args": ["--directory", "/FULL/PATH/TO/zotmcp", "run", "python", "-m", "src.main"]
+    }
+  }
+}
+```
+
+**Config locations:**
+- Claude Desktop: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows)
+- Claude Code: Use `/mcp` command
+- See `examples/` for more templates
 
 ## Available Tools
 
@@ -65,11 +103,49 @@ zotmcp/
 └── examples/           # MCP client configs
 ```
 
+## Docker Deployment
+
+### Building the Image
+
+```bash
+# Build locally
+cd containers/deploy
+./build.sh
+
+# Build and push to registry
+./build.sh --push
+```
+
+### Testing the Image
+
+```bash
+# Test in HTTP mode
+docker run --rm -e MODE=http -p 8024:8024 us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest
+
+# Test tools
+curl http://localhost:8024/tools/get_collection_info
+```
+
+### Distribution
+
+The Docker image includes:
+- ✅ All dependencies (FastMCP, ChromaDB, Pydantic)
+- ✅ ChromaDB vectors (baked in, ~3GB)
+- ✅ No local Python setup required
+
+Colleagues just need to:
+1. Install Docker Desktop
+2. Pull image: `docker pull us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest`
+3. Configure MCP client (see above)
+4. Restart client
+
 ## Troubleshooting
 
-**ChromaDB not found**: Run `./scripts/package_for_distribution.sh download`
-**Module errors**: Run `uv pip install -e .`
-**MCP connection fails**: Check absolute path in config
+**Docker: "Cannot connect to daemon"**: Start Docker Desktop
+**Docker: "Image not found"**: Authenticate with `gcloud auth configure-docker us-central1-docker.pkg.dev`
+**Local: ChromaDB not found**: Run `./scripts/package_for_distribution.sh download`
+**Local: Module errors**: Run `uv sync`
+**MCP connection fails**: Check path in config (or use Docker deployment)
 
 
 ## Architecture

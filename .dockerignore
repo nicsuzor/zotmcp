@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+.gitmodules
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.egg-info
+.pytest_cache
+.coverage
+
+# Virtual environments
+.venv
+venv
+ENV
+env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Documentation (included separately)
+NOTES.md
+DOCKER.md
+examples/README.md
+
+# Build artifacts
+dist
+build
+*.tar.gz
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Scripts not needed in container
+scripts/package_for_distribution.sh
+
+# Not needed in image - ChromaDB will be downloaded separately or baked in
+# .cache/

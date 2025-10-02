@@ -1,0 +1,11 @@
+{
+  "zotero": {
+    "command": "docker",
+    "args": [
+      "run",
+      "--rm",
+      "-i",
+      "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"
+    ]
+  }
+}
