@@ -2,8 +2,14 @@
 # Build ZotMCP Docker image
 #
 # Usage:
-#   ./build.sh              # Build locally
-#   ./build.sh --push       # Build and push to registry
+#   ./build.sh                      # Build locally with current month cache
+#   ./build.sh --push               # Build and push to registry
+#   ./build.sh --refresh-chromadb   # Force ChromaDB re-download
+#
+# ChromaDB Layer Caching:
+#   - ChromaDB is cached monthly using CACHE_DATE build arg
+#   - Use --refresh-chromadb to force re-download (or change CACHE_DATE)
+#   - Default: CACHE_DATE=$(date +%Y-%m) (e.g., "2025-10")
 
 set -e
 
@@ -13,17 +19,35 @@ PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 IMAGE_NAME="us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp"
 TAG="${TAG:-latest}"
 
+# Cache ChromaDB monthly by default
+CACHE_DATE="${CACHE_DATE:-$(date +%Y-%m)}"
+
+# Check for flags
+REFRESH_CHROMADB=false
+for arg in "$@"; do
+    if [ "$arg" = "--refresh-chromadb" ]; then
+        REFRESH_CHROMADB=true
+        # Use current timestamp to bust cache
+        CACHE_DATE=$(date +%Y-%m-%d-%H%M%S)
+    fi
+done
+
 echo "🐳 Building ZotMCP Docker image..."
 echo "   Image: ${IMAGE_NAME}:${TAG}"
 echo "   Context: ${PROJECT_DIR}"
+echo "   ChromaDB cache date: ${CACHE_DATE}"
+if [ "$REFRESH_CHROMADB" = true ]; then
+    echo "   ⚠️  ChromaDB will be re-downloaded"
+fi
 echo ""
 
 cd "$PROJECT_DIR"
 
-# Build the image
+# Build the image with cache date
 docker build \
     -f containers/deploy/Dockerfile \
     -t "${IMAGE_NAME}:${TAG}" \
+    --build-arg CACHE_DATE="${CACHE_DATE}" \
     --progress=plain \
     .
 
