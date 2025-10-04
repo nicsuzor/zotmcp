@@ -3,7 +3,7 @@
 # Built on buttermilk base image
 ################################
 
-FROM us-central1-docker.pkg.dev/prosocial-443205/reg/buttermilk:latest
+FROM us-central1-docker.pkg.dev/prosocial-443205/reg/buttermilk:dev
 
 ARG PROJECT_NAME=zotmcp
 ARG CACHE_DATE
