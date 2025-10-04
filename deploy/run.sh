@@ -1,10 +1,9 @@
 #!/bin/bash
-# Run ZotMCP Docker container
+# Run ZotMCP Docker container locally (for development/testing)
 #
-# Usage:
-#   ./run.sh                    # Run in stdio mode (MCP)
-#   ./run.sh http               # Run in HTTP mode on :8024
-#   ./run.sh with-chromadb      # Run with local ChromaDB mounted
+# For production use, just run the container directly:
+#   docker run --rm -v ${HOME}/.config/gcloud:/root/.config/gcloud:ro -i \
+#     us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest
 
 set -e
 
