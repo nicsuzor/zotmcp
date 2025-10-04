@@ -12,15 +12,15 @@ WORKDIR /app/${PROJECT_NAME}
 # Copy Zotero ChromaDB cache from local build context
 COPY .cache/zotero-prosocial-fulltext .cache/zotero-prosocial-fulltext
 
-# Copy application code
+# Install dependencies
 COPY pyproject.toml ./
+RUN --mount=type=cache,target=/root/.cache/uv uv sync
+
+# Copy application code
 COPY src/ ./src/
 
 # Copy configuration
 COPY conf/ ./conf/
-
-# Install dependencies
-RUN --mount=type=cache,target=/root/.cache/uv uv sync
 
 # Set Python paths
 ENV PYTHONPATH="/app/${PROJECT_NAME}/src:/src/buttermilk:${PYTHONPATH}"

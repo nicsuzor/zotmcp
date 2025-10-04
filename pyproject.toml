@@ -6,19 +6,30 @@ authors = [{name = "Nicolas Suzor", email = "nic@suzor.com"}]
 requires-python = ">=3.10"
 dependencies = [
     "fastmcp>=0.2.0",
-    "chromadb>=0.4.0",
     "pydantic>=2.0.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "jupyter>=1.0.0",
+    # buttermilk is installed from workspace in dev or from pre-built image in Docker
 ]
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "anyio>=4.11.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=0.24.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["src/tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+# Increase timeout for integration tests
+timeout = 300
+addopts = "-v --tb=short"
 
 [tool.setuptools.packages.find]
 where = ["src"]

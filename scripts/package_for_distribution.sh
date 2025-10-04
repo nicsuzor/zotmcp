@@ -4,7 +4,6 @@
 # Usage:
 #   ./package_for_distribution.sh          # Package source code
 #   ./package_for_distribution.sh download # Download ChromaDB from GCS
-#   ./package_for_distribution.sh upload   # Upload ChromaDB to GCS
 #
 # ChromaDB is stored at: gs://prosocial-dev/data/zotero-prosocial-fulltext/files
 
@@ -26,22 +25,6 @@ if [ "$1" == "download" ]; then
 
     echo "✅ Zotero library synced to $VECTORS_DIR"
     du -sh "$VECTORS_DIR"
-    exit 0
-fi
-
-# Command: upload ChromaDB to GCS
-if [ "$1" == "upload" ]; then
-    if [ ! -d "$VECTORS_DIR" ]; then
-        echo "❌ ChromaDB not found at $VECTORS_DIR"
-        exit 1
-    fi
-    echo "📤 Syncing Zotero library ChromaDB to GCS..."
-
-    # Use rsync for incremental updates (only uploads changed files)
-    # -d flag deletes files in GCS that aren't local (cleanup old files)
-    gsutil -m rsync -r -d "$VECTORS_DIR" "$GCS_PATH"
-
-    echo "✅ Zotero library synced to $GCS_PATH"
     exit 0
 fi
 

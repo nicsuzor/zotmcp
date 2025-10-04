@@ -2,14 +2,14 @@
 # Build ZotMCP Docker image
 #
 # Usage:
-#   ./build.sh                      # Build locally with current month cache
-#   ./build.sh --push               # Build and push to registry
-#   ./build.sh --refresh-chromadb   # Force ChromaDB re-download
+#   ./build.sh                        # Build locally
+#   ./build.sh --push                 # Build and push to registry
+#   ./build.sh --refresh-chromadb     # Force ChromaDB re-download
 #
-# ChromaDB Layer Caching:
-#   - ChromaDB is cached monthly using CACHE_DATE build arg
-#   - Use --refresh-chromadb to force re-download (or change CACHE_DATE)
-#   - Default: CACHE_DATE=$(date +%Y-%m) (e.g., "2025-10")
+# Layer Caching Strategy:
+#   - ChromaDB: Cached monthly using CACHE_DATE build arg (use --refresh-chromadb to force re-download)
+#   - Python deps: Cached based on pyproject.toml changes
+#
 
 set -e
 
@@ -24,11 +24,15 @@ CACHE_DATE="${CACHE_DATE:-$(date +%Y-%m)}"
 
 # Check for flags
 REFRESH_CHROMADB=false
+PUSH=false
 for arg in "$@"; do
     if [ "$arg" = "--refresh-chromadb" ]; then
         REFRESH_CHROMADB=true
         # Use current timestamp to bust cache
         CACHE_DATE=$(date +%Y-%m-%d-%H%M%S)
+    fi
+    if [ "$arg" = "--push" ]; then
+        PUSH=true
     fi
 done
 
@@ -69,7 +73,7 @@ echo ""
 echo "✅ Build complete: ${IMAGE_NAME}:${TAG}"
 
 # Push if requested
-if [ "$1" = "--push" ]; then
+if [ "$PUSH" = true ]; then
     echo ""
     echo "📤 Pushing to registry..."
     docker push "${IMAGE_NAME}:${TAG}"
@@ -77,11 +81,6 @@ if [ "$1" = "--push" ]; then
 fi
 
 echo ""
-echo "To run locally:"
-echo "  docker run --rm -i ${IMAGE_NAME}:${TAG}"
+echo "To run:"
+echo "  docker run --rm /${USER}/.config/gcloud:/root/.config/gcloud:ro -i ${IMAGE_NAME}:${TAG}"
 echo ""
-echo "To run with ChromaDB from GCS:"
-echo "  docker run --rm -i -v \$(pwd)/.cache:/app/zotmcp/.cache ${IMAGE_NAME}:${TAG}"
-echo ""
-echo "To run in HTTP mode:"
-echo "  docker run --rm -e MODE=http -p 8024:8024 ${IMAGE_NAME}:${TAG}"

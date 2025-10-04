@@ -6,30 +6,103 @@ citation retrieval from a ChromaDB-indexed Zotero library.
 
 import json
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
 import chromadb
 from fastmcp import FastMCP
 from chromadb.config import Settings as ChromaSettings
+from chromadb import Documents, EmbeddingFunction, Embeddings
+from google import genai
+
+from buttermilk import logger, init_async
+from buttermilk.tools import ChromaDBSearchTool
 
 from models import ZoteroReference, ResearchResult
 
-# Initialize MCP server
-mcp = FastMCP("ZotMCP - Academic Literature Search")
+# Global buttermilk instance
+bm = None
+search_tool = None
+
+@asynccontextmanager
+async def lifespan_manager(server: FastMCP):
+    """Initialize buttermilk with minimal runtime config on startup."""
+    global bm, search_tool
+    logger.info("Starting ZotMCP...")
+
+    # Load minimal runtime config
+    bm = await init_async(config_dir="conf", config_name="runtime")
+    logger.info("Buttermilk initialized with minimal runtime config")
+
+    yield
+
+    logger.info("Shutting down ZotMCP")
+
+# Initialize MCP server with lifespan manager
+mcp = FastMCP("ZotMCP - Academic Literature Search", lifespan=lifespan_manager)
 
 # ChromaDB configuration
 CACHE_DIR = Path(__file__).parent.parent / ".cache"
 VECTORS_DIR = CACHE_DIR / "zotero-prosocial-fulltext" / "files"
 COLLECTION_NAME = "prosocial_zot"
+EMBEDDING_MODEL = "gemini-embedding-001"
+EMBEDDING_DIMENSIONALITY = 3072
 
 # Initialize ChromaDB client
 chroma_client = None
 collection = None
 
 
+class GeminiEmbeddingFunction(EmbeddingFunction):
+    """Embedding function for Gemini API compatible with ChromaDB."""
+
+    def __init__(
+        self,
+        embedding_model: str = EMBEDDING_MODEL,
+        dimensionality: int = EMBEDDING_DIMENSIONALITY,
+    ):
+        self.dimensionality = dimensionality
+        self._embedding_model = embedding_model
+
+        # Initialize with Vertex AI configuration
+        project_id = os.getenv("GCP_PROJECT_ID", "prosocial-443205")
+        location = os.getenv("GCP_LOCATION", "us-central1")
+
+        self.client = genai.Client(
+            vertexai=True,
+            project=project_id,
+            location=location,
+        )
+
+    def __call__(self, input: Documents) -> Embeddings:
+        response = self.client.models.embed_content(
+            model=self._embedding_model,
+            contents=input,
+            config={
+                "output_dimensionality": self.dimensionality,
+                "auto_truncate": False,
+            },
+        )
+
+        # Extract embeddings from response
+        embeddings = []
+        for embedding in response.embeddings:
+            # Convert to list if it's a numpy array
+            if hasattr(embedding.values, 'tolist'):
+                embeddings.append(embedding.values.tolist())
+            else:
+                embeddings.append(list(embedding.values))
+
+        return embeddings
+
+
 def get_collection():
-    """Lazy-load ChromaDB collection."""
+    """Lazy-load ChromaDB collection with Gemini embedding function.
+
+    Note: This is used for direct ChromaDB operations that need custom filters
+    or aggregations. For basic semantic search, use get_search_tool() instead.
+    """
     global chroma_client, collection
 
     if collection is not None:
@@ -41,12 +114,46 @@ def get_collection():
             "Run: ./scripts/package_for_distribution.sh download"
         )
 
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Loading ChromaDB from: {VECTORS_DIR}")
+    logger.info(f"Collection name: {COLLECTION_NAME}")
+
     chroma_client = chromadb.PersistentClient(
         path=str(VECTORS_DIR), settings=ChromaSettings(anonymized_telemetry=False)
     )
 
-    collection = chroma_client.get_collection(name=COLLECTION_NAME)
+    # Use Gemini embedding function to match collection's embeddings
+    embedding_function = GeminiEmbeddingFunction(
+        embedding_model=EMBEDDING_MODEL,
+        dimensionality=EMBEDDING_DIMENSIONALITY
+    )
+
+    collection = chroma_client.get_collection(
+        name=COLLECTION_NAME,
+        embedding_function=embedding_function
+    )
+    logger.info(f"Loaded ChromaDB collection: {collection.name}")
     return collection
+
+
+def get_search_tool():
+    """Get or create buttermilk ChromaDBSearchTool instance."""
+    global bm, search_tool
+
+    if search_tool is not None:
+        return search_tool
+
+    storage_config = bm.cfg.storage.zotero_vectors
+    search_tool = ChromaDBSearchTool(
+        type="chromadb",
+        collection_name=storage_config.collection_name,
+        persist_directory=storage_config.persist_directory,
+        embedding_model=storage_config.embedding_model,
+        dimensionality=storage_config.dimensionality,
+    )
+
+    return search_tool
 
 
 def extract_citation_metadata(
@@ -107,7 +214,7 @@ def clean_metadata(metadata: dict) -> dict:
 
 
 @mcp.tool()
-def search(query: str, n_results: int = 10, filter_type: Optional[str] = None) -> str:
+async def search(query: str, n_results: int = 10, filter_type: Optional[str] = None) -> str:
     """Search the Zotero library using semantic similarity.
 
     Args:
@@ -118,47 +225,50 @@ def search(query: str, n_results: int = 10, filter_type: Optional[str] = None) -
     Returns:
         JSON string with search results including titles, authors, and relevance
     """
-    coll = get_collection()
-    n_results = min(n_results, 50)
+    try:
+        n_results = min(n_results, 50)
 
-    # Build filter if specified
-    where_filter = None
-    if filter_type:
-        where_filter = {"itemType": {"$eq": filter_type}}
+        # Use buttermilk's search tool
+        tool = get_search_tool()
+        results = await tool.search(query=query, n_results=n_results)
 
-    results = coll.query(
-        query_texts=[query],
-        n_results=n_results,
-        include=["metadatas", "documents", "distances"],
-        where=where_filter,
-    )
+        formatted_results = []
+        for result in results:
+            # Filter by item type if specified
+            if filter_type and result.metadata.get("itemType") != filter_type:
+                continue
 
-    formatted_results = []
-    for doc, meta, dist in zip(
-        results["documents"][0], results["metadatas"][0], results["distances"][0]
-    ):
-        citation, doi, uri = extract_citation_metadata(meta)
-        clean_meta = clean_metadata(meta)
+            citation, doi, uri = extract_citation_metadata(result.metadata)
+            clean_meta = clean_metadata(result.metadata)
 
-        formatted_results.append(
+            formatted_results.append(
+                {
+                    "citation": citation,
+                    "excerpt": result.content[:500] + "..." if len(result.content) > 500 else result.content,
+                    "similarity": round(result.score, 3) if result.score else None,
+                    "metadata": clean_meta,
+                    "doi": doi,
+                    "url": uri,
+                }
+            )
+
+        return json.dumps(
             {
-                "citation": citation,
-                "excerpt": doc[:500] + "..." if len(doc) > 500 else doc,
-                "similarity": round(1 - dist, 3),
-                "metadata": clean_meta,
-                "doi": doi,
-                "url": uri,
-            }
+                "query": query,
+                "total_results": len(formatted_results),
+                "results": formatted_results,
+            },
+            indent=2,
         )
-
-    return json.dumps(
-        {
-            "query": query,
-            "total_results": len(formatted_results),
-            "results": formatted_results,
-        },
-        indent=2,
-    )
+    except Exception as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "results": [],
+                "total_results": 0,
+            },
+            indent=2,
+        )
 
 
 @mcp.tool()
