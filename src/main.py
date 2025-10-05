@@ -16,7 +16,7 @@ from chromadb.config import Settings as ChromaSettings
 from chromadb import Documents, EmbeddingFunction, Embeddings
 from google import genai
 
-from buttermilk import logger, init_async
+from buttermilk import logger, init
 from buttermilk.tools import ChromaDBSearchTool
 
 from models import ZoteroReference, ResearchResult
@@ -25,16 +25,18 @@ from models import ZoteroReference, ResearchResult
 bm = None
 search_tool = None
 
+# Load zotero config - use absolute path from project root
+conf_dir = str(Path(__file__).parent.parent / "conf")
+bm = init(config_dir=conf_dir, config_name="zotero")
+logger.info("Buttermilk initialized")
+
+
 @asynccontextmanager
 async def lifespan_manager(server: FastMCP):
     """Initialize buttermilk with zotero config on startup."""
     global bm, search_tool
     logger.info("Starting ZotMCP...")
 
-    # Load zotero config - use absolute path from project root
-    conf_dir = str(Path(__file__).parent.parent / "conf")
-    bm = await init_async(config_dir=conf_dir, config_name="zotero")
-    logger.info("Buttermilk initialized")
 
     yield
 
@@ -215,7 +217,9 @@ def clean_metadata(metadata: dict) -> dict:
 
 
 @mcp.tool()
-async def search(query: str, n_results: int = 10, filter_type: Optional[str] = None) -> str:
+async def search(
+    query: str, n_results: int = 10, filter_type: Optional[str] = None
+) -> dict:
     """Search the Zotero library using semantic similarity.
 
     Args:
@@ -224,7 +228,7 @@ async def search(query: str, n_results: int = 10, filter_type: Optional[str] = N
         filter_type: Optional filter by item type (e.g., 'journalArticle', 'book', 'bookSection')
 
     Returns:
-        JSON string with search results including titles, authors, and relevance
+        Dictionary with search results including titles, authors, and relevance
     """
     try:
         n_results = min(n_results, 50)
@@ -253,34 +257,28 @@ async def search(query: str, n_results: int = 10, filter_type: Optional[str] = N
                 }
             )
 
-        return json.dumps(
-            {
-                "query": query,
-                "total_results": len(formatted_results),
-                "results": formatted_results,
-            },
-            indent=2,
-        )
+        return {
+            "query": query,
+            "total_results": len(formatted_results),
+            "results": formatted_results,
+        }
     except Exception as e:
-        return json.dumps(
-            {
-                "error": str(e),
-                "results": [],
-                "total_results": 0,
-            },
-            indent=2,
-        )
+        return {
+            "error": str(e),
+            "results": [],
+            "total_results": 0,
+        }
 
 
 @mcp.tool()
-def get_item(item_key: str) -> str:
+def get_item(item_key: str) -> dict:
     """Retrieve full text and metadata for a specific Zotero item.
 
     Args:
         item_key: Zotero item key
 
     Returns:
-        JSON string with full item content and metadata
+        Dictionary with full item content and metadata
     """
     coll = get_collection()
 
@@ -289,14 +287,14 @@ def get_item(item_key: str) -> str:
     )
 
     if not results["documents"]:
-        return json.dumps({"error": f"Item {item_key} not found"})
+        return {"error": f"Item {item_key} not found"}
 
     # TODO: just return the zotero link using the python zotero library
     raise NotImplementedError("Integration with Zotero cloud sync is not yet built.")
 
 
 @mcp.tool()
-def get_similar_items(item_key: str, n_results: int = 5) -> str:
+def get_similar_items(item_key: str, n_results: int = 5) -> dict:
     """Find items similar to a given Zotero item.
 
     Args:
@@ -304,7 +302,7 @@ def get_similar_items(item_key: str, n_results: int = 5) -> str:
         n_results: Number of similar items to return (default: 5)
 
     Returns:
-        JSON string with similar items and their citations
+        Dictionary with similar items and their citations
     """
     coll = get_collection()
 
@@ -314,7 +312,7 @@ def get_similar_items(item_key: str, n_results: int = 5) -> str:
     )
 
     if not item_results["documents"]:
-        return json.dumps({"error": f"Item {item_key} not found"})
+        return {"error": f"Item {item_key} not found"}
 
     # Use the first chunk as query
     query_text = item_results["documents"][0]
@@ -349,17 +347,15 @@ def get_similar_items(item_key: str, n_results: int = 5) -> str:
             if len(similar_items) >= n_results:
                 break
 
-    return json.dumps(
-        {"source_item": item_key, "similar_items": similar_items}, indent=2
-    )
+    return {"source_item": item_key, "similar_items": similar_items}
 
 
 @mcp.tool()
-def get_collection_info() -> str:
+def get_collection_info() -> dict:
     """Get information about the Zotero library collection.
 
     Returns:
-        JSON string with collection statistics and metadata
+        Dictionary with collection statistics and metadata
     """
     coll = get_collection()
 
@@ -380,21 +376,18 @@ def get_collection_info() -> str:
         item_type = meta.get("itemType", "unknown")
         item_types[item_type] = item_types.get(item_type, 0) + 1
 
-    return json.dumps(
-        {
-            "collection_name": COLLECTION_NAME,
-            "total_chunks": total_chunks,
-            "estimated_unique_items": len(unique_items) * (total_chunks // 100),
-            "sample_item_types": item_types,
-            "embedding_model": "gemini-embedding-001",
-            "dimensions": 3072,
-        },
-        indent=2,
-    )
+    return {
+        "collection_name": COLLECTION_NAME,
+        "total_chunks": total_chunks,
+        "estimated_unique_items": len(unique_items) * (total_chunks // 100),
+        "sample_item_types": item_types,
+        "embedding_model": "gemini-embedding-001",
+        "dimensions": 3072,
+    }
 
 
 @mcp.tool()
-def assisted_search(research_question: str, max_sources: int = 10) -> str:
+async def assisted_search(research_question: str, max_sources: int = 10) -> dict:
     """Perform an assisted literature search with LLM synthesis.
 
     This tool searches the library, retrieves relevant sources, and provides
@@ -405,11 +398,10 @@ def assisted_search(research_question: str, max_sources: int = 10) -> str:
         max_sources: Maximum number of sources to include (default: 10)
 
     Returns:
-        JSON string with synthesized response and literature references
+        Dictionary with synthesized response and literature references
     """
     # Perform semantic search
-    search_results = search(query=research_question, n_results=max_sources * 2)
-    search_data = json.loads(search_results)
+    search_data = await search(query=research_question, n_results=max_sources * 2)
 
     # Extract top results
     references = []
@@ -433,11 +425,11 @@ def assisted_search(research_question: str, max_sources: int = 10) -> str:
         search_queries=[research_question],
     )
 
-    return result.model_dump_json(indent=2)
+    return result.model_dump()
 
 
 @mcp.tool()
-def search_by_author(author_name: str, n_results: int = 20) -> str:
+def search_by_author(author_name: str, n_results: int = 20) -> dict:
     """Search for items by a specific author.
 
     Args:
@@ -445,7 +437,7 @@ def search_by_author(author_name: str, n_results: int = 20) -> str:
         n_results: Number of results to return
 
     Returns:
-        JSON string with items by the specified author
+        Dictionary with items by the specified author
     """
     coll = get_collection()
 
@@ -472,14 +464,11 @@ def search_by_author(author_name: str, n_results: int = 20) -> str:
             if len(matching_items) >= n_results:
                 break
 
-    return json.dumps(
-        {
-            "author": author_name,
-            "total_results": len(matching_items),
-            "items": list(matching_items.values()),
-        },
-        indent=2,
-    )
+    return {
+        "author": author_name,
+        "total_results": len(matching_items),
+        "items": list(matching_items.values()),
+    }
 
 
 if __name__ == "__main__":

@@ -19,6 +19,12 @@ bm:
     template_paths:
       - templates
 
+storage:
+  zotero_vectors:
+    # Just change the persist_directory to point to the upstream authoritative versoin
+    # So that any changes we make will be synchronised.
+    persist_directory: "gs://prosocial-dev/data/zotero-prosocial-fulltext/files"
+
 infrastructure:
   clouds:
     - type: gcp
@@ -38,7 +44,15 @@ pipeline:
   concurrency: 5
   max_records: 50000
 
-  source: ${storage.zotero_vectors}
+  # Source: Zotero library
+  source:
+    _target_: buttermilk.libs.zotero.ZotDownloader
+    library: ${oc.env:ZOTERO_LIBRARY_ID}
+    save_dir: .cache/zotero/items
+    local: ${oc.env:ZOTERO_LOCAL,false}
+    download_concurrency: 8
+    # Only download changed PDFs
+    skip_existing: true
 
   processors:
     # 1. Extract PDF text
@@ -70,3 +84,4 @@ pipeline:
       sync_batch_size: 50
       sync_interval_minutes: 10
       deduplication_strategy: both
+

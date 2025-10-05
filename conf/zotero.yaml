@@ -37,12 +37,15 @@ infrastructure:
 
 storage:
   # Vector database for Zotero library
+  # This one only references the local cache.
+  # In the pipeline config, we reference the upstream version and update that.
   zotero_vectors:
     type: chromadb
     collection_name: prosocial_zot
     persist_directory: .cache/zotero-prosocial-fulltext/files
     embedding_model: gemini-embedding-001
     dimensionality: 3072
+
 
 # Metadata fields to extract from Zotero items
 zotero_fields:

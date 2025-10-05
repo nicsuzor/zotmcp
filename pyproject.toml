@@ -37,4 +37,8 @@ markers = [
 ]
 # Increase timeout for integration tests
 timeout = 300
-addopts = "-v --tb=short"
+default_async_timeout = 300
+addopts = [ "-rxX",
+    "--capture=fd", "--tb=short",
+    "--continue-on-collection-errors", "-m not slow"
+    ]

@@ -6,7 +6,6 @@ import pytest
 
 from pathlib import Path
 
-import pytest
 from fastmcp import Client, FastMCP
 from main import mcp
 
@@ -25,6 +24,11 @@ def anyio_backend():
 
 @pytest.fixture(scope="session")
 def mcp_server() -> FastMCP[Any]:
+    from buttermilk import init
+
+    # Load zotero config - use absolute path from project root
+    conf_dir = str(Path(__file__).parent.parent.parent / "conf")
+    bm = init(config_dir=conf_dir, config_name="zotero", job="testing")
     return mcp
 
 

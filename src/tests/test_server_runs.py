@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import anyio
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.slow]
 
 
 # Allow tweaking via env for CI/local runs
@@ -27,7 +27,6 @@ def conf_loglevel() -> str:
 
 
 # Test that our complete docker image runs and is accessible
-@pytest.mark.anyio
 async def test_docker_server(
     mcp_docker_config, conf_timeout_startup, conf_timeout_call, conf_loglevel
 ):
