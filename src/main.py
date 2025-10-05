@@ -16,7 +16,7 @@ from chromadb.config import Settings as ChromaSettings
 from chromadb import Documents, EmbeddingFunction, Embeddings
 from google import genai
 
-from buttermilk import logger, init
+from buttermilk import logger, init_async
 from buttermilk.tools import ChromaDBSearchTool
 
 from models import ZoteroReference, ResearchResult
@@ -25,11 +25,6 @@ from models import ZoteroReference, ResearchResult
 bm = None
 search_tool = None
 
-# Load zotero config - use absolute path from project root
-conf_dir = str(Path(__file__).parent.parent / "conf")
-bm = init(config_dir=conf_dir, config_name="zotero")
-logger.info("Buttermilk initialized")
-
 
 @asynccontextmanager
 async def lifespan_manager(server: FastMCP):
@@ -37,6 +32,10 @@ async def lifespan_manager(server: FastMCP):
     global bm, search_tool
     logger.info("Starting ZotMCP...")
 
+    # Load zotero config - use absolute path from project root
+    conf_dir = str(Path(__file__).parent.parent / "conf")
+    bm = await init_async(config_dir=conf_dir, config_name="zotero")
+    logger.info("Buttermilk initialized")
 
     yield
 

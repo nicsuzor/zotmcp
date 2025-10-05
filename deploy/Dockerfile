@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync
 COPY conf/ ./conf/
 
 # Update buttermilk finally (it changes frequently in development)
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --refresh-package buttermilk
+RUN uv sync --no-cache --reinstall-package buttermilk
 
 # Set Python paths
 ENV PYTHONPATH="/app/${PROJECT_NAME}/src:/src/buttermilk:${PYTHONPATH}"
