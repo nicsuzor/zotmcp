@@ -1,6 +1,6 @@
 {
     "mcpServers": {
-        "OSBChatMCP": {
+        "zot": {
             "command": "docker",
             "args": [
                 "run",

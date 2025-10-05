@@ -28,12 +28,12 @@ def conf_loglevel() -> str:
 
 # Test that our complete docker image runs and is accessible
 async def test_docker_server(
-    mcp_docker_config, conf_timeout_startup, conf_timeout_call, conf_loglevel
+    mcp_docker_cfg, conf_timeout_startup, conf_timeout_call, conf_loglevel
 ):
     # The client will infer to create a FastMCPProxy for this config
     try:
         with anyio.fail_after(conf_timeout_startup):
-            async with Client(mcp_docker_config) as client:
+            async with Client(mcp_docker_cfg) as client:
                 # Check version info first
                 try:
                     with anyio.fail_after(conf_timeout_call):

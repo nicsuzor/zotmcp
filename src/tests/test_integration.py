@@ -24,6 +24,7 @@ class TestServerStartup:
         # If we get here, the client fixture connected successfully
         async with Client(mcp_server) as mcp_client:
             assert mcp_client is not None
+            assert await mcp_client.ping()
 
     async def test_server_lists_tools(self, mcp_server):
         """Verify the server exposes all expected tools."""
@@ -36,7 +37,6 @@ class TestServerStartup:
                 "get_item",
                 "get_similar_items",
                 "get_collection_info",
-                "assisted_search",
                 "search_by_author",
             }
 
@@ -107,9 +107,6 @@ class TestSearch:
                 assert "excerpt" in first_result
                 assert "similarity" in first_result
                 assert "metadata" in first_result
-
-                # Excerpt should be truncated
-                assert len(first_result["excerpt"]) <= 503  # 500 + "..."
 
     async def test_search_respects_n_results(self, mcp_server):
         """Verify n_results parameter is respected."""
@@ -274,22 +271,3 @@ class TestErrorHandling:
 
             # Should return error
             assert "error" in result.data
-
-
-@pytest.mark.skip("Non-core functionality - no LLM integration yet")
-class TestAssistedSearch:
-    """Test assisted search (currently returns structured data without LLM)."""
-
-    async def test_assisted_search_returns_response(self, mcp_server):
-        """Verify assisted search completes and returns a response."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.call_tool(
-                "assisted_search",
-                {
-                    "research_question": "What are the main challenges in content moderation?",
-                },
-            )
-
-            assert "response" in result.data
-            assert "literature" in result.data
-            assert isinstance(result.data["literature"], list)

@@ -4,19 +4,14 @@ This server provides tools for semantic search, literature review, and
 citation retrieval from a ChromaDB-indexed Zotero library.
 """
 
-import json
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-import chromadb
 from fastmcp import FastMCP
-from chromadb.config import Settings as ChromaSettings
-from chromadb import Documents, EmbeddingFunction, Embeddings
-from google import genai
 
-from buttermilk import logger, init, init_async
+from buttermilk import logger, init_async
 from buttermilk.tools import ChromaDBSearchTool
 
 from models import ZoteroReference, ResearchResult
@@ -31,11 +26,14 @@ search_tool = None
 async def lifespan_manager(server: FastMCP):
     """Initialize buttermilk with zotero config on startup."""
     global bm, search_tool
-    logger.info("Starting ZotMCP...")
 
     # Load zotero config - use absolute path from project root
     conf_dir = str(Path(__file__).parent.parent / "conf")
     bm = await init_async(config_dir=conf_dir, config_name="zotero")
+
+    search_tool = get_search_tool()
+    await search_tool.ensure_cache_initialized()
+
     logger.info("Buttermilk initialized")
 
     yield
@@ -45,99 +43,14 @@ async def lifespan_manager(server: FastMCP):
 # Initialize MCP server with lifespan manager
 mcp = FastMCP("ZotMCP - Academic Literature Search", lifespan=lifespan_manager)
 
-# ChromaDB configuration
-CACHE_DIR = Path(__file__).parent.parent / ".cache"
-VECTORS_DIR = CACHE_DIR / "zotero-prosocial-fulltext" / "files"
-COLLECTION_NAME = "prosocial_zot"
-EMBEDDING_MODEL = "gemini-embedding-001"
-EMBEDDING_DIMENSIONALITY = 3072
-
-# Initialize ChromaDB client
-chroma_client = None
-collection = None
-
-
-class GeminiEmbeddingFunction(EmbeddingFunction):
-    """Embedding function for Gemini API compatible with ChromaDB."""
-
-    def __init__(
-        self,
-        embedding_model: str = EMBEDDING_MODEL,
-        dimensionality: int = EMBEDDING_DIMENSIONALITY,
-    ):
-        self.dimensionality = dimensionality
-        self._embedding_model = embedding_model
-
-        # Initialize with Vertex AI configuration
-        project_id = os.getenv("GCP_PROJECT_ID", "prosocial-443205")
-        location = os.getenv("GCP_LOCATION", "us-central1")
-
-        self.client = genai.Client(
-            vertexai=True,
-            project=project_id,
-            location=location,
-        )
-
-    def __call__(self, input: Documents) -> Embeddings:
-        response = self.client.models.embed_content(
-            model=self._embedding_model,
-            contents=input,
-            config={
-                "output_dimensionality": self.dimensionality,
-                "auto_truncate": False,
-            },
-        )
-
-        # Extract embeddings from response
-        embeddings = []
-        for embedding in response.embeddings:
-            # Convert to list if it's a numpy array
-            if hasattr(embedding.values, 'tolist'):
-                embeddings.append(embedding.values.tolist())
-            else:
-                embeddings.append(list(embedding.values))
-
-        return embeddings
-
 
 def get_collection():
-    """Lazy-load ChromaDB collection with Gemini embedding function.
+    """Get ChromaDB collection from buttermilk search tool.
 
     Note: This is used for direct ChromaDB operations that need custom filters
     or aggregations. For basic semantic search, use get_search_tool() instead.
     """
-    global chroma_client, collection
-
-    if collection is not None:
-        return collection
-
-    if not VECTORS_DIR.exists():
-        raise FileNotFoundError(
-            f"ChromaDB not found at {VECTORS_DIR}. "
-            "Run: ./scripts/package_for_distribution.sh download"
-        )
-
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"Loading ChromaDB from: {VECTORS_DIR}")
-    logger.info(f"Collection name: {COLLECTION_NAME}")
-
-    chroma_client = chromadb.PersistentClient(
-        path=str(VECTORS_DIR), settings=ChromaSettings(anonymized_telemetry=False)
-    )
-
-    # Use Gemini embedding function to match collection's embeddings
-    embedding_function = GeminiEmbeddingFunction(
-        embedding_model=EMBEDDING_MODEL,
-        dimensionality=EMBEDDING_DIMENSIONALITY
-    )
-
-    collection = chroma_client.get_collection(
-        name=COLLECTION_NAME,
-        embedding_function=embedding_function
-    )
-    logger.info(f"Loaded ChromaDB collection: {collection.name}")
-    return collection
+    return search_tool.collection
 
 
 def get_search_tool():
@@ -397,13 +310,14 @@ def get_collection_info() -> dict:
         item_type = meta.get("itemType", "unknown")
         item_types[item_type] = item_types.get(item_type, 0) + 1
 
+    search_tool = get_search_tool()
     return {
-        "collection_name": COLLECTION_NAME,
+        "collection_name": search_tool.collection_name,
         "total_chunks": total_chunks,
         "estimated_unique_items": len(unique_items) * (total_chunks // 100),
         "sample_item_types": item_types,
-        "embedding_model": "gemini-embedding-001",
-        "dimensions": 3072,
+        "embedding_model": search_tool.embedding_model,
+        "dimensions": search_tool.dimensionality,
     }
 
 
