@@ -351,6 +351,27 @@ def get_similar_items(item_key: str, n_results: int = 5) -> dict:
 
 
 @mcp.tool()
+def get_version_info() -> dict:
+    """Get version information for zotmcp and key dependencies.
+
+    Returns:
+        Dictionary with version information
+    """
+    import importlib.metadata
+
+    versions = {}
+    for pkg in ["zotmcp", "buttermilk", "fastmcp", "chromadb"]:
+        try:
+            version = importlib.metadata.version(pkg)
+            # For git installs, version might include commit hash
+            versions[pkg] = version
+        except importlib.metadata.PackageNotFoundError:
+            versions[pkg] = "not installed"
+
+    return versions
+
+
+@mcp.tool()
 def get_collection_info() -> dict:
     """Get information about the Zotero library collection.
 

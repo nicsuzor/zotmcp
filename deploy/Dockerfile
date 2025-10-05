@@ -16,11 +16,14 @@ COPY .cache/zotero-prosocial-fulltext .cache/zotero-prosocial-fulltext
 COPY pyproject.toml ./
 COPY src/ ./src/
 
-# Install dependencies
+# Install dependencies (using the cache from the buttermilk image for biggest deps)
 RUN --mount=type=cache,target=/root/.cache/uv uv sync
 
 # Copy configuration
 COPY conf/ ./conf/
+
+# Update buttermilk finally (it changes frequently in development)
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --refresh-package buttermilk
 
 # Set Python paths
 ENV PYTHONPATH="/app/${PROJECT_NAME}/src:/src/buttermilk:${PYTHONPATH}"

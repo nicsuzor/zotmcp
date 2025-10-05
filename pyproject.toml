@@ -35,10 +35,8 @@ pythonpath = ["src"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
-# Increase timeout for integration tests
-timeout = 300
-default_async_timeout = 300
-addopts = [ "-rxX",
+addopts = [ "-v", 
+"-rxX",
     "--capture=fd", "--tb=short",
     "--continue-on-collection-errors", "-m not slow"
     ]
