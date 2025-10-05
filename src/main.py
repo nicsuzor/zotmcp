@@ -25,21 +25,6 @@ from models import ZoteroReference, ResearchResult
 bm = None
 search_tool = None
 
-# Try to initialize buttermilk at module load time (more efficient)
-# This works in tests/normal execution but fails in Docker stdio mode
-# where an event loop is already running
-import asyncio
-conf_dir = str(Path(__file__).parent.parent / "conf")
-try:
-    # Check if an event loop is already running
-    asyncio.get_running_loop()
-    # Loop exists - must initialize in lifespan manager
-    _deferred_init = True
-except RuntimeError:
-    # No loop - safe to initialize now
-    bm = init(config_dir=conf_dir, config_name="zotero")
-    logger.info("Buttermilk initialized at module load")
-    _deferred_init = False
 
 
 @asynccontextmanager
@@ -48,10 +33,10 @@ async def lifespan_manager(server: FastMCP):
     global bm, search_tool
     logger.info("Starting ZotMCP...")
 
-    # Only initialize if we couldn't do it at module load time
-    if _deferred_init:
-        bm = await init_async(config_dir=conf_dir, config_name="zotero")
-        logger.info("Buttermilk initialized in lifespan")
+    # Load zotero config - use absolute path from project root
+    conf_dir = str(Path(__file__).parent.parent / "conf")
+    bm = init_async(config_dir=conf_dir, config_name="zotero")
+    logger.info("Buttermilk initialized")
 
     yield
 

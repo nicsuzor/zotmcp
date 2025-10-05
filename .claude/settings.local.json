@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "OSBChatMCP"
+  ],
+  "enableAllProjectMcpServers": true
+}

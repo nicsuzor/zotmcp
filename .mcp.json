@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+        "OSBChatMCP": {
+            "command": "docker",
+            "args": [
+                "run",
+                "-v",
+                "/home/nic/.config/gcloud:/root/.config/gcloud:ro",
+                "-i",
+                "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"
+	    ]
+        }
+    }
+}

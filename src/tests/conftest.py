@@ -22,11 +22,14 @@ def pytest_collection_modifyitems(items):
 def anyio_backend():
     return "asyncio"
 
+
 @pytest.fixture(scope="session")
 def mcp_server() -> FastMCP[Any]:
-    # Note: main.py initializes buttermilk at module load time
-    # This works in tests but fails in Docker where an event loop already exists
-    # See main.py lifespan_manager for proper async initialization
+    from buttermilk import init
+
+    # Load zotero config - use absolute path from project root
+    conf_dir = str(Path(__file__).parent.parent.parent / "conf")
+    bm = init(config_dir=conf_dir, config_name="zotero", job="testing")
     return mcp
 
 
