@@ -35,7 +35,7 @@ async def lifespan_manager(server: FastMCP):
 
     # Load zotero config - use absolute path from project root
     conf_dir = str(Path(__file__).parent.parent / "conf")
-    bm = init_async(config_dir=conf_dir, config_name="zotero")
+    bm = await init_async(config_dir=conf_dir, config_name="zotero")
     logger.info("Buttermilk initialized")
 
     yield
