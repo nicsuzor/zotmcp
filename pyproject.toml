@@ -7,8 +7,11 @@ requires-python = ">=3.10"
 dependencies = [
     "fastmcp>=0.2.0",
     "pydantic>=2.0.0",
-    # buttermilk is installed from workspace in dev or from pre-built image in Docker
+    "buttermilk",
 ]
+
+[tool.uv.sources]
+buttermilk = { git = "https://github.com/qut-dmrc/buttermilk.git", rev = "dev" }
 
 [dependency-groups]
 dev = [
