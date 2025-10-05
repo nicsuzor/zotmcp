@@ -12,12 +12,12 @@ WORKDIR /app/${PROJECT_NAME}
 # Copy Zotero ChromaDB cache from local build context
 COPY .cache/zotero-prosocial-fulltext .cache/zotero-prosocial-fulltext
 
-# Install dependencies
+# Copy application code and dependencies first (needed for uv sync to build package)
 COPY pyproject.toml ./
-RUN --mount=type=cache,target=/root/.cache/uv uv sync
-
-# Copy application code
 COPY src/ ./src/
+
+# Install dependencies
+RUN --mount=type=cache,target=/root/.cache/uv uv sync
 
 # Copy configuration
 COPY conf/ ./conf/
