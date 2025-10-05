@@ -38,15 +38,7 @@ pipeline:
   concurrency: 5
   max_records: 50000
 
-  # Source: Zotero library
-  source:
-    _target_: buttermilk.libs.zotero.ZotDownloader
-    library: ${oc.env:ZOTERO_LIBRARY_ID}
-    save_dir: .cache/zotero/items
-    local: ${oc.env:ZOTERO_LOCAL,false}
-    download_concurrency: 8
-    # Only download changed PDFs
-    skip_existing: true
+  source: ${storage.zotero_vectors}
 
   processors:
     # 1. Extract PDF text

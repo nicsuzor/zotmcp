@@ -27,13 +27,14 @@ search_tool = None
 
 @asynccontextmanager
 async def lifespan_manager(server: FastMCP):
-    """Initialize buttermilk with minimal runtime config on startup."""
+    """Initialize buttermilk with zotero config on startup."""
     global bm, search_tool
     logger.info("Starting ZotMCP...")
 
-    # Load minimal runtime config
-    bm = await init_async(config_dir="conf", config_name="runtime")
-    logger.info("Buttermilk initialized with minimal runtime config")
+    # Load zotero config - use absolute path from project root
+    conf_dir = str(Path(__file__).parent.parent / "conf")
+    bm = await init_async(config_dir=conf_dir, config_name="zotero")
+    logger.info("Buttermilk initialized")
 
     yield
 
