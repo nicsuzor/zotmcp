@@ -249,7 +249,7 @@ async def search(
             formatted_results.append(
                 {
                     "citation": citation,
-                    "excerpt": result.content[:500] + "..." if len(result.content) > 500 else result.content,
+                    "excerpt": result.content,
                     "similarity": round(result.score, 3) if result.score else None,
                     "metadata": clean_meta,
                     "doi": doi,
@@ -405,48 +405,6 @@ def get_collection_info() -> dict:
         "embedding_model": "gemini-embedding-001",
         "dimensions": 3072,
     }
-
-
-@mcp.tool()
-async def assisted_search(research_question: str, max_sources: int = 10) -> dict:
-    """Perform an assisted literature search with LLM synthesis.
-
-    This tool searches the library, retrieves relevant sources, and provides
-    a synthesized response with proper academic citations.
-
-    Args:
-        research_question: The research question or topic to investigate
-        max_sources: Maximum number of sources to include (default: 10)
-
-    Returns:
-        Dictionary with synthesized response and literature references
-    """
-    # Perform semantic search
-    search_data = await search(query=research_question, n_results=max_sources * 2)
-
-    # Extract top results
-    references = []
-    for result in search_data["results"][:max_sources]:
-        ref = ZoteroReference(
-            citation=result["citation"],
-            summary=f"Relevant excerpt: {result['excerpt'][:200]}...",
-            doi=result.get("doi"),
-            uri=result.get("url"),
-            item_key=result["metadata"].get("zotero_key"),
-        )
-        references.append(ref)
-
-    # Create research result
-    # Note: In a full implementation, this would use an LLM to synthesize
-    # For now, we provide the structured data for the client to work with
-    result = ResearchResult(
-        response=f"Found {len(references)} relevant sources on: {research_question}",
-        summary=f"Search returned {len(references)} academic sources related to the research question.",
-        literature=references,
-        search_queries=[research_question],
-    )
-
-    return result.model_dump()
 
 
 @mcp.tool()
