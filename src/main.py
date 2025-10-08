@@ -14,8 +14,6 @@ from fastmcp import FastMCP
 from buttermilk import logger, init_async
 from buttermilk.tools import ChromaDBSearchTool
 
-from models import ZoteroReference, ResearchResult
-
 # Global buttermilk instance
 bm = None
 search_tool = None
@@ -74,33 +72,22 @@ def get_search_tool():
 
 def extract_citation_metadata(
     metadata: dict,
-) -> tuple[str, Optional[str], Optional[str]]:
-    """Extract citation, DOI, and URI from ChromaDB metadata.
+) -> tuple[str, Optional[str], Optional[str], Optional[str]]:
+    """Extract citation, DOI/URL, URI, and Zotero key from ChromaDB metadata.
 
     Args:
         metadata: ChromaDB document metadata
 
     Returns:
-        Tuple of (citation, doi, uri)
+        Tuple of (citation, doi_or_url, uri, zotero_key)
     """
-    # Extract citation components
-    authors = metadata.get("creators", "Unknown")
-    title = metadata.get("document_title", metadata.get("title", "Untitled"))
-    date = metadata.get("date", "")
-    year = date[:4] if date else "n.d."
+    # These fields are already stored at top-level in ChromaDB metadata
+    citation = metadata.get("citation", "Citation not available")
+    doi_or_url = metadata.get("doi_or_url")
+    uri = metadata.get("uri")
+    zotero_key = metadata.get("document_id")  # document_id is the Zotero key
 
-    # Build citation
-    citation = f"{authors} ({year}). {title}"
-
-    # Add publication venue if available
-    publication = metadata.get("publicationTitle", metadata.get("publisher"))
-    if publication:
-        citation += f". {publication}"
-
-    doi = metadata.get("DOI")
-    uri = metadata.get("url", metadata.get("uri"))
-
-    return citation, doi, uri
+    return citation, doi_or_url, uri, zotero_key
 
 
 def clean_metadata(metadata: dict) -> dict:
@@ -156,8 +143,11 @@ async def search(
             if filter_type and result.metadata.get("itemType") != filter_type:
                 continue
 
-            citation, doi, uri = extract_citation_metadata(result.metadata)
+            citation, doi_or_url, uri, zotero_key = extract_citation_metadata(result.metadata)
             clean_meta = clean_metadata(result.metadata)
+
+            # Create Zotero app link
+            zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
 
             formatted_results.append(
                 {
@@ -165,8 +155,10 @@ async def search(
                     "excerpt": result.content,
                     "similarity": round(result.score, 3) if result.score else None,
                     "metadata": clean_meta,
-                    "doi": doi,
-                    "url": uri,
+                    "doi_or_url": doi_or_url,
+                    "uri": uri,
+                    "zotero_key": zotero_key,
+                    "zotero_link": zotero_link,
                 }
             )
 
@@ -244,14 +236,18 @@ def get_similar_items(item_key: str, n_results: int = 5) -> dict:
     for meta, dist in zip(results["metadatas"][0], results["distances"][0]):
         key = meta.get("item_key")
         if key and key != item_key and key not in seen_keys:
-            citation, doi, uri = extract_citation_metadata(meta)
+            citation, doi_or_url, uri, zotero_key = extract_citation_metadata(meta)
+            zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+
             similar_items.append(
                 {
                     "item_key": key,
                     "citation": citation,
                     "similarity": round(1 - dist, 3),
-                    "doi": doi,
-                    "url": uri,
+                    "doi_or_url": doi_or_url,
+                    "uri": uri,
+                    "zotero_key": zotero_key,
+                    "zotero_link": zotero_link,
                     "metadata": clean_metadata(meta),
                 }
             )
@@ -345,12 +341,16 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
         if author_name.lower() in creators.lower():
             item_key = meta.get("item_key")
             if item_key and item_key not in matching_items:
-                citation, doi, uri = extract_citation_metadata(meta)
+                citation, doi_or_url, uri, zotero_key = extract_citation_metadata(meta)
+                zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+
                 matching_items[item_key] = {
                     "item_key": item_key,
                     "citation": citation,
-                    "doi": doi,
-                    "url": uri,
+                    "doi_or_url": doi_or_url,
+                    "uri": uri,
+                    "zotero_key": zotero_key,
+                    "zotero_link": zotero_link,
                     "metadata": clean_metadata(meta),
                 }
 
@@ -365,5 +365,14 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
 
 
 if __name__ == "__main__":
-    # Run the MCP server
-    mcp.run()
+    # Default to stdio for MCP; allow opting into HTTP via env for local debugging
+    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+    if transport == "stdio":
+        mcp.run()
+    else:
+        mcp.run(
+            transport="streamable-http",
+            host=os.getenv("MCP_HTTP_HOST", "0.0.0.0"),
+            port=int(os.getenv("MCP_HTTP_PORT", "8024")),
+            # stateless_http=True,
+        )
