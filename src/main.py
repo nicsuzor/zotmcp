@@ -90,32 +90,6 @@ def extract_citation_metadata(
     return citation, doi_or_url, uri, zotero_key
 
 
-def clean_metadata(metadata: dict) -> dict:
-    """Extract user-relevant metadata from ChromaDB record."""
-    clean = {}
-
-    # Core bibliographic fields
-    user_fields = {
-        "document_title": "title",
-        "title": "title",
-        "creators": "authors",
-        "date": "date",
-        "publicationTitle": "journal",
-        "publisher": "publisher",
-        "DOI": "doi",
-        "url": "url",
-        "itemType": "type",
-        "abstractNote": "abstract",
-        "item_key": "zotero_key",
-    }
-
-    for source_key, dest_key in user_fields.items():
-        if source_key in metadata:
-            clean[dest_key] = metadata[source_key]
-
-    return clean
-
-
 @mcp.tool()
 async def search(
     query: str, n_results: int = 10, filter_type: Optional[str] = None
@@ -144,7 +118,6 @@ async def search(
                 continue
 
             citation, doi_or_url, uri, zotero_key = extract_citation_metadata(result.metadata)
-            clean_meta = clean_metadata(result.metadata)
 
             # Create Zotero app link
             zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
@@ -154,7 +127,6 @@ async def search(
                     "citation": citation,
                     "excerpt": result.content,
                     "similarity": round(result.score, 3) if result.score else None,
-                    "metadata": clean_meta,
                     "doi_or_url": doi_or_url,
                     "uri": uri,
                     "zotero_key": zotero_key,
@@ -248,7 +220,6 @@ def get_similar_items(item_key: str, n_results: int = 5) -> dict:
                     "uri": uri,
                     "zotero_key": zotero_key,
                     "zotero_link": zotero_link,
-                    "metadata": clean_metadata(meta),
                 }
             )
             seen_keys.add(key)
@@ -351,7 +322,6 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
                     "uri": uri,
                     "zotero_key": zotero_key,
                     "zotero_link": zotero_link,
-                    "metadata": clean_metadata(meta),
                 }
 
             if len(matching_items) >= n_results:
