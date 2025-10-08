@@ -10,8 +10,6 @@ dependencies = [
     "buttermilk",
 ]
 
-[tool.uv.sources]
-buttermilk = { git = "https://github.com/qut-dmrc/buttermilk.git", rev = "dev" }
 
 [dependency-groups]
 dev = [
@@ -19,6 +17,9 @@ dev = [
     "pytest>=8.4.2",
     "pytest-asyncio>=0.24.0",
 ]
+
+[tool.uv.sources]
+buttermilk = { git = "https://github.com/qut-dmrc/buttermilk.git", rev = "dev" }
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

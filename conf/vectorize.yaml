@@ -38,50 +38,43 @@ infrastructure:
     type: local
     verbose: true
 
+vectoriser:
+  _target_: buttermilk.data.vector.ChromaDBEmbeddings
+  persist_directory: ${storage.zotero_vectors.persist_directory}
+  collection_name: ${storage.zotero_vectors.collection_name}
+  embedding_model: ${storage.zotero_vectors.embedding_model}
+  dimensionality: ${storage.zotero_vectors.dimensionality}
+  concurrency: 10
+  sync_batch_size: 50
+  deduplication_strategy: record_id  # Skip existing records before downloading
+  enable_record_cache: true
+
 pipeline:
   _target_: buttermilk.pipeline.PipelineOrchestrator
   pipeline_name: zotero_vectorization
   concurrency: 5
   max_records: 50000
 
-  # Source: Zotero library
+  # Source: Zotero library with deduplication
   source:
     _target_: buttermilk.libs.zotero.ZotDownloader
     library: ${oc.env:ZOTERO_LIBRARY_ID}
-    save_dir: .cache/zotero/items
+    save_dir: /home/nic/src/writing/projects/zotmcp/.cache/zotero/items
     local: ${oc.env:ZOTERO_LOCAL,false}
     download_concurrency: 8
-    # Only download changed PDFs
-    skip_existing: true
+    vector_store: ${vectoriser}  # Enable early deduplication
 
   processors:
-    # 1. Extract PDF text
-    - _target_: buttermilk.tools.pdf_extractor.PdfTextExtractor
-      save_dir: ${pipeline.source.save_dir}
-      use_cache: true
-
-    # 2. Generate citations using LLM
+    # 1. Generate citations using LLM (optional but recommended)
     - _target_: buttermilk.tools.citator.Citator
       model: gemini25flash
       template: citation
 
-    # 3. Chunk text semantically
+    # 2. Chunk text semantically
     - _target_: buttermilk.data.vector.SemanticSplitter
       chunk_size: 1000
       chunk_overlap: 250
 
-    # 4. Generate embeddings
-    - _target_: buttermilk.processors.embeddings.EmbeddingGenerator
-      embedding_model: ${storage.zotero_vectors.embedding_model}
-      dimensionality: ${storage.zotero_vectors.dimensionality}
-      task: RETRIEVAL_DOCUMENT
-      embedding_batch_size: 100
-
-    # 5. Upload to ChromaDB
-    - _target_: buttermilk.processors.chromadb_uploader.ChromaDBUploader
-      collection_name: ${storage.zotero_vectors.collection_name}
-      persist_directory: ${storage.zotero_vectors.persist_directory}
-      sync_batch_size: 50
-      sync_interval_minutes: 10
-      deduplication_strategy: both
+    # 3. Embed and upload to ChromaDB
+    - ${vectoriser}
 

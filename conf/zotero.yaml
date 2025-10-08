@@ -52,7 +52,7 @@ storage:
   zotero_vectors:
     type: chromadb
     collection_name: prosocial_zot
-    persist_directory: .cache/zotero-prosocial-fulltext/files
+    persist_directory: /home/nic/src/writing/projects/zotmcp/.cache/zotero-prosocial-fulltext/files
     embedding_model: gemini-embedding-001
     dimensionality: 3072
 

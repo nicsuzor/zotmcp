@@ -82,5 +82,5 @@ fi
 
 echo ""
 echo "To run:"
-echo "  docker run --rm -v /${USER}/.config/gcloud:/root/.config/gcloud:ro -i ${IMAGE_NAME}:${TAG}"
+echo "  docker run --rm -v /${HOME}/.config/gcloud:/root/.config/gcloud:ro -i ${IMAGE_NAME}:${TAG}"
 echo ""
