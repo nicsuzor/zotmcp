@@ -271,3 +271,78 @@ class TestErrorHandling:
 
             # Should return error
             assert "error" in result.data
+
+
+class TestPrompts:
+    """Test MCP prompt functionality."""
+
+    async def test_server_lists_prompts(self, mcp_server):
+        """Verify the server exposes expected prompts."""
+        async with Client(mcp_server) as mcp_client:
+            prompts = await mcp_client.list_prompts()
+            prompt_names = {prompt.name for prompt in prompts}
+
+            expected_prompts = {
+                "literature_review",
+            }
+
+            assert expected_prompts.issubset(prompt_names), (
+                f"Missing prompts: {expected_prompts - prompt_names}"
+            )
+
+    async def test_literature_review_prompt(self, mcp_server):
+        """Verify literature_review prompt returns valid content."""
+        async with Client(mcp_server) as mcp_client:
+            result = await mcp_client.get_prompt(
+                "literature_review",
+                arguments={"question": "What are the effects of content moderation on user behavior?"},
+            )
+
+            # Should return a PromptResult with messages
+            assert result is not None
+            assert hasattr(result, "messages")
+            assert len(result.messages) > 0
+
+            # Check content has expected structure
+            content = result.messages[0].content.text
+            assert "Phase 1" in content
+            assert "Phase 2" in content
+            assert "Phase 3" in content
+            assert "Phase 4" in content
+            assert "search" in content.lower()
+            assert "citation" in content.lower()
+
+    async def test_literature_review_with_context(self, mcp_server):
+        """Verify literature_review prompt works with context parameter."""
+        async with Client(mcp_server) as mcp_client:
+            result = await mcp_client.get_prompt(
+                "literature_review",
+                arguments={
+                    "question": "How do transparency reports affect platform accountability?",
+                    "context": "Focus on empirical studies from the last 5 years",
+                },
+            )
+
+            assert result is not None
+            assert hasattr(result, "messages")
+            assert len(result.messages) > 0
+
+            # Check content includes both question and context
+            content = result.messages[0].content.text
+            assert "How do transparency reports affect platform accountability?" in content
+            assert "Focus on empirical studies from the last 5 years" in content
+            assert "Multi-Angle Search" in content
+            assert "Source Evaluation" in content
+
+    async def test_literature_review_without_context(self, mcp_server):
+        """Verify literature_review works with just question parameter."""
+        async with Client(mcp_server) as mcp_client:
+            result = await mcp_client.get_prompt(
+                "literature_review",
+                arguments={"question": "What is platform governance?"},
+            )
+
+            assert result is not None
+            content = result.messages[0].content.text
+            assert "What is platform governance?" in content
+            assert "Academic Literature Review" in content

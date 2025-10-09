@@ -334,6 +334,136 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
     }
 
 
+@mcp.prompt()
+def literature_review(question: str, context: str = ""):
+    """Academic literature review with systematic search and citation synthesis.
+
+    Use this prompt for research questions that require:
+    - Comprehensive literature search across academic sources
+    - Evaluation of source quality, recency, and authority
+    - Synthesis of findings with proper academic citations
+
+    Args:
+        question: The research question or topic to investigate
+        context: Optional additional context, constraints, or guidance
+    """
+    context_section = f"\n**Additional Context**: {context}\n" if context else ""
+
+    return f"""# Academic Literature Review: {question}
+{context_section}
+## Phase 1: Multi-Angle Search Strategy
+
+Academic literature requires systematic discovery. Run 3-5 searches with different approaches:
+
+1. **Primary concept search**: Use the main keywords from your question
+2. **Methodological angle**: Add terms like "systematic review", "meta-analysis", "empirical study"
+3. **Theoretical angle**: Add framework or theory terms if relevant
+4. **Author-based search**: If you find a key author, search their other works
+5. **Citation chaining**: Use `get_similar_items` on highly relevant papers
+
+**Search Parameters**:
+- Start with `n_results=10` to get broad coverage
+- Note similarity scores: > 0.7 = highly relevant, 0.5-0.7 = possibly relevant, < 0.5 = likely tangential
+
+## Phase 2: Source Evaluation
+
+For each result, evaluate:
+
+### Recency
+- Check publication year in the citation
+- Prioritize recent work (last 5 years) unless doing historical analysis
+- Note if field moves quickly (tech/social media) vs. slowly (legal theory)
+
+### Authority
+- **Peer-reviewed journals** > conference papers > books > reports
+- Check if published in top-tier outlets for the field
+- Look for citation counts if available
+- Note author affiliations and expertise
+
+### Relevance
+- Read the excerpt carefully - does it directly address your question?
+- Check if it's empirical research, theoretical, or commentary
+- Note the geographic/cultural context if relevant
+
+**Create a shortlist**: Select 5-10 most promising items based on recency, authority, and relevance.
+
+## Phase 3: Iterative Refinement
+
+Based on Phase 2 findings:
+
+1. **Identify gaps**: What aspects of your question aren't covered?
+2. **Extract new keywords**: What terminology do the best papers use?
+3. **Run targeted searches**: Use the new keywords to find additional sources
+4. **Use similar items**: For your top 2-3 papers, run `get_similar_items` to find related work
+
+**Stopping criteria**: Stop when you've found 5-10 high-quality sources that collectively address your question, or when new searches stop yielding relevant results.
+
+## Phase 4: Synthesis and Citation
+
+Now synthesize your findings:
+
+### Structure Your Response
+
+**Summary** (2-3 sentences):
+- What are the main findings across the literature?
+- Is there consensus or debate?
+- What are the key takeaways?
+
+**Response** (detailed synthesis):
+- Organize by themes or sub-questions
+- Synthesize across sources - don't just list papers
+- Note where sources agree or disagree
+- Identify trends or evolution in thinking
+- **CRITICAL**: Only include information found in search results - NEVER use general knowledge
+
+**Literature List**:
+For each source you cite, create a ZoteroReference with:
+- **citation**: Full academic citation (Author, Year. Title. Journal/Publisher)
+- **summary**: What specific finding from this source supports your synthesis
+- **doi**: Include if available in the metadata
+- **uri**: Include if DOI not available
+- **item_key**: The Zotero key for reference
+
+### Academic Citation Standards
+
+- Citations must be **precise and complete**: Author(s), Year, Full Title, Journal/Publisher
+- Each claim in your response should be backed by a source in the literature list
+- If multiple sources support a claim, cite all of them
+- If sources conflict, explicitly note the disagreement
+- Direct quotes should be marked as such with page numbers if available
+
+## Quality Checklist
+
+Before finalizing, verify:
+- [ ] Ran at least 3 different search queries?
+- [ ] Evaluated at least 10 individual sources?
+- [ ] Selected 5-10 high-quality sources for synthesis?
+- [ ] Checked publication dates for recency?
+- [ ] Prioritized peer-reviewed sources?
+- [ ] Synthesized across sources (not just listing)?
+- [ ] Every claim backed by a citation?
+- [ ] All citations complete with author/year/title/outlet?
+- [ ] Used ONLY information from search results?
+- [ ] Included DOI/URI for each reference?
+
+## Important Constraints
+
+**NEVER use general knowledge**: Your synthesis must ONLY contain information present in the search results. If information is not available in the results, state that clearly.
+
+**Filter garbled results**: Search results may sometimes be poorly formatted. Exclude illegible content and ensure all citations are clean and readable.
+
+**Note limitations**: If you cannot find sufficient sources on a topic, explicitly state this. Better to acknowledge gaps than to speculate.
+
+## Output Format
+
+Your response should be structured as a ResearchResult with:
+- `summary`: 2-3 sentence overview of main findings
+- `response`: Detailed synthesis organized by themes
+- `literature`: List of ZoteroReference objects for all cited sources
+- `search_queries`: List of queries you used (optional but helpful)
+"""
+
+
 if __name__ == "__main__":
     # Default to stdio for MCP; allow opting into HTTP via env for local debugging
     transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
