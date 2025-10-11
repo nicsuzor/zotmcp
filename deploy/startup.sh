@@ -8,10 +8,10 @@ set -e
 cd /app/zotmcp
 
 # Check if ChromaDB is available
-if [ ! -d ".cache/zotero-prosocial-fulltext/files" ]; then
-    echo "WARNING: ChromaDB not found at .cache/zotero-prosocial-fulltext/files"
+if [ ! -d "/chromadb" ]; then
+    echo "WARNING: ChromaDB not found at /chromadb"
     echo "The server will fail when tools are called."
-    echo "Mount ChromaDB at runtime with: -v /path/to/chromadb:/app/zotmcp/.cache/zotero-prosocial-fulltext/files"
+    echo "Mount ChromaDB at runtime with: -v /path/to/chromadb:/chromadb"
 fi
 
 # Run in stdio mode by default (for MCP)
