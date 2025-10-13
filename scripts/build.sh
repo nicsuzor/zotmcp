@@ -15,7 +15,7 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-
+CACHE_DIR=$HOME/.cache/buttermilk/chromadb/gs_prosocial-dev_data_zotero-prosocial-fulltext_files
 IMAGE_NAME="us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp"
 TAG="${TAG:-latest}"
 
@@ -36,6 +36,7 @@ for arg in "$@"; do
     fi
 done
 
+
 echo "🐳 Building ZotMCP Docker image..."
 echo "   Image: ${IMAGE_NAME}:${TAG}"
 echo "   Context: ${PROJECT_DIR}"
@@ -47,9 +48,12 @@ echo ""
 
 cd "$PROJECT_DIR"
 
+echo "Updating venv..."
+uv sync --upgrade
+
 # Check if ChromaDB exists locally
-if [ ! -d "$PROJECT_DIR/.cache/zotero-prosocial-fulltext/files" ]; then
-    echo "❌ Error: ChromaDB not found at .cache/zotero-prosocial-fulltext/files"
+if [ ! -d "$CACHE_DIR" ]; then
+    echo "❌ Error: ChromaDB not found at ${CACHE_DIR}"
     echo ""
     echo "Please download it first:"
     echo "  ./scripts/package_for_distribution.sh download"
@@ -57,17 +61,19 @@ if [ ! -d "$PROJECT_DIR/.cache/zotero-prosocial-fulltext/files" ]; then
     exit 1
 fi
 
-CHROMADB_SIZE=$(du -sh "$PROJECT_DIR/.cache/zotero-prosocial-fulltext" | cut -f1)
+CHROMADB_SIZE=$(du -sh "$CACHE_DIR" | cut -f1)
 echo "   ChromaDB size: ${CHROMADB_SIZE}"
 echo ""
 
 # Build the image with cache date
-docker build \
+podman build \
     -f deploy/Dockerfile \
     -t "${IMAGE_NAME}:${TAG}" \
     --build-arg CACHE_DATE="${CACHE_DATE}" \
+    --build-context cache="${CACHE_DIR}" \
     --progress=plain \
-    .
+    . 
+
 
 echo ""
 echo "✅ Build complete: ${IMAGE_NAME}:${TAG}"

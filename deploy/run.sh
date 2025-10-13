@@ -23,19 +23,6 @@ case "$MODE" in
             "${IMAGE_NAME}"
         ;;
 
-    with-chromadb)
-        echo "🚀 Running ZotMCP with local ChromaDB..."
-        if [ ! -d ".cache/zotero-prosocial-fulltext" ]; then
-            echo "❌ ChromaDB not found at .cache/zotero-prosocial-fulltext"
-            echo "Run: ./scripts/package_for_distribution.sh download"
-            exit 1
-        fi
-        docker run --rm -i \
-            ${GCLOUD_MOUNT} \
-            -v "$(pwd)/.cache:/app/zotmcp/.cache:ro" \
-            "${IMAGE_NAME}"
-        ;;
-
     stdio|*)
         echo "🚀 Running ZotMCP in stdio mode (MCP)..."
         docker run --rm -i \

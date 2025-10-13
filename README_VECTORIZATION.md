@@ -54,10 +54,5 @@ Edit `conf/vectorize.yaml` to customize:
 - `vectoriser.sync_batch_size`: Batch size for ChromaDB uploads (default: 50)
 - `vectoriser.deduplication_strategy`: `record_id`, `content_hash`, or `both`
 
-## Storage Locations
-
-- **Upstream ChromaDB**: `gs://prosocial-dev/data/zotero-prosocial-fulltext/files`
-- **Local cache**: `.cache/zotero-prosocial-fulltext/files`
-- **Downloaded PDFs**: `.cache/zotero/items`
 
 The pipeline syncs to the upstream GCS location automatically.

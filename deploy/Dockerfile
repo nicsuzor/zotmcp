@@ -10,7 +10,7 @@ ARG CACHE_DATE
 WORKDIR /app/${PROJECT_NAME}
 
 # Copy Zotero ChromaDB cache from local build context
-COPY .cache/zotero-prosocial-fulltext .cache/zotero-prosocial-fulltext
+COPY --from=cache . /chromadb
 
 # Copy application code and dependencies first (needed for uv sync to build package)
 COPY pyproject.toml ./

@@ -1,11 +1,6 @@
 name: Build and Push ZotMCP Docker Image
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches: [main]
   workflow_dispatch: # Allows manual triggering
 
 permissions:
@@ -45,13 +40,13 @@ jobs:
       - name: Download ChromaDB from GCS
         run: |
           echo "📥 Syncing ChromaDB from GCS (incremental)..."
-          mkdir -p .cache/zotero-prosocial-fulltext/files
+          mkdir -p /chromadb
 
           # Use rsync for faster incremental downloads (only changed files)
-          gsutil -m rsync -r gs://prosocial-dev/data/zotero-prosocial-fulltext/files .cache/zotero-prosocial-fulltext/files
+          gsutil -m rsync -r gs://prosocial-dev/data/zotero-prosocial-fulltext/files /chromadb
 
           echo "✅ ChromaDB synced"
-          du -sh .cache/zotero-prosocial-fulltext
+          du -sh /chromadb
 
       - name: Set Docker tag
         id: docker_tag

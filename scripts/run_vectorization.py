@@ -21,8 +21,8 @@ async def run_pipeline(cfg: DictConfig) -> None:
     bm = await init_async(config=cfg)
     logger.info("Buttermilk initialized")
 
-    # Instantiate pipeline from config
-    pipeline = hydra.utils.instantiate(cfg.pipeline)
+    # Get pipeline from config (already instantiated by init_async)
+    pipeline = bm.cfg.pipeline
     logger.info(
         f"Pipeline '{pipeline.pipeline_name}' ready",
         max_records=pipeline.max_records,

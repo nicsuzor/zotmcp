@@ -12,8 +12,8 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 GCS_PATH="gs://prosocial-dev/data/zotero-prosocial-fulltext/files"
-CACHE_DIR="$PROJECT_DIR/.cache"
-VECTORS_DIR="$CACHE_DIR/zotero-prosocial-fulltext/files"
+CACHE_DIR="${HOME}/.cache/buttermilk/chromadb"
+VECTORS_DIR="$CACHE_DIR/gs_prosocial-dev_data_zotero-prosocial-fulltext_files"
 
 # Command: download ChromaDB from GCS
 if [ "$1" == "download" ]; then

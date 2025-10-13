@@ -72,20 +72,21 @@ def get_search_tool():
 
 def extract_citation_metadata(
     metadata: dict,
-) -> tuple[str, Optional[str], Optional[str], Optional[str], Optional[str]]:
-    """Extract citation, DOI/URL, URI, Zotero key, and online library link from ChromaDB metadata.
+) -> tuple[str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Extract citation, DOI/URL, URI, Zotero key, citation key, and online library link from ChromaDB metadata.
 
     Args:
         metadata: ChromaDB document metadata
 
     Returns:
-        Tuple of (citation, doi_or_url, uri, zotero_key, zotero_web_link)
+        Tuple of (citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link)
     """
     # These fields are already stored at top-level in ChromaDB metadata
     citation = metadata.get("citation", "Citation not available")
     doi_or_url = metadata.get("doi_or_url")
     uri = metadata.get("uri")
     zotero_key = metadata.get("document_id")  # document_id is the Zotero key
+    citation_key = metadata.get("citation_key")  # BetterBibTeX citation key
 
     # Extract online library link from zotero_links
     zotero_links = metadata.get("zotero_links", {})
@@ -94,7 +95,7 @@ def extract_citation_metadata(
         if isinstance(alternate_link, dict):
             zotero_web_link = alternate_link.get("href")
 
-    return citation, doi_or_url, uri, zotero_key, zotero_web_link
+    return citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link
 
 
 @mcp.tool()
@@ -124,7 +125,7 @@ async def search(
             if filter_type and result.metadata.get("itemType") != filter_type:
                 continue
 
-            citation, doi_or_url, uri, zotero_key, zotero_web_link = extract_citation_metadata(result.metadata)
+            citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = extract_citation_metadata(result.metadata)
 
             # Create Zotero app link
             zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
@@ -137,6 +138,7 @@ async def search(
                     "doi_or_url": doi_or_url,
                     "uri": uri,
                     "zotero_key": zotero_key,
+                    "citation_key": citation_key,
                     "zotero_link": zotero_link,
                     "zotero_web_link": zotero_web_link,
                 }
@@ -216,7 +218,7 @@ def get_similar_items(item_key: str, n_results: int = 5) -> dict:
     for meta, dist in zip(results["metadatas"][0], results["distances"][0]):
         key = meta.get("item_key")
         if key and key != item_key and key not in seen_keys:
-            citation, doi_or_url, uri, zotero_key, zotero_web_link = extract_citation_metadata(meta)
+            citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = extract_citation_metadata(meta)
             zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
 
             similar_items.append(
@@ -227,6 +229,7 @@ def get_similar_items(item_key: str, n_results: int = 5) -> dict:
                     "doi_or_url": doi_or_url,
                     "uri": uri,
                     "zotero_key": zotero_key,
+                    "citation_key": citation_key,
                     "zotero_link": zotero_link,
                     "zotero_web_link": zotero_web_link,
                 }
@@ -321,7 +324,7 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
         if author_name.lower() in creators.lower():
             item_key = meta.get("item_key")
             if item_key and item_key not in matching_items:
-                citation, doi_or_url, uri, zotero_key, zotero_web_link = extract_citation_metadata(meta)
+                citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = extract_citation_metadata(meta)
                 zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
 
                 matching_items[item_key] = {
@@ -330,6 +333,7 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
                     "doi_or_url": doi_or_url,
                     "uri": uri,
                     "zotero_key": zotero_key,
+                    "citation_key": citation_key,
                     "zotero_link": zotero_link,
                     "zotero_web_link": zotero_web_link,
                 }

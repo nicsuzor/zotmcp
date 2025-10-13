@@ -9,7 +9,6 @@ bm:
   session_info:
     project_name: zotmcp
     job: mcp_server
-    cache_dir: ".cache"
 
 infrastructure:
   clouds:
@@ -25,6 +24,7 @@ infrastructure:
         credentials_secret: dev__shared_credentials
       logging:
         _target_: buttermilk._core.cloud_config.LoggingServiceConfig
+        enabled: true
         verbose: false
       pubsub:
         _target_: buttermilk._core.cloud_config.PubSubServiceConfig
@@ -47,12 +47,15 @@ infrastructure:
 
 storage:
   # Vector database for Zotero library
-  # This one only references the local cache.
   # In the pipeline config, we reference the upstream version and update that.
   zotero_vectors:
     type: chromadb
     collection_name: prosocial_zot
-    persist_directory: /home/nic/src/writing/projects/zotmcp/.cache/zotero-prosocial-fulltext/files
+    read_only: true
+
+    # This is the path in that Docker image where we sync the GCS bucket
+    persist_directory: /chromadb  
+    
     embedding_model: gemini-embedding-001
     dimensionality: 3072
 

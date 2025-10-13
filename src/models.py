@@ -15,6 +15,10 @@ class ZoteroReference(BaseModel):
         ...,
         description="Brief summary of the relevant finding from this source"
     )
+    citation_key: Optional[str] = Field(
+        None,
+        description="BetterBibTeX citation key for use in plain text citations"
+    )
     doi: Optional[str] = Field(
         None,
         description="DOI of the reference if available"
