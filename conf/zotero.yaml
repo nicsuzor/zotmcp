@@ -1,14 +1,16 @@
 # ZotMCP Configuration
 # Used by the MCP server to access the Zotero library vector database
 
+project_name: zotmcp
+job: mcp_server
+verbose: true
+
 run:
   mode: mcp_server
 
-bm:
-  _target_: buttermilk._core.bm_init.BM
-  session_info:
-    project_name: zotmcp
-    job: mcp_server
+session:
+  project_name: ${project_name}
+  job: ${job}
 
 infrastructure:
   clouds:

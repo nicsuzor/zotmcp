@@ -6,23 +6,18 @@
 defaults:
   - zotero
   - _self_
+  - local
+
+job: vectorize_zotero
 
 run:
   mode: pipeline
 
-bm:
-  _target_: buttermilk._core.bm_init.BM
-  session_info:
-    project_name: zotmcp
-    job: vectorize_zotero
-    template_paths:
-      - templates
+session:
+  job: ${job}
+  template_paths:
+    - templates
 
-storage:
-  zotero_vectors:
-    # Just change the persist_directory to point to the upstream authoritative version
-    # So that any changes we make will be synchronised.
-    persist_directory: "gs://prosocial-dev/data/zotero-prosocial-fulltext/files"
 
 vectoriser:
   _target_: buttermilk.data.vector.ChromaDBEmbeddings

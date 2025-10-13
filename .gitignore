@@ -33,5 +33,4 @@ env/
 .DS_Store
 Thumbs.db
 outputs/
-*/**/zotero.yaml
-*zotero.yaml
+**/local.yaml
