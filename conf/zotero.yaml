@@ -1,5 +1,8 @@
 # ZotMCP Configuration
 # Used by the MCP server to access the Zotero library vector database
+defaults:
+  - local
+  - _self_
 
 project_name: zotmcp
 job: mcp_server

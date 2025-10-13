@@ -16,11 +16,15 @@ COPY --from=cache . /chromadb
 COPY pyproject.toml ./
 COPY src/ ./src/
 
+
 # Install dependencies (using the cache from the buttermilk image for biggest deps)
 RUN --mount=type=cache,target=/root/.cache/uv uv sync
 
 # Copy configuration
 COPY conf/ ./conf/
+
+# Copy docker-specific config for buttermilk as 'local.yaml'
+COPY conf/deploy.yaml ./conf/local.yaml
 
 # Update buttermilk finally (it changes frequently in development)
 RUN uv sync --no-cache --reinstall-package buttermilk
