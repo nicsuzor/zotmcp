@@ -39,7 +39,7 @@ pipeline:
   _target_: buttermilk.pipeline.PipelineOrchestrator
   pipeline_name: zotero_vectorization
   concurrency: 1
-  max_records: 999999
+  max_records: 200
 
   # Source: Zotero library with deduplication filter
   source:
@@ -49,8 +49,7 @@ pipeline:
     filter:
       _target_: buttermilk.libs.zotero.VectorStoreExistenceFilter
       vector_store: ${vectoriser}
-    force_full_sync: true
-    start: 0
+    force_full_sync: false
     max_records: ${pipeline.max_records}
 
   processors:
