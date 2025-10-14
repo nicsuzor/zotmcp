@@ -14,7 +14,6 @@ run:
   mode: pipeline
 
 session:
-  job: ${job}
   template_paths:
     - templates
 

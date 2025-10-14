@@ -11,9 +11,7 @@ verbose: true
 run:
   mode: mcp_server
 
-session:
-  project_name: ${project_name}
-  job: ${job}
+session: {}
 
 infrastructure:
   clouds:
