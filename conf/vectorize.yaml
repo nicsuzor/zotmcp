@@ -5,18 +5,14 @@
 
 defaults:
   - zotero
+  - db: upstream
   - _self_
-  - local
 
 job: vectorize_zotero
-
-run:
-  mode: pipeline
 
 session:
   template_paths:
     - templates
-
 
 vectoriser:
   _target_: buttermilk.data.vector.ChromaDBEmbeddings

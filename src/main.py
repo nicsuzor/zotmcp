@@ -19,7 +19,6 @@ bm = None
 search_tool = None
 
 
-
 @asynccontextmanager
 async def lifespan_manager(server: FastMCP):
     """Initialize buttermilk with zotero config on startup."""
@@ -37,6 +36,7 @@ async def lifespan_manager(server: FastMCP):
     yield
 
     logger.info("Shutting down ZotMCP")
+
 
 # Initialize MCP server with lifespan manager
 mcp = FastMCP("ZotMCP - Academic Literature Search", lifespan=lifespan_manager)
@@ -58,7 +58,10 @@ def get_search_tool():
     if search_tool is not None:
         return search_tool
 
-    storage_config = bm.cfg.storage.zotero_vectors
+    storage_config = bm.cfg.get_storage_config("zotero_vectors")
+    if storage_config is None:
+        raise ValueError("zotero_vectors storage config not found in configuration")
+
     search_tool = ChromaDBSearchTool(
         type="chromadb",
         collection_name=storage_config.collection_name,
@@ -72,7 +75,9 @@ def get_search_tool():
 
 def extract_citation_metadata(
     metadata: dict,
-) -> tuple[str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
+) -> tuple[
+    str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]
+]:
     """Extract citation, DOI/URL, URI, Zotero key, citation key, and online library link from ChromaDB metadata.
 
     Args:
@@ -125,10 +130,14 @@ async def search(
             if filter_type and result.metadata.get("itemType") != filter_type:
                 continue
 
-            citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = extract_citation_metadata(result.metadata)
+            citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+                extract_citation_metadata(result.metadata)
+            )
 
             # Create Zotero app link
-            zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+            zotero_link = (
+                f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+            )
 
             formatted_results.append(
                 {
@@ -218,8 +227,12 @@ def get_similar_items(item_key: str, n_results: int = 5) -> dict:
     for meta, dist in zip(results["metadatas"][0], results["distances"][0]):
         key = meta.get("item_key")
         if key and key != item_key and key not in seen_keys:
-            citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = extract_citation_metadata(meta)
-            zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+            citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+                extract_citation_metadata(meta)
+            )
+            zotero_link = (
+                f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+            )
 
             similar_items.append(
                 {
@@ -324,8 +337,14 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
         if author_name.lower() in creators.lower():
             item_key = meta.get("item_key")
             if item_key and item_key not in matching_items:
-                citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = extract_citation_metadata(meta)
-                zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+                citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+                    extract_citation_metadata(meta)
+                )
+                zotero_link = (
+                    f"zotero://select/library/items/{zotero_key}"
+                    if zotero_key
+                    else None
+                )
 
                 matching_items[item_key] = {
                     "item_key": item_key,

@@ -1,0 +1,6 @@
+# @package _global_
+# Configuration for docker image only
+
+storage:
+  zotero_vectors:
+    persist_directory: /home/nic/.cache/buttermilk/chromadb/gs_prosocial-dev_data_zotero-prosocial-fulltext_files

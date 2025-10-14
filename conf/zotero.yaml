@@ -1,15 +1,12 @@
 # ZotMCP Configuration
 # Used by the MCP server to access the Zotero library vector database
 defaults:
-  - local
   - _self_
+  - db: dev
 
 project_name: zotmcp
 job: mcp_server
 verbose: true
-
-run:
-  mode: mcp_server
 
 session: {}
 
@@ -56,8 +53,7 @@ storage:
     collection_name: prosocial_zot
     read_only: true
 
-    # This is the path in that Docker image where we sync the GCS bucket
-    persist_directory: /chromadb  
+    persist_directory:  /chromadb
     
     embedding_model: gemini-embedding-001
     dimensionality: 3072

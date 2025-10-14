@@ -1,7 +1,0 @@
-
-storage:
-  zotero_vectors:
-    # Just change the persist_directory to point to the upstream authoritative version
-    # So that any changes we make will be synchronised.
-    persist_directory: "gs://prosocial-dev/data/zotero-prosocial-fulltext/files"
-    

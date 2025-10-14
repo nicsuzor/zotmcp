@@ -1,0 +1,7 @@
+# @package _global_
+# Configuration for docker image only
+
+storage:
+  zotero_vectors:
+    # This is the path in that Docker image where we sync the GCS bucket
+    persist_directory: /chromadb  

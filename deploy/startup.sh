@@ -18,8 +18,8 @@ fi
 # Can override with HTTP mode: docker run -e MODE=http -p 8024:8024 zotmcp
 if [ "${MODE}" = "http" ]; then
     echo "Starting ZotMCP in HTTP mode on :8024"
-    exec python -m src.main
+    exec python -m src.main db=deploy
 else
     echo "Starting ZotMCP in stdio mode (MCP)" >&2
-    exec python -m src.main
+    exec python -m src.main db=deploy
 fi
