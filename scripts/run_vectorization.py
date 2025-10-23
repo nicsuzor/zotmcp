@@ -10,6 +10,7 @@ import sys
 
 import hydra
 from omegaconf import DictConfig
+from hydra.utils import instantiate
 
 from buttermilk import logger, init_async
 
@@ -18,15 +19,16 @@ async def run_pipeline(cfg: DictConfig) -> None:
     """Run the vectorization pipeline."""
 
     # Initialize Buttermilk infrastructure
-    bm = await init_async(config=cfg)
+    bm = await init_async(config=cfg, overrides=["db=upstream"])
     logger.info("Buttermilk initialized")
 
-    # Get pipeline from config (already instantiated by init_async)
-    pipeline = bm.cfg.pipeline
+    # Get pipeline from config and instantiate it
+    pipeline = instantiate(bm.cfg.pipeline)
     logger.info(
         f"Pipeline '{pipeline.pipeline_name}' ready",
+        pipeline_name=pipeline.pipeline_name,
         max_records=pipeline.max_records,
-        concurrency=pipeline.concurrency
+        concurrency=pipeline.concurrency,
     )
 
     # Run the pipeline

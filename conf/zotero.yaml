@@ -2,7 +2,6 @@
 # Used by the MCP server to access the Zotero library vector database
 defaults:
   - _self_
-  - db: dev
 
 project_name: zotmcp
 job: mcp_server

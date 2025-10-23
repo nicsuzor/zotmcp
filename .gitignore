@@ -33,4 +33,5 @@ env/
 .DS_Store
 Thumbs.db
 outputs/
-**/local.yaml
+uv.lock
+*/*.local.*
