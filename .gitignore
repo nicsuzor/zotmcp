@@ -35,3 +35,21 @@ Thumbs.db
 outputs/
 uv.lock
 */*.local.*
+
+# academicOps managed files - DO NOT COMMIT
+# These files are symlinked/copied from academicOps framework
+
+# Claude Code configuration
+.claude/settings.json
+.claude/agents/
+.claude/commands/
+.claude/skills/
+
+# Agent instructions
+agents/
+
+# academicOps deployment directory (symlinked to framework)
+.academicOps/
+
+# Personal settings (if created)
+.claude/settings.local.json
