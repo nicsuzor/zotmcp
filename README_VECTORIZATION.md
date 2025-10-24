@@ -56,3 +56,15 @@ Edit `conf/vectorize.yaml` to customize:
 
 
 The pipeline syncs to the upstream GCS location automatically.
+
+## Rewinding Cache for Testing
+
+To reprocess records from a specific Zotero version:
+
+```bash
+# Set the sync state to start from version 35000
+echo '{"last_version": 35000, "last_sync_timestamp": "2025-01-01T00:00:00+00:00"}' > ~/.cache/buttermilk/zotero/.zotero_sync_state.json
+
+# Run pipeline with limited records
+uv run python scripts/run_vectorization.py pipeline.max_records=99
+```

@@ -29,7 +29,7 @@ pipeline:
   _target_: buttermilk.pipeline.PipelineOrchestrator
   pipeline_name: zotero_vectorization
   concurrency: 1
-  max_records: 9999
+  max_records: 1000
 
   # Source: Zotero library with deduplication filter
   source:
@@ -43,22 +43,25 @@ pipeline:
     max_records: ${pipeline.max_records}
 
   processors:
-    # 0. Download PDFs and extract full text
+    # 0. Download PDFs 
     - _target_: buttermilk.libs.zotero.ZoteroDownloadProcessor
       library_id: ${oc.env:ZOTERO_LIBRARY_ID}
       save_dir: ${oc.env:HOME}/.cache/buttermilk/zotero/items
 
-    # 1. Generate citations using LLM
+    # 1. Extract text using pdftotext (replaces pdfminer extraction)
+    - _target_: buttermilk.processors.bash.PDFToTextProcessor
+
+    # 2. Generate citations using LLM
     - _target_: buttermilk.tools.citator.Citator
       model: gemini25flash
       template: citator
 
-    # 2. Chunk text semantically
+    # 3. Chunk text semantically
     - _target_: buttermilk.data.vector.SemanticSplitter
       chunk_size: 500
       chunk_overlap: 200
 
-    # 3. Generate embeddings (pure, no side effects)
+    # 4. Generate embeddings (pure, no side effects)
     - _target_: buttermilk.processors.embeddings.EmbeddingGenerator
       embedding_model: ${storage.zotero_vectors.embedding_model}
       dimensionality: ${storage.zotero_vectors.dimensionality}
@@ -66,6 +69,6 @@ pipeline:
       embedding_max_retries: 5
       embedding_cooldown_seconds: 0.1
 
-    # 4. Store in ChromaDB
+    # 5. Store in ChromaDB
     - ${vectoriser}
 
