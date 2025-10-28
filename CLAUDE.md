@@ -1,1 +1,3 @@
 - use 'uv run ...' for all python-derived commands.
+- Build the docker image with 'bash scripts/build.sh --push'
+- Build the docker image with 'bash scripts/build.sh --push'

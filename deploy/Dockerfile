@@ -23,15 +23,12 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync
 # Copy configuration
 COPY conf/ ./conf/
 
-# Copy docker-specific config for buttermilk as 'local.yaml'
-COPY conf/deploy.yaml ./conf/local.yaml
-
 # Update buttermilk finally (it changes frequently in development)
 RUN uv sync --no-cache --reinstall-package buttermilk
 
 # Set Python paths
-ENV PYTHONPATH="/app/${PROJECT_NAME}/src:/src/buttermilk:${PYTHONPATH}"
-ENV PATH="/src/buttermilk/.venv/bin:/app/${PROJECT_NAME}/.venv/bin:$PATH"
+ENV PYTHONPATH="/app/${PROJECT_NAME}/src:${PYTHONPATH}"
+ENV PATH="/app/${PROJECT_NAME}/.venv/bin:$PATH"
 
 # Default to stdio mode for MCP clients
 ENV MODE=stdio

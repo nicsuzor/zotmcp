@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 import pytest
 
-from fastmcp import Client, FastMCP
-from main import (
-    mcp as local_mcp,
-)  # ensure src/ is on PYTHONPATH or use your package import
+from contextlib import asynccontextmanager
+from fastmcp import FastMCP
+from buttermilk import init_async, logger
+import main
 
 
 # Ensure async tests get the anyio marker automatically,
@@ -46,13 +46,30 @@ def mcp_docker_cfg():
     }
 
 
+@asynccontextmanager
+async def test_lifespan_manager(server: FastMCP):
+    """Test-specific lifespan that initializes buttermilk with db=dev."""
+    # Load zotero config with dev database override for tests
+    conf_dir = str(Path(__file__).parent.parent.parent / "conf")
+    main.bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=["+db=dev"])
+
+    main.search_tool = main.get_search_tool()
+    await main.search_tool.ensure_cache_initialized()
+
+    logger.info("Buttermilk initialized for tests")
+
+    yield
+
+    logger.info("Shutting down ZotMCP test server")
+
+
 @pytest.fixture(scope="session")
 def mcp_server_local() -> FastMCP[Any]:
-    # If you need buttermilk init side-effects, do them here (sync or async as needed)
-    # from buttermilk import init
-    # conf_dir = str(Path(__file__).parent.parent.parent / "conf")
-    # init(config_dir=conf_dir, config_name="zotero", job="testing")
-    return local_mcp
+    # Use the main MCP instance but replace its lifespan manager for tests
+    # This ensures all the tools/prompts from main.py are available
+    test_mcp = main.mcp
+    test_mcp._lifespan = test_lifespan_manager
+    return test_mcp
 
 
 # @pytest.fixture(scope="session")

@@ -21,12 +21,20 @@ search_tool = None
 
 @asynccontextmanager
 async def lifespan_manager(server: FastMCP):
-    """Initialize buttermilk with zotero config on startup."""
+    """Initialize buttermilk with zotero config on startup.
+
+    FastMCP entry point - uses hardcoded config with no command-line overrides
+    to avoid conflicts with FastMCP's own argument parsing.
+    For CLI usage with Hydra overrides, use cli.py instead.
+    """
     global bm, search_tool
 
     # Load zotero config - use absolute path from project root
     conf_dir = str(Path(__file__).parent.parent / "conf")
-    bm = await init_async(config_dir=conf_dir, config_name="zotero")
+
+    # No overrides for FastMCP - avoids conflicts with fastmcp's argument parsing
+    logger.info("Initializing with default configuration (no overrides)")
+    bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=[])
 
     search_tool = get_search_tool()
     await search_tool.ensure_cache_initialized()

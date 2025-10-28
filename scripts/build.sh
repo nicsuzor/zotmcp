@@ -48,9 +48,6 @@ echo ""
 
 cd "$PROJECT_DIR"
 
-echo "Updating venv..."
-uv sync --upgrade
-
 # Check if ChromaDB exists locally
 if [ ! -d "$CACHE_DIR" ]; then
     echo "❌ Error: ChromaDB not found at ${CACHE_DIR}"
