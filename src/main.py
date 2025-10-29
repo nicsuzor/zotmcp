@@ -2,44 +2,53 @@
 
 This server provides tools for semantic search, literature review, and
 citation retrieval from a ChromaDB-indexed Zotero library.
+
+Usage:
+    uv run python src/main.py +db=dev
 """
 
+import asyncio
 import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
+from buttermilk import init_async, logger
+from buttermilk.tools import ChromaDBSearchTool
 from fastmcp import FastMCP
 
-from buttermilk import logger, init_async
-from buttermilk.tools import ChromaDBSearchTool
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+
+
+import hydra  # For configuration management
+from omegaconf import DictConfig  # Hydra's configuration objects
 
 # Global buttermilk instance
 bm = None
 search_tool = None
+conf = None
 
 
 @asynccontextmanager
 async def lifespan_manager(server: FastMCP):
-    """Initialize buttermilk with zotero config on startup.
+    """Initialize buttermilk with zotero config on startup."""
+    global bm, search_tool, conf
 
-    FastMCP entry point - uses hardcoded config with no command-line overrides
-    to avoid conflicts with FastMCP's own argument parsing.
-    For CLI usage with Hydra overrides, use cli.py instead.
-    """
-    global bm, search_tool
-
-    # Load zotero config - use absolute path from project root
-    conf_dir = str(Path(__file__).parent.parent / "conf")
-
-    # No overrides for FastMCP - avoids conflicts with fastmcp's argument parsing
-    logger.info("Initializing with default configuration (no overrides)")
-    bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=[])
+    if bm is None:
+        if conf is None:
+            # Load zotero config - use absolute path from project root
+            conf_dir = str(Path(__file__).parent.parent / "conf")
+            # No overrides for FastMCP - avoids conflicts with fastmcp's argument parsing
+            logger.info("Initializing with default configuration (no overrides)")
+            bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=[])
+        else:
+            bm = await init_async(job="zotmcp_cli", config=conf)
 
     search_tool = get_search_tool()
-    await search_tool.ensure_cache_initialized()
-
-    logger.info("Buttermilk initialized")
+    # Initialize the search tool to ensure collection is ready
+    await search_tool.initialize()
 
     yield
 
@@ -56,7 +65,8 @@ def get_collection():
     Note: This is used for direct ChromaDB operations that need custom filters
     or aggregations. For basic semantic search, use get_search_tool() instead.
     """
-    return search_tool.collection
+    tool = get_search_tool()
+    return tool.collection
 
 
 def get_search_tool():
@@ -505,7 +515,12 @@ Your response should be structured as a ResearchResult with:
 """
 
 
-if __name__ == "__main__":
+@hydra.main(version_base="1.3", config_path="../conf", config_name="zotero")
+def main(cfg: DictConfig) -> None:
+    """Entry point - loads config and runs async pipeline."""
+    global conf
+    conf = cfg
+
     # Default to stdio for MCP; allow opting into HTTP via env for local debugging
     transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
     if transport == "stdio":
@@ -515,5 +530,12 @@ if __name__ == "__main__":
             transport="streamable-http",
             host=os.getenv("MCP_HTTP_HOST", "0.0.0.0"),
             port=int(os.getenv("MCP_HTTP_PORT", "8024")),
-            # stateless_http=True,
         )
+
+
+if __name__ == "__main__":
+    # This block executes if the script is run directly
+    # Hydra's `@hydra.main` decorator handles parsing command-line arguments
+    # and loading the configuration specified by `config_path` and `config_name`.
+
+    main()

@@ -106,7 +106,7 @@ class TestSearch:
                 assert "citation" in first_result
                 assert "excerpt" in first_result
                 assert "similarity" in first_result
-                assert "metadata" in first_result
+                assert "zotero_key" in first_result
 
     async def test_search_respects_n_results(self, mcp_server):
         """Verify n_results parameter is respected."""
@@ -157,7 +157,7 @@ class TestSimilarItems:
             if search_result.data["total_results"] == 0:
                 pytest.skip("No items in collection")
 
-            item_key = search_result.data["results"][0]["metadata"].get("zotero_key")
+            item_key = search_result.data["results"][0].get("zotero_key")
             if not item_key:
                 pytest.skip("No item key in search results")
 
@@ -188,7 +188,7 @@ class TestSimilarItems:
             if search_result.data["total_results"] == 0:
                 pytest.skip("No items in collection")
 
-            item_key = search_result.data["results"][0]["metadata"].get("zotero_key")
+            item_key = search_result.data["results"][0].get("zotero_key")
             if not item_key:
                 pytest.skip("No item key in search results")
 

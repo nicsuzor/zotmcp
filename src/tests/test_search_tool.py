@@ -37,7 +37,7 @@ async def test_bm_has_cfg_attribute(mcp_server):
     async with Client(mcp_server) as client:
         assert hasattr(main.bm, "cfg")
         assert hasattr(main.bm.cfg, "storage")
-        assert hasattr(main.bm.cfg.storage, "zotero_vectors")
+        assert "zotero_vectors" in main.bm.cfg.storage
 
 
 async def test_search_function_works(mcp_server):
