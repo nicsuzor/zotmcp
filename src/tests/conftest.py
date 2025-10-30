@@ -51,7 +51,6 @@ async def test_lifespan_manager(server: FastMCP):
     """Test-specific lifespan that initializes buttermilk with db=dev."""
     # Load zotero config with dev database override for tests
     conf_dir = str(Path(__file__).parent.parent.parent / "conf")
-    main.bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=["+db=dev"])
 
     main.search_tool = main.get_search_tool()
     await main.search_tool.ensure_cache_initialized()
@@ -62,14 +61,38 @@ async def test_lifespan_manager(server: FastMCP):
 
     logger.info("Shutting down ZotMCP test server")
 
+@pytest.fixture(scope="session")
+async def bm_vectorize():
+    """Get Zotero configuration."""
+    from buttermilk import init_async
+
+    conf_dir = str(Path(__file__).parent.parent.parent / "conf")
+    bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=[])
+    yield bm
+
+    await bm.graceful_shutdown()
+
+
 
 @pytest.fixture(scope="session")
-def mcp_server_local() -> FastMCP[Any]:
+async def bm_dev():
+    """Buttermilk instance with dev database for tests."""
+    from buttermilk import init_async
+
+    conf_dir = str(Path(__file__).parent.parent.parent / "conf")
+    bm = await init_async(
+        config_dir=conf_dir, config_name="zotero", overrides=["db=dev"]
+    )
+    yield bm
+    await bm.graceful_shutdown()
+
+@pytest.fixture(scope="session")
+def mcp_server_local(bm_dev) -> FastMCP[Any]:
+    main.bm = bm_dev
+    main.conf = bm_dev.cfg
     # Use the main MCP instance but replace its lifespan manager for tests
     # This ensures all the tools/prompts from main.py are available
-    test_mcp = main.mcp
-    test_mcp._lifespan = test_lifespan_manager
-    return test_mcp
+    return main.mcp
 
 
 # @pytest.fixture(scope="session")

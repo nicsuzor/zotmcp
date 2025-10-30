@@ -1,5 +1,5 @@
 # @package _global_
-# Configuration for docker image only
+# Configuration for local development
 
 storage:
   zotero_vectors:
