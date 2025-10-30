@@ -83,7 +83,10 @@ class TestVectorizationPipeline:
     @pytest.fixture(scope="class")
     async def zotero_source(self, buttermilk_instance):
         """Create a ZoteroSource instance for fetching items."""
-        library_id = buttermilk_instance.cfg.pipeline.source.library_id
+        cfg = buttermilk_instance.cfg
+        pipeline = cfg.pipeline if hasattr(cfg, "pipeline") else cfg["pipeline"]
+        source = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
+        library_id = source["library_id"] if isinstance(source, dict) else source.library_id
         save_dir = str(Path.home() / ".cache" / "buttermilk" / "zotero" / "state")
         return ZoteroSource(library_id=library_id, save_dir=save_dir)
 
@@ -147,9 +150,10 @@ class TestVectorizationPipeline:
         from buttermilk.data.vector import SemanticSplitter
 
         # Create download processor
-        download_processor = instantiate(
-            buttermilk_instance.cfg.pipeline.processors[0]
-        )
+        cfg = buttermilk_instance.cfg
+        pipeline = cfg.pipeline if hasattr(cfg, "pipeline") else cfg["pipeline"]
+        processors = pipeline["processors"] if isinstance(pipeline, dict) else pipeline.processors
+        download_processor = instantiate(processors[0])
 
         # Create semantic splitter (this is where the error occurred)
         semantic_splitter = SemanticSplitter(chunk_size=500, chunk_overlap=200)
@@ -278,7 +282,10 @@ class TestZoteroRecordTypes:
 
         conf_dir = str(Path(__file__).parent.parent.parent / "conf")
         bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=["db=upstream"])
-        library_id = bm.cfg.pipeline.source.library_id
+        cfg = bm.cfg
+        pipeline = cfg.pipeline if hasattr(cfg, "pipeline") else cfg["pipeline"]
+        source = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
+        library_id = source["library_id"] if isinstance(source, dict) else source.library_id
         save_dir = str(Path.home() / ".cache" / "buttermilk" / "zotero" / "state")
         zs = ZoteroSource(library_id=library_id, save_dir=save_dir)
         yield zs
@@ -508,51 +515,43 @@ class TestZoteroSyncDiagnostics:
 
         logger.info("="*80 + "\n")
 
+@pytest.fixture(scope="session")
+def library_info_fixture(bm_vectorize):
+    # Access config - it might be a dict or DictConfig
+    cfg = bm_vectorize.cfg
+    if hasattr(cfg, "pipeline"):
+        pipeline = cfg.pipeline
+    else:
+        pipeline = cfg["pipeline"]
+
+    if hasattr(pipeline, "source"):
+        library_id = pipeline.source.library_id
+        save_dir = Path(pipeline.source.save_dir)
+    else:
+        library_id = pipeline["source"]["library_id"]
+        save_dir = Path(pipeline["source"]["save_dir"])
+
+    yield {"library_id": library_id, "save_dir": save_dir}
+
 
 class TestZoteroSyncState:
     """Test Zotero sync state to verify cache freshness."""
 
     @pytest.fixture(scope="class")
-    async def zotero_config(self):
-        """Get Zotero configuration."""
-        from buttermilk import init_async
-
-        conf_dir = str(Path(__file__).parent.parent.parent / "conf")
-        bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=["db=upstream"])
-
-        # Access config - it might be a dict or DictConfig
-        cfg = bm.cfg
-        if hasattr(cfg, "pipeline"):
-            pipeline = cfg.pipeline
-        else:
-            pipeline = cfg["pipeline"]
-
-        if hasattr(pipeline, "source"):
-            library_id = pipeline.source.library_id
-            save_dir = Path(pipeline.source.save_dir)
-        else:
-            library_id = pipeline["source"]["library_id"]
-            save_dir = Path(pipeline["source"]["save_dir"])
-
-        yield {"library_id": library_id, "save_dir": save_dir}
-        await bm.graceful_shutdown()
-
-    @pytest.fixture(scope="class")
-    async def zotero_source(self, zotero_config):
+    async def zotero_source(self, library_info_fixture):
         """Create a ZoteroSource instance."""
         return ZoteroSource(
-            library_id=zotero_config["library_id"],
-            save_dir=str(zotero_config["save_dir"]),
+            library_id=library_info_fixture["library_id"],
         )
 
-    async def test_sync_state_freshness(self, zotero_config, zotero_source):
+    async def test_sync_state_freshness(self, library_info_fixture, zotero_source):
         """Compare local sync state cache with live Zotero API to check freshness.
 
         This test helps identify if the local sync cache is out of date.
         """
         # Get the sync state file path
-        save_dir = zotero_config["save_dir"]
-        library_id = zotero_config["library_id"]
+        save_dir = library_info_fixture["save_dir"]
+        library_id = library_info_fixture["library_id"]
         # Try both possible filenames
         sync_state_file = save_dir / ".zotero_sync_state.json"
         if not sync_state_file.exists():
@@ -680,10 +679,10 @@ class TestZoteroSyncState:
 
         logger.info("="*80 + "\n")
 
-    async def test_check_sync_state_file_location(self, zotero_config):
+    async def test_check_sync_state_file_location(self, library_info_fixture):
         """Verify the sync state file location and contents."""
-        save_dir = zotero_config["save_dir"]
-        library_id = zotero_config["library_id"]
+        save_dir = library_info_fixture["save_dir"]
+        library_id = library_info_fixture["library_id"]
 
         logger.info(f"\nLibrary ID: {library_id}")
         logger.info(f"Save directory: {save_dir}")

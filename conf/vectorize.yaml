@@ -1,13 +1,15 @@
 # @package _global_
 # Zotero Vectorization Pipeline for ZotMCP
+# Inherits shared infrastructure from config.yaml
 #
 # Usage: python -m buttermilk.pipeline.runner --config-path conf --config-name vectorize
 
 defaults:
-  - zotero
-  - db: upstream
+  - config              # Inherit base configuration
+  - db: upstream        # Use upstream GCS bucket for vectorization
   - _self_
 
+# Pipeline specific configuration
 job: vectorize_zotero
 
 session:
@@ -43,7 +45,7 @@ pipeline:
     max_records: ${pipeline.max_records}
 
   processors:
-    # 0. Download PDFs 
+    # 0. Download PDFs
     - _target_: buttermilk.libs.zotero.ZoteroDownloadProcessor
       library_id: ${oc.env:ZOTERO_LIBRARY_ID}
       save_dir: ${oc.env:HOME}/.cache/buttermilk/zotero/items
@@ -71,4 +73,3 @@ pipeline:
 
     # 5. Store in ChromaDB
     - ${vectoriser}
-
