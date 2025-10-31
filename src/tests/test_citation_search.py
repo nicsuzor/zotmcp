@@ -4,7 +4,7 @@ import pytest
 import respx
 from httpx import Response
 
-from citation_search import search_papers
+from citation_search import search_papers, get_paper_citations
 
 
 @pytest.mark.anyio
@@ -105,3 +105,66 @@ async def test_search_papers_handles_missing_abstract():
     # Should still include the paper
     assert "Paper Without Abstract" in result
     assert "Test Author" in result
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_get_paper_citations_basic():
+    """Test retrieving forward citations for a paper."""
+    mock_response = {
+        "results": [
+            {
+                "id": "https://openalex.org/W111",
+                "title": "Citing Paper 1",
+                "authorships": [{"author": {"display_name": "Alice Brown"}}],
+                "publication_year": 2024,
+                "doi": "https://doi.org/10.1111/cite1",
+                "cited_by_count": 10,
+            },
+            {
+                "id": "https://openalex.org/W222",
+                "title": "Citing Paper 2",
+                "authorships": [{"author": {"display_name": "Bob Green"}}],
+                "publication_year": 2023,
+                "doi": "https://doi.org/10.2222/cite2",
+                "cited_by_count": 5,
+            },
+        ]
+    }
+
+    respx.get("https://api.openalex.org/works").mock(
+        return_value=Response(200, json=mock_response)
+    )
+
+    result = await get_paper_citations(openalex_id="https://openalex.org/W1234567890")
+
+    # Verify result format
+    assert isinstance(result, str)
+    assert "Citing Paper 1" in result
+    assert "Citing Paper 2" in result
+    assert "Alice Brown" in result
+    assert "2024" in result
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_get_paper_citations_with_year_filter():
+    """Test filtering citations by year."""
+    mock_response = {"results": []}
+
+    route = respx.get("https://api.openalex.org/works").mock(
+        return_value=Response(200, json=mock_response)
+    )
+
+    await get_paper_citations(
+        openalex_id="https://openalex.org/W123", year_from=2020, limit=10
+    )
+
+    # Verify filter in request
+    assert route.called
+    request = route.calls.last.request
+    url_str = str(request.url)
+    assert "cites" in url_str
+    assert "W123" in url_str
+    assert "from_publication_date" in url_str
+    assert "2020-01-01" in url_str

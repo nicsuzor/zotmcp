@@ -112,3 +112,68 @@ async def search_papers(
         output += "\n---\n\n"
 
     return output
+
+
+async def get_paper_citations(
+    openalex_id: str,
+    year_from: Optional[int] = None,
+    limit: int = 20,
+) -> str:
+    """Get papers that CITE a specific paper (forward citations).
+
+    This enables citation network exploration - discovering recent work that
+    builds on a foundational paper.
+
+    Args:
+        openalex_id: OpenAlex ID of the paper (e.g., "https://openalex.org/W1234567890")
+        year_from: Only include citations from this year onwards (optional)
+        limit: Max results (1-100, default 20)
+
+    Returns:
+        Formatted string with citing papers metadata
+    """
+    # Extract work ID from full URL if needed
+    work_id = openalex_id.split("/")[-1] if "/" in openalex_id else openalex_id
+
+    # Build filter for citations
+    filters = [f"cites:{work_id}"]
+    if year_from:
+        filters.append(f"from_publication_date:{year_from}-01-01")
+
+    params = {
+        "filter": ",".join(filters),
+        "per_page": min(limit, 100),
+        "mailto": "nic@suzor.com",
+    }
+
+    # Make API request
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.openalex.org/works", params=params, timeout=30.0
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    results = data.get("results", [])
+
+    # Format for LLM
+    output = f"# Papers Citing {openalex_id}\n\n"
+    output += f"Found {len(results)} citing papers\n\n"
+
+    for i, work in enumerate(results, 1):
+        output += f"## {i}. {work.get('title', 'Unknown')}\n"
+
+        authors = [
+            a.get("author", {}).get("display_name", "Unknown")
+            for a in work.get("authorships", [])[:3]  # Limit to 3 authors
+        ]
+        output += f"**Authors:** {', '.join(authors)}\n"
+        output += f"**Year:** {work.get('publication_year')}  |  **Citations:** {work.get('cited_by_count', 0)}\n"
+
+        if doi := work.get("doi"):
+            output += f"**DOI:** {doi}\n"
+
+        output += f"**OpenAlex ID:** {work.get('id')}\n"
+        output += "\n---\n\n"
+
+    return output
