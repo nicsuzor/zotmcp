@@ -273,6 +273,26 @@ class TestErrorHandling:
             assert "error" in result.data
 
 
+class TestCitationSearchTools:
+    """Test citation search tools are available via MCP."""
+
+    async def test_search_papers_tool_available(self, mcp_server):
+        """Test search_papers tool is registered and callable."""
+        async with Client(mcp_server) as mcp_client:
+            tools = await mcp_client.list_tools()
+            tool_names = {t.name for t in tools}
+
+            assert "search_papers" in tool_names
+
+    async def test_get_paper_citations_tool_available(self, mcp_server):
+        """Test get_paper_citations tool is registered."""
+        async with Client(mcp_server) as mcp_client:
+            tools = await mcp_client.list_tools()
+            tool_names = {t.name for t in tools}
+
+            assert "get_paper_citations" in tool_names
+
+
 class TestPrompts:
     """Test MCP prompt functionality."""
 

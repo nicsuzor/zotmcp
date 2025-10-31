@@ -385,6 +385,59 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
     }
 
 
+# ===== Citation Search Tools (OpenAlex API) =====
+# These tools enable discovery of new academic literature beyond the Zotero library
+
+from citation_search import search_papers as _search_papers, get_paper_citations as _get_citations
+
+
+@mcp.tool()
+async def search_papers(
+    query: str,
+    year_from: Optional[int] = None,
+    year_to: Optional[int] = None,
+    limit: int = 20,
+    sort: str = "relevance",
+) -> str:
+    """Search for academic papers using OpenAlex API.
+
+    Discover new literature beyond your Zotero library. OpenAlex provides free
+    access to 240M+ academic works with good humanities coverage.
+
+    Args:
+        query: Search keywords
+        year_from: Earliest publication year (optional)
+        year_to: Latest publication year (optional)
+        limit: Max results (1-100, default 20)
+        sort: Sort order - "relevance", "cited_by_count", or "publication_date"
+
+    Returns:
+        Formatted string with paper metadata
+    """
+    return await _search_papers(query, year_from, year_to, limit, sort)
+
+
+@mcp.tool()
+async def get_paper_citations(
+    openalex_id: str,
+    year_from: Optional[int] = None,
+    limit: int = 20,
+) -> str:
+    """Get papers that CITE a specific paper (forward citations).
+
+    Explore citation networks to discover recent work building on foundational papers.
+
+    Args:
+        openalex_id: OpenAlex ID of the paper (e.g., "https://openalex.org/W1234567890")
+        year_from: Only include citations from this year onwards (optional)
+        limit: Max results (1-100, default 20)
+
+    Returns:
+        Formatted string with citing papers metadata
+    """
+    return await _get_citations(openalex_id, year_from, limit)
+
+
 @mcp.prompt()
 def literature_review(question: str, context: str = ""):
     """Academic literature review with systematic search and citation synthesis.
