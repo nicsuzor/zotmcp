@@ -29,13 +29,41 @@ from omegaconf import DictConfig  # Hydra's configuration objects
 bm = None
 search_tool = None
 conf = None
+_chromadb_ready = False
+_chromadb_init_task = None
+_chromadb_init_error = None
+
+
+async def _initialize_chromadb_background():
+    """Initialize ChromaDB in the background without blocking server startup.
+
+    This function runs asynchronously and sets _chromadb_ready when complete.
+    If initialization fails, the error is stored in _chromadb_init_error.
+    """
+    global _chromadb_ready, _chromadb_init_error, search_tool
+
+    try:
+        logger.info("🔄 Starting ChromaDB initialization in background")
+        search_tool = get_search_tool()
+        await search_tool.initialize()
+        _chromadb_ready = True
+        logger.info("✅ ChromaDB initialization complete - tools are now ready")
+    except Exception as e:
+        _chromadb_init_error = str(e)
+        logger.error(f"❌ ChromaDB initialization failed: {e}")
 
 
 @asynccontextmanager
 async def lifespan_manager(server: FastMCP):
-    """Initialize buttermilk with zotero config on startup."""
-    global bm, search_tool, conf
+    """Initialize buttermilk with zotero config on startup.
 
+    This starts ChromaDB initialization in the background immediately,
+    allowing the MCP server to become responsive without waiting for
+    ChromaDB to be ready.
+    """
+    global bm, search_tool, conf, _chromadb_init_task
+
+    # First, initialize buttermilk config (fast, needed by get_search_tool)
     if bm is None:
         if conf is None:
             # Load zotero config - use absolute path from project root
@@ -46,17 +74,49 @@ async def lifespan_manager(server: FastMCP):
         else:
             bm = await init_async(job="zotmcp_cli", config=conf)
 
-    search_tool = get_search_tool()
-    # Initialize the search tool to ensure collection is ready
-    await search_tool.initialize()
+    # Now start ChromaDB initialization in background - don't await it!
+    # This is the slow part (downloads from GCS, creates client, validates collection)
+    logger.info("🚀 Starting background ChromaDB initialization")
+    _chromadb_init_task = asyncio.create_task(_initialize_chromadb_background())
 
     yield
+
+    # Clean up background task on shutdown
+    if _chromadb_init_task and not _chromadb_init_task.done():
+        _chromadb_init_task.cancel()
+        try:
+            await _chromadb_init_task
+        except asyncio.CancelledError:
+            pass  # Expected when we cancel the task
 
     logger.info("Shutting down ZotMCP")
 
 
 # Initialize MCP server with lifespan manager
 mcp = FastMCP("ZotMCP - Academic Literature Search", lifespan=lifespan_manager)
+
+
+def _check_chromadb_ready() -> Optional[dict]:
+    """Check if ChromaDB is ready for use.
+
+    Returns:
+        None if ready, or a dict with error information if not ready.
+    """
+    if _chromadb_init_error:
+        return {
+            "error": f"ChromaDB initialization failed: {_chromadb_init_error}",
+            "results": [],
+            "total_results": 0,
+        }
+
+    if not _chromadb_ready:
+        return {
+            "error": "ChromaDB is still initializing. Please try again in 30 seconds.",
+            "results": [],
+            "total_results": 0,
+        }
+
+    return None  # Ready!
 
 
 def get_collection():
@@ -135,6 +195,10 @@ async def search(
     Returns:
         Dictionary with search results including titles, authors, and relevance
     """
+    # Check if ChromaDB is ready
+    if error_response := _check_chromadb_ready():
+        return error_response
+
     try:
         n_results = min(n_results, 50)
 
