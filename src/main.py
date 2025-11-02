@@ -388,7 +388,13 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
 # ===== Citation Search Tools (OpenAlex API) =====
 # These tools enable discovery of new academic literature beyond the Zotero library
 
-from citation_search import search_papers as _search_papers, get_paper_citations as _get_citations
+from citation_search import (
+    search_papers as _search_papers,
+    get_paper_citations as _get_paper_citations,
+    get_referenced_works as _get_referenced_works,
+    search_by_author as _search_by_author,
+    get_paper_details as _get_paper_details,
+)
 
 
 @mcp.tool()
@@ -396,46 +402,97 @@ async def search_papers(
     query: str,
     year_from: Optional[int] = None,
     year_to: Optional[int] = None,
-    limit: int = 20,
-    sort: str = "relevance",
-) -> str:
+    open_access_only: bool = False,
+    limit: int = 25,
+) -> list:
     """Search for academic papers using OpenAlex API.
 
     Discover new literature beyond your Zotero library. OpenAlex provides free
     access to 240M+ academic works with good humanities coverage.
 
     Args:
-        query: Search keywords
+        query: Search query (searches title, abstract, full text)
         year_from: Earliest publication year (optional)
         year_to: Latest publication year (optional)
-        limit: Max results (1-100, default 20)
-        sort: Sort order - "relevance", "cited_by_count", or "publication_date"
+        open_access_only: Only return open access papers (default: False)
+        limit: Max results (1-200, default 25)
 
     Returns:
-        Formatted string with paper metadata
+        List of paper dictionaries with metadata
     """
-    return await _search_papers(query, year_from, year_to, limit, sort)
+    return await _search_papers(query, year_from, year_to, open_access_only, limit)
 
 
 @mcp.tool()
 async def get_paper_citations(
-    openalex_id: str,
+    paper_id: str,
+    limit: int = 50,
     year_from: Optional[int] = None,
-    limit: int = 20,
-) -> str:
+) -> list:
     """Get papers that CITE a specific paper (forward citations).
 
     Explore citation networks to discover recent work building on foundational papers.
 
     Args:
-        openalex_id: OpenAlex ID of the paper (e.g., "https://openalex.org/W1234567890")
+        paper_id: OpenAlex ID (e.g., 'W2741809807') or DOI
+        limit: Maximum number of results (default: 50)
         year_from: Only include citations from this year onwards (optional)
-        limit: Max results (1-100, default 20)
 
     Returns:
-        Formatted string with citing papers metadata
+        List of citing paper dictionaries
     """
-    return await _get_citations(openalex_id, year_from, limit)
+    return await _get_paper_citations(paper_id, limit, year_from)
+
+
+@mcp.tool()
+async def get_referenced_works(paper_id: str, limit: int = 50) -> list:
+    """Get papers referenced by a given paper (backward citations).
+
+    Useful for understanding foundational work and context.
+
+    Args:
+        paper_id: OpenAlex ID or DOI
+        limit: Maximum number of results (default: 50)
+
+    Returns:
+        List of referenced paper dictionaries
+    """
+    return await _get_referenced_works(paper_id, limit)
+
+
+@mcp.tool()
+async def search_by_author(
+    author_name: str,
+    limit: int = 50,
+    year_from: Optional[int] = None,
+) -> list:
+    """Search for papers by author name.
+
+    Uses two-step lookup: finds author, then retrieves their papers.
+
+    Args:
+        author_name: Author name to search for
+        limit: Maximum number of papers to return (default: 50)
+        year_from: Filter papers from this year onwards (optional)
+
+    Returns:
+        List of paper dictionaries
+    """
+    return await _search_by_author(author_name, limit, year_from)
+
+
+@mcp.tool()
+async def get_paper_details(paper_id: str) -> dict:
+    """Get detailed information about a specific paper.
+
+    Args:
+        paper_id: OpenAlex ID or DOI
+
+    Returns:
+        Paper dictionary with full details, or None if not found
+    """
+    result = await _get_paper_details(paper_id)
+    return result if result else {"error": "Paper not found"}
 
 
 @mcp.prompt()
