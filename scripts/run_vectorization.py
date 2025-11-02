@@ -3,7 +3,7 @@
 
 Usage:
     python scripts/run_vectorization.py
-    python scripts/run_vectorization.py pipeline.max_records=10
+    python scripts/run_vectorization.py run.limit=10
 """
 import asyncio
 import sys
@@ -27,7 +27,7 @@ async def run_pipeline(cfg: DictConfig) -> None:
     logger.info(
         f"Pipeline '{pipeline.pipeline_name}' ready",
         pipeline_name=pipeline.pipeline_name,
-        max_records=pipeline.max_records,
+        limit=pipeline.limit,
         concurrency=pipeline.concurrency,
     )
 

@@ -1,0 +1,4 @@
+# CLI execution mode configuration
+# This sets defaults for running pipelines from command line
+
+limit: null  # Process all records by default (can override with run.limit=N)

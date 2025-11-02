@@ -10,7 +10,7 @@ export ZOTERO_API_KEY="your-api-key"
 export ZOTERO_LIBRARY_ID="your-library-id"
 
 # Test with 10 documents
-uv run python scripts/run_vectorization.py pipeline.max_records=10
+uv run python scripts/run_vectorization.py run.limit=10
 ```
 
 ## Full Vectorization
@@ -49,7 +49,7 @@ Finished Zotero processing. Processed: 5, Skipped (already exist): 45
 ## Configuration
 
 Edit `conf/vectorize.yaml` to customize:
-- `pipeline.max_records`: Limit number of records (or null for all)
+- `run.limit`: Limit number of records (or null for all) - override on command line with `run.limit=N`
 - `source.download_concurrency`: Parallel downloads (default: 8)
 - `vectoriser.sync_batch_size`: Batch size for ChromaDB uploads (default: 50)
 - `vectoriser.deduplication_strategy`: `record_id`, `content_hash`, or `both`
@@ -66,5 +66,5 @@ To reprocess records from a specific Zotero version:
 echo '{"last_version": 35000, "last_sync_timestamp": "2025-01-01T00:00:00+00:00"}' > ~/.cache/buttermilk/zotero/.zotero_sync_state.json
 
 # Run pipeline with limited records
-uv run python scripts/run_vectorization.py pipeline.max_records=99
+uv run python scripts/run_vectorization.py run.limit=99
 ```

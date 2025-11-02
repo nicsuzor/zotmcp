@@ -370,7 +370,12 @@ def library_info_fixture(bm_vectorize):
         library_id = pipeline["source"]["library_id"]
         save_dir = Path(pipeline["source"]["save_dir"])
 
-    yield {"library_id": library_id, "save_dir": save_dir}
+    # The sync state file is actually saved in the parent directory of save_dir
+    # save_dir is configured as ~/.cache/buttermilk/zotero/state
+    # but the sync state file is at ~/.cache/buttermilk/zotero/.zotero_sync_state.json
+    sync_state_dir = save_dir.parent
+
+    yield {"library_id": library_id, "save_dir": sync_state_dir}
 
 
 class TestZoteroSyncState:
