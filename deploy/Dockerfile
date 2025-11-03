@@ -12,25 +12,18 @@ WORKDIR /app/${PROJECT_NAME}
 # Copy Zotero ChromaDB cache from local build context
 COPY --from=cache . /chromadb
 
-# Copy dependency metadata first (for caching)
+# Copy dependency files and source code (needed by uv sync)
 COPY pyproject.toml ./
-
-# Install dependencies without the project package
-# This layer will be cached unless dependencies change
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --no-install-project
-
-# Update buttermilk (it changes frequently in development)
-# Do this before copying source so source changes don't force buttermilk reinstall
-RUN uv sync --no-cache --reinstall-package buttermilk
-
-# NOW copy source code (changing this won't invalidate dependency layers above)
 COPY src/ ./src/
 
-# Install only the local package (fast, since deps already installed)
-RUN uv pip install --no-deps -e .
+# Install dependencies (using the cache from the buttermilk image for biggest deps)
+RUN --mount=type=cache,target=/root/.cache/uv uv sync
 
 # Copy configuration
 COPY conf/ ./conf/
+
+# Update buttermilk finally (it changes frequently in development)
+RUN uv sync --no-cache --reinstall-package buttermilk
 
 # Set Python paths
 ENV PYTHONPATH="/app/${PROJECT_NAME}/src:${PYTHONPATH}"
