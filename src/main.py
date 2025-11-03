@@ -79,7 +79,9 @@ async def lifespan_manager(server: FastMCP):
     logger.info("🚀 Starting background ChromaDB initialization")
     _chromadb_init_task = asyncio.create_task(_initialize_chromadb_background())
 
+    logger.info("✅ Lifespan startup complete - yielding control to FastMCP")
     yield
+    logger.info("🛑 Lifespan shutdown initiated")
 
     # Clean up background task on shutdown
     if _chromadb_init_task and not _chromadb_init_task.done():
@@ -697,6 +699,7 @@ def main(cfg: DictConfig) -> None:
 
     # Default to stdio for MCP; allow opting into HTTP via env for local debugging
     transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+    logger.info(f"🔌 Starting FastMCP with transport: {transport}")
     if transport == "stdio":
         mcp.run()
     else:
@@ -705,6 +708,7 @@ def main(cfg: DictConfig) -> None:
             host=os.getenv("MCP_HTTP_HOST", "0.0.0.0"),
             port=int(os.getenv("MCP_HTTP_PORT", "8024")),
         )
+    logger.info("🏁 FastMCP run() completed")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import pytest
 from pathlib import Path
 import os
 import anyio
+import time
 
 pytestmark = [pytest.mark.anyio, pytest.mark.slow]
 
@@ -60,3 +61,33 @@ async def test_docker_server(
 
     assert "collection_name" in result.data
     assert result.data["total_chunks"] > 0
+
+
+async def test_handshake_completes_within_20_seconds(mcp_docker_cfg):
+    """Verify MCP server cold-start handshake completes within 20 seconds.
+
+    This test creates a fresh Docker container and measures time to complete
+    the initial MCP handshake (initialize + list_tools). The server should
+    respond quickly even while ChromaDB initializes in the background.
+
+    Requirement: Server must be responsive within 20s for MCP clients with
+    30s default timeouts.
+    """
+    from fastmcp import Client
+
+    start_time = time.perf_counter()
+
+    # Create a fresh client connection (cold start)
+    async with Client(mcp_docker_cfg) as client:
+        # The Client context manager handles initialize() automatically
+        # Now make a simple call to verify responsiveness
+        await client.list_tools()
+
+        elapsed = time.perf_counter() - start_time
+
+        # Assert handshake completed within 20 seconds
+        assert elapsed < 20.0, (
+            f"Cold-start handshake took {elapsed:.2f}s, expected < 20s. "
+            f"This will cause timeouts with MCP clients (typically 30s default). "
+            f"Server must be responsive before ChromaDB finishes initializing."
+        )
