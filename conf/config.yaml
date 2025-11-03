@@ -3,7 +3,6 @@
 # Each mode (zotero.yaml, vectorize.yaml) explicitly selects its own db group
 
 defaults:
-  - run: cli
   - _self_
 
 project_name: zotmcp
