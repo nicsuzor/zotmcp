@@ -388,6 +388,7 @@ class TestZoteroSyncState:
             library_id=library_info_fixture["library_id"],
         )
 
+    @pytest.mark.slow
     async def test_sync_state_freshness(self, library_info_fixture, zotero_source):
         """Compare local sync state cache with live Zotero API to check freshness.
 
