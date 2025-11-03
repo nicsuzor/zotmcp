@@ -4,6 +4,7 @@ import inspect
 from pathlib import Path
 from typing import Any
 import pytest
+from pytest_lazy_fixtures import lf
 
 from contextlib import asynccontextmanager
 from fastmcp import FastMCP
@@ -131,23 +132,18 @@ async def mcp_client_local_function(mcp_server_local):
 #     return FastMCP.as_proxy(mcp_docker_cfg, name="zotmcp")
 
 
-@pytest.fixture(
-    scope="function",
-    params=[
-        pytest.param("local", id="local-server"),
-        pytest.param("docker", marks=pytest.mark.slow, id="docker-e2e"),
-    ],
-)
-async def mcp_server(request, mcp_client_local_function, mcp_client_docker_session):
-    """Parametrized fixture that returns a connected Client for both local and Docker servers.
+@pytest.fixture
+async def mcp_server(request):
+    """Indirect fixture that receives the actual client from parametrize.
 
-    - local: runs with in-process server (fast, function-scoped)
-    - docker: runs with Docker container (slow, session-scoped for reuse)
+    This fixture is used with indirect=True in @pytest.mark.parametrize at the test level.
+    The parametrization is done at the test class/function level, not here, which ensures
+    that only the requested fixture variant (local or docker) gets initialized.
 
-    Both modes return a connected Client instance, so tests can call methods directly
-    without wrapping in `async with Client(...)`.
+    Tests should use:
+        @pytest.mark.parametrize("mcp_server", [
+            pytest.param(lf("mcp_client_local_function"), id="local-server"),
+            pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
+        ], indirect=True)
     """
-    if request.param == "local":
-        return mcp_client_local_function
-    else:
-        return mcp_client_docker_session
+    return request.param

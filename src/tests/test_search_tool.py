@@ -1,12 +1,17 @@
 """Test get_search_tool initialization and search functionality."""
 
 import pytest
+from pytest_lazy_fixtures import lf
 from pathlib import Path
 from fastmcp import Client
 from buttermilk import init_async
 import main
 
 
+@pytest.mark.parametrize("mcp_server", [
+    pytest.param(lf("mcp_client_local_function"), id="local-server"),
+    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
+], indirect=True)
 async def test_get_search_tool_returns_instance(mcp_server):
     """Test that get_search_tool returns a ChromaDBSearchTool instance."""
     search_tool = main.get_search_tool()
@@ -16,6 +21,10 @@ async def test_get_search_tool_returns_instance(mcp_server):
     assert search_tool.embedding_model is not None
 
 
+@pytest.mark.parametrize("mcp_server", [
+    pytest.param(lf("mcp_client_local_function"), id="local-server"),
+    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
+], indirect=True)
 async def test_get_search_tool_caches_instance(mcp_server):
     """Test that get_search_tool returns the same instance on subsequent calls."""
     tool1 = main.get_search_tool()
@@ -25,6 +34,10 @@ async def test_get_search_tool_caches_instance(mcp_server):
     assert tool1 is tool2
 
 
+@pytest.mark.parametrize("mcp_server", [
+    pytest.param(lf("mcp_client_local_function"), id="local-server"),
+    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
+], indirect=True)
 async def test_bm_has_cfg_attribute(mcp_server):
     """Test that bm has the cfg attribute after initialization.
 
@@ -36,6 +49,10 @@ async def test_bm_has_cfg_attribute(mcp_server):
     assert "zotero_vectors" in main.bm.cfg.storage
 
 
+@pytest.mark.parametrize("mcp_server", [
+    pytest.param(lf("mcp_client_local_function"), id="local-server"),
+    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
+], indirect=True)
 async def test_search_function_works(mcp_server):
     """Test that the search function actually works end-to-end.
 
@@ -63,6 +80,10 @@ async def test_search_function_works(mcp_server):
     assert isinstance(result.data["results"], list)
 
 
+@pytest.mark.parametrize("mcp_server", [
+    pytest.param(lf("mcp_client_local_function"), id="local-server"),
+    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
+], indirect=True)
 async def test_get_collection_works(mcp_server):
     """Test that get_collection returns a valid ChromaDB collection.
 
