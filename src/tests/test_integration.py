@@ -19,30 +19,38 @@ pytestmark = pytest.mark.anyio
 class TestServerStartup:
     """Test that the server starts and initializes correctly."""
 
+    async def test_server_responds_immediately(self, mcp_server):
+        """Verify server responds quickly without waiting for ChromaDB.
+
+        This test uses get_version_info which doesn't require ChromaDB to be initialized,
+        providing fast feedback that the server is responsive.
+        """
+        result = await mcp_server.call_tool("get_version_info")
+        assert "buttermilk" in result.data
+        assert result.data["buttermilk"] != "not installed"
+
     async def test_server_connects(self, mcp_server):
         """Verify the server accepts connections."""
-        # If we get here, the client fixture connected successfully
-        async with Client(mcp_server) as mcp_client:
-            assert mcp_client is not None
-            assert await mcp_client.ping()
+        # mcp_server is already a connected Client
+        assert mcp_server is not None
+        assert await mcp_server.ping()
 
     async def test_server_lists_tools(self, mcp_server):
         """Verify the server exposes all expected tools."""
-        async with Client(mcp_server) as mcp_client:
-            tools = await mcp_client.list_tools()
-            tool_names = {tool.name for tool in tools}
+        tools = await mcp_server.list_tools()
+        tool_names = {tool.name for tool in tools}
 
-            expected_tools = {
-                "search",
-                "get_item",
-                "get_similar_items",
-                "get_collection_info",
-                "search_by_author",
-            }
+        expected_tools = {
+            "search",
+            "get_item",
+            "get_similar_items",
+            "get_collection_info",
+            "search_by_author",
+        }
 
-            assert expected_tools.issubset(tool_names), (
-                f"Missing tools: {expected_tools - tool_names}"
-            )
+        assert expected_tools.issubset(tool_names), (
+            f"Missing tools: {expected_tools - tool_names}"
+        )
 
 
 class TestCollectionInfo:
@@ -50,23 +58,21 @@ class TestCollectionInfo:
 
     async def test_get_collection_info(self, mcp_server):
         """Verify collection info returns valid metadata."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.call_tool("get_collection_info")
+        result = await mcp_server.call_tool("get_collection_info")
 
-            # Should return collection metadata
-            assert "collection_name" in result.data
-            assert "total_chunks" in result.data
-            assert isinstance(result.data["total_chunks"], int)
-            assert result.data["total_chunks"] > 0
+        # Should return collection metadata
+        assert "collection_name" in result.data
+        assert "total_chunks" in result.data
+        assert isinstance(result.data["total_chunks"], int)
+        assert result.data["total_chunks"] > 0
 
     async def test_collection_has_embedding_config(self, mcp_server):
         """Verify collection reports embedding configuration."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.call_tool("get_collection_info")
+        result = await mcp_server.call_tool("get_collection_info")
 
-            assert "embedding_model" in result.data
-            assert "dimensions" in result.data
-            assert isinstance(result.data["dimensions"], int)
+        assert "embedding_model" in result.data
+        assert "dimensions" in result.data
+        assert isinstance(result.data["dimensions"], int)
 
 
 class TestSearch:
@@ -74,69 +80,65 @@ class TestSearch:
 
     async def test_search_returns_results(self, mcp_server):
         """Verify search returns relevant results."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.call_tool(
-                "search",
-                {
-                    "query": "content moderation",
-                    "n_results": 5,
-                },
-            )
+        result = await mcp_server.call_tool(
+            "search",
+            {
+                "query": "content moderation",
+                "n_results": 5,
+            },
+        )
 
-            assert "results" in result.data
-            assert "total_results" in result.data
-            assert isinstance(result.data["results"], list)
-            assert result.data["total_results"] >= 0
+        assert "results" in result.data
+        assert "total_results" in result.data
+        assert isinstance(result.data["results"], list)
+        assert result.data["total_results"] >= 0
 
     async def test_search_result_structure(self, mcp_server):
         """Verify search results have expected structure."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.call_tool(
-                "search",
-                {
-                    "query": "platform governance",
-                    "n_results": 3,
-                },
-            )
+        result = await mcp_server.call_tool(
+            "search",
+            {
+                "query": "platform governance",
+                "n_results": 3,
+            },
+        )
 
-            if result.data["total_results"] > 0:
-                first_result = result.data["results"][0]
+        if result.data["total_results"] > 0:
+            first_result = result.data["results"][0]
 
-                # Check required fields
-                assert "citation" in first_result
-                assert "excerpt" in first_result
-                assert "similarity" in first_result
-                assert "zotero_key" in first_result
+            # Check required fields
+            assert "citation" in first_result
+            assert "excerpt" in first_result
+            assert "similarity" in first_result
+            assert "zotero_key" in first_result
 
     async def test_search_respects_n_results(self, mcp_server):
         """Verify n_results parameter is respected."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.call_tool(
-                "search",
-                {
-                    "query": "social media",
-                    "n_results": 2,
-                },
-            )
+        result = await mcp_server.call_tool(
+            "search",
+            {
+                "query": "social media",
+                "n_results": 2,
+            },
+        )
 
-            # Should return at most n_results
-            assert result.data["total_results"] <= 2
+        # Should return at most n_results
+        assert result.data["total_results"] <= 2
 
     async def test_search_with_filter(self, mcp_server):
         """Verify search handles type filtering."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.call_tool(
-                "search",
-                {
-                    "query": "misinformation",
-                    "n_results": 5,
-                    "filter_type": "journalArticle",
-                },
-            )
+        result = await mcp_server.call_tool(
+            "search",
+            {
+                "query": "misinformation",
+                "n_results": 5,
+                "filter_type": "journalArticle",
+            },
+        )
 
-            # Should return results (may be fewer than requested if filter is restrictive)
-            assert "results" in result.data
-            assert "total_results" in result.data
+        # Should return results (may be fewer than requested if filter is restrictive)
+        assert "results" in result.data
+        assert "total_results" in result.data
 
 
 class TestSimilarItems:
@@ -144,67 +146,65 @@ class TestSimilarItems:
 
     async def test_get_similar_items(self, mcp_server):
         """Verify similar item search works."""
-        async with Client(mcp_server) as mcp_client:
-            # First, get an item key from search
-            search_result = await mcp_client.call_tool(
-                "search",
-                {
-                    "query": "content moderation",
-                    "n_results": 1,
-                },
-            )
+        # First, get an item key from search
+        search_result = await mcp_server.call_tool(
+            "search",
+            {
+                "query": "content moderation",
+                "n_results": 1,
+            },
+        )
 
-            if search_result.data["total_results"] == 0:
-                pytest.skip("No items in collection")
+        if search_result.data["total_results"] == 0:
+            pytest.skip("No items in collection")
 
-            item_key = search_result.data["results"][0].get("zotero_key")
-            if not item_key:
-                pytest.skip("No item key in search results")
+        item_key = search_result.data["results"][0].get("zotero_key")
+        if not item_key:
+            pytest.skip("No item key in search results")
 
-            # Find similar items
-            result = await mcp_client.call_tool(
-                "get_similar_items",
-                {
-                    "item_key": item_key,
-                    "n_results": 3,
-                },
-            )
+        # Find similar items
+        result = await mcp_server.call_tool(
+            "get_similar_items",
+            {
+                "item_key": item_key,
+                "n_results": 3,
+            },
+        )
 
-            if "error" not in result.data:
-                assert "similar_items" in result.data
-                assert isinstance(result.data["similar_items"], list)
+        if "error" not in result.data:
+            assert "similar_items" in result.data
+            assert isinstance(result.data["similar_items"], list)
 
     async def test_similar_items_excludes_reference(self, mcp_server):
         """Verify similar items don't include the reference item itself."""
-        async with Client(mcp_server) as mcp_client:
-            search_result = await mcp_client.call_tool(
-                "search",
-                {
-                    "query": "platform",
-                    "n_results": 1,
-                },
-            )
+        search_result = await mcp_server.call_tool(
+            "search",
+            {
+                "query": "platform",
+                "n_results": 1,
+            },
+        )
 
-            if search_result.data["total_results"] == 0:
-                pytest.skip("No items in collection")
+        if search_result.data["total_results"] == 0:
+            pytest.skip("No items in collection")
 
-            item_key = search_result.data["results"][0].get("zotero_key")
-            if not item_key:
-                pytest.skip("No item key in search results")
+        item_key = search_result.data["results"][0].get("zotero_key")
+        if not item_key:
+            pytest.skip("No item key in search results")
 
-            result = await mcp_client.call_tool(
-                "get_similar_items",
-                {
-                    "item_key": item_key,
-                    "n_results": 5,
-                },
-            )
+        result = await mcp_server.call_tool(
+            "get_similar_items",
+            {
+                "item_key": item_key,
+                "n_results": 5,
+            },
+        )
 
-            if "error" not in result.data:
-                similar_keys = [
-                    item["item_key"] for item in result.data["similar_items"]
-                ]
-                assert item_key not in similar_keys
+        if "error" not in result.data:
+            similar_keys = [
+                item["item_key"] for item in result.data["similar_items"]
+            ]
+            assert item_key not in similar_keys
 
 
 class TestAuthorSearch:
@@ -212,20 +212,19 @@ class TestAuthorSearch:
 
     async def test_search_by_author(self, mcp_server):
         """Verify author search works."""
-        async with Client(mcp_server) as mcp_client:
-            # Search for a common author name
-            result = await mcp_client.call_tool(
-                "search_by_author",
-                {
-                    "author_name": "Smith",
-                    "n_results": 5,
-                },
-            )
+        # Search for a common author name
+        result = await mcp_server.call_tool(
+            "search_by_author",
+            {
+                "author_name": "Smith",
+                "n_results": 5,
+            },
+        )
 
-            assert "author" in result.data
-            assert "total_results" in result.data
-            assert "items" in result.data
-            assert isinstance(result.data["items"], list)
+        assert "author" in result.data
+        assert "total_results" in result.data
+        assert "items" in result.data
+        assert isinstance(result.data["items"], list)
 
 
 class TestErrorHandling:
@@ -233,44 +232,41 @@ class TestErrorHandling:
 
     async def test_search_with_invalid_params(self, mcp_server):
         """Verify search handles invalid parameters gracefully."""
-        async with Client(mcp_server) as mcp_client:
-            # n_results should be clamped to max (50)
-            result = await mcp_client.call_tool(
-                "search",
-                {
-                    "query": "test",
-                    "n_results": 1000,  # Should be clamped to max (50)
-                },
-            )
+        # n_results should be clamped to max (50)
+        result = await mcp_server.call_tool(
+            "search",
+            {
+                "query": "test",
+                "n_results": 1000,  # Should be clamped to max (50)
+            },
+        )
 
-            # Should not error, but clamp to reasonable value
-            assert result.data["total_results"] <= 50
+        # Should not error, but clamp to reasonable value
+        assert result.data["total_results"] <= 50
 
     async def test_empty_query_search(self, mcp_server):
         """Verify search handles empty query string."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.call_tool(
-                "search",
-                {
-                    "query": "",
-                    "n_results": 5,
-                },
-            )
+        result = await mcp_server.call_tool(
+            "search",
+            {
+                "query": "",
+                "n_results": 5,
+            },
+        )
 
-            # Should return something or handle gracefully
-            assert "results" in result.data
-            assert "total_results" in result.data
+        # Should return something or handle gracefully
+        assert "results" in result.data
+        assert "total_results" in result.data
 
     async def test_invalid_item_key(self, mcp_server):
         """Verify appropriate error for invalid item key."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.call_tool(
-                "get_similar_items",
-                {"item_key": "nonexistent_key_12345"},
-            )
+        result = await mcp_server.call_tool(
+            "get_similar_items",
+            {"item_key": "nonexistent_key_12345"},
+        )
 
-            # Should return error
-            assert "error" in result.data
+        # Should return error
+        assert "error" in result.data
 
 
 class TestCitationSearchTools:
@@ -278,19 +274,17 @@ class TestCitationSearchTools:
 
     async def test_search_papers_tool_available(self, mcp_server):
         """Test search_papers tool is registered and callable."""
-        async with Client(mcp_server) as mcp_client:
-            tools = await mcp_client.list_tools()
-            tool_names = {t.name for t in tools}
+        tools = await mcp_server.list_tools()
+        tool_names = {t.name for t in tools}
 
-            assert "search_papers" in tool_names
+        assert "search_papers" in tool_names
 
     async def test_get_paper_citations_tool_available(self, mcp_server):
         """Test get_paper_citations tool is registered."""
-        async with Client(mcp_server) as mcp_client:
-            tools = await mcp_client.list_tools()
-            tool_names = {t.name for t in tools}
+        tools = await mcp_server.list_tools()
+        tool_names = {t.name for t in tools}
 
-            assert "get_paper_citations" in tool_names
+        assert "get_paper_citations" in tool_names
 
 
 class TestPrompts:
@@ -298,71 +292,67 @@ class TestPrompts:
 
     async def test_server_lists_prompts(self, mcp_server):
         """Verify the server exposes expected prompts."""
-        async with Client(mcp_server) as mcp_client:
-            prompts = await mcp_client.list_prompts()
-            prompt_names = {prompt.name for prompt in prompts}
+        prompts = await mcp_server.list_prompts()
+        prompt_names = {prompt.name for prompt in prompts}
 
-            expected_prompts = {
-                "literature_review",
-            }
+        expected_prompts = {
+            "literature_review",
+        }
 
-            assert expected_prompts.issubset(prompt_names), (
-                f"Missing prompts: {expected_prompts - prompt_names}"
-            )
+        assert expected_prompts.issubset(prompt_names), (
+            f"Missing prompts: {expected_prompts - prompt_names}"
+        )
 
     async def test_literature_review_prompt(self, mcp_server):
         """Verify literature_review prompt returns valid content."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.get_prompt(
-                "literature_review",
-                arguments={"question": "What are the effects of content moderation on user behavior?"},
-            )
+        result = await mcp_server.get_prompt(
+            "literature_review",
+            arguments={"question": "What are the effects of content moderation on user behavior?"},
+        )
 
-            # Should return a PromptResult with messages
-            assert result is not None
-            assert hasattr(result, "messages")
-            assert len(result.messages) > 0
+        # Should return a PromptResult with messages
+        assert result is not None
+        assert hasattr(result, "messages")
+        assert len(result.messages) > 0
 
-            # Check content has expected structure
-            content = result.messages[0].content.text
-            assert "Phase 1" in content
-            assert "Phase 2" in content
-            assert "Phase 3" in content
-            assert "Phase 4" in content
-            assert "search" in content.lower()
-            assert "citation" in content.lower()
+        # Check content has expected structure
+        content = result.messages[0].content.text
+        assert "Phase 1" in content
+        assert "Phase 2" in content
+        assert "Phase 3" in content
+        assert "Phase 4" in content
+        assert "search" in content.lower()
+        assert "citation" in content.lower()
 
     async def test_literature_review_with_context(self, mcp_server):
         """Verify literature_review prompt works with context parameter."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.get_prompt(
-                "literature_review",
-                arguments={
-                    "question": "How do transparency reports affect platform accountability?",
-                    "context": "Focus on empirical studies from the last 5 years",
-                },
-            )
+        result = await mcp_server.get_prompt(
+            "literature_review",
+            arguments={
+                "question": "How do transparency reports affect platform accountability?",
+                "context": "Focus on empirical studies from the last 5 years",
+            },
+        )
 
-            assert result is not None
-            assert hasattr(result, "messages")
-            assert len(result.messages) > 0
+        assert result is not None
+        assert hasattr(result, "messages")
+        assert len(result.messages) > 0
 
-            # Check content includes both question and context
-            content = result.messages[0].content.text
-            assert "How do transparency reports affect platform accountability?" in content
-            assert "Focus on empirical studies from the last 5 years" in content
-            assert "Multi-Angle Search" in content
-            assert "Source Evaluation" in content
+        # Check content includes both question and context
+        content = result.messages[0].content.text
+        assert "How do transparency reports affect platform accountability?" in content
+        assert "Focus on empirical studies from the last 5 years" in content
+        assert "Multi-Angle Search" in content
+        assert "Source Evaluation" in content
 
     async def test_literature_review_without_context(self, mcp_server):
         """Verify literature_review works with just question parameter."""
-        async with Client(mcp_server) as mcp_client:
-            result = await mcp_client.get_prompt(
-                "literature_review",
-                arguments={"question": "What is platform governance?"},
-            )
+        result = await mcp_server.get_prompt(
+            "literature_review",
+            arguments={"question": "What is platform governance?"},
+        )
 
-            assert result is not None
-            content = result.messages[0].content.text
-            assert "What is platform governance?" in content
-            assert "Academic Literature Review" in content
+        assert result is not None
+        content = result.messages[0].content.text
+        assert "What is platform governance?" in content
+        assert "Academic Literature Review" in content

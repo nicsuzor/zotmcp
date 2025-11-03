@@ -46,6 +46,24 @@ def mcp_docker_cfg():
     }
 
 
+@pytest.fixture(scope="session")
+async def mcp_client_docker_session(mcp_docker_cfg):
+    """Session-scoped Docker client - container stays running for all docker tests.
+
+    This ensures the Docker container is started ONCE per test session and reused
+    across all tests, avoiding the 60+ second ChromaDB initialization for each test.
+    """
+    from fastmcp import Client
+
+    async with Client(mcp_docker_cfg) as client:
+        # Wait for basic server responsiveness (not ChromaDB)
+        # This ensures the server is ready before tests start
+        await client.list_tools()
+        logger.info("Docker container started and ready for tests")
+        yield client
+        logger.info("Docker container stopping at session end")
+
+
 @asynccontextmanager
 async def test_lifespan_manager(server: FastMCP):
     """Test-specific lifespan that initializes buttermilk with db=dev."""
@@ -95,6 +113,18 @@ def mcp_server_local(bm_dev) -> FastMCP[Any]:
     return main.mcp
 
 
+@pytest.fixture(scope="function")
+async def mcp_client_local_function(mcp_server_local):
+    """Function-scoped client for local server tests.
+
+    Each test gets a fresh connection to the in-process server.
+    """
+    from fastmcp import Client
+
+    async with Client(mcp_server_local) as client:
+        yield client
+
+
 # @pytest.fixture(scope="session")
 # def mcp_server_docker(mcp_docker_cfg):
 #     # Name must match the key in mcpServers
@@ -102,19 +132,22 @@ def mcp_server_local(bm_dev) -> FastMCP[Any]:
 
 
 @pytest.fixture(
-    scope="session",
+    scope="function",
     params=[
         pytest.param("local", id="local-server"),
         pytest.param("docker", marks=pytest.mark.slow, id="docker-e2e"),
     ],
 )
-def mcp_server(request, mcp_server_local, mcp_docker_cfg):
-    """Parametrized fixture that runs tests against both local and Docker servers.
+async def mcp_server(request, mcp_client_local_function, mcp_client_docker_session):
+    """Parametrized fixture that returns a connected Client for both local and Docker servers.
 
-    - local: runs with in-process server (fast)
-    - docker: runs with Docker container (slow, only when -m slow is used)
+    - local: runs with in-process server (fast, function-scoped)
+    - docker: runs with Docker container (slow, session-scoped for reuse)
+
+    Both modes return a connected Client instance, so tests can call methods directly
+    without wrapping in `async with Client(...)`.
     """
     if request.param == "local":
-        return mcp_server_local
+        return mcp_client_local_function
     else:
-        return mcp_docker_cfg
+        return mcp_client_docker_session
