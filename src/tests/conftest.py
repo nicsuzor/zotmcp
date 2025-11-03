@@ -28,12 +28,49 @@ def anyio_backend():
 
 @pytest.fixture(scope="session")
 def mcp_docker_cfg():
-    """MCP configuration for connecting to the Docker container."""
+    """MCP configuration for connecting to the Docker container.
+
+    Auto-detects whether to use 'docker' or 'podman' based on what's available.
+    """
+    import subprocess
+
+    # Auto-detect container runtime by trying common locations
+    container_cmd = None
+    candidates = [
+        "docker",  # Try PATH first
+        "/usr/bin/docker",
+        "/usr/local/bin/docker",
+        "podman",
+        "/usr/bin/podman",
+        "/usr/local/bin/podman",
+    ]
+
+    for cmd in candidates:
+        try:
+            # Try to run --version to check if command exists and works
+            result = subprocess.run(
+                [cmd, "--version"],
+                capture_output=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                container_cmd = cmd
+                break
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+
+    if not container_cmd:
+        raise RuntimeError(
+            "Neither 'docker' nor 'podman' command found or working. "
+            "Tried: docker, /usr/bin/docker, /usr/local/bin/docker, "
+            "podman, /usr/bin/podman, /usr/local/bin/podman"
+        )
+
     gcloud_config = str(Path.home() / ".config" / "gcloud")
     return {
         "mcpServers": {
             "zotmcp": {
-                "command": "docker",
+                "command": container_cmd,
                 "args": [
                     "run",
                     "-i",
