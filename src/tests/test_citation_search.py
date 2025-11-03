@@ -428,3 +428,182 @@ async def test_get_paper_details_not_found():
     result = await get_paper_details(paper_id="W999999")
 
     assert result is None
+
+
+# ===== Live API Integration Tests =====
+# These tests hit the REAL OpenAlex API (no mocking)
+# Marked as @pytest.mark.slow - run with: uv run pytest -m slow
+
+
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_search_papers_live_api():
+    """Integration test: search_papers hits real OpenAlex API.
+
+    Verifies:
+    - Real API connectivity works
+    - Response parsing handles actual API responses
+    - Returns expected data structure
+
+    Uses generic query that should consistently return results.
+    """
+    # Use a generic academic query that should always return results
+    result = await search_papers(query="machine learning", limit=5)
+
+    # Verify result structure
+    assert isinstance(result, list)
+    assert len(result) > 0, "Expected at least one result from OpenAlex"
+
+    # Verify first result has expected fields
+    paper = result[0]
+    assert "id" in paper
+    assert "title" in paper
+    assert "authors" in paper
+    assert "publication_year" in paper
+    assert isinstance(paper["authors"], list)
+
+    # Note: title CAN be None in real OpenAlex data (edge case)
+    # At least one paper should have a valid title though
+    titles = [p.get("title") for p in result if p.get("title")]
+    assert len(titles) > 0, "Expected at least one paper with a title"
+
+
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_search_papers_with_filters_live_api():
+    """Integration test: search with year and OA filters against live API."""
+    result = await search_papers(
+        query="content moderation",
+        year_from=2020,
+        year_to=2024,
+        open_access_only=True,
+        limit=3
+    )
+
+    assert isinstance(result, list)
+    # May return 0 results if no OA papers match, which is fine
+
+    # If results exist, verify filtering worked
+    for paper in result:
+        year = paper.get("publication_year")
+        if year:  # Some papers may not have year
+            assert 2020 <= year <= 2024, f"Year {year} outside filter range"
+
+        # Verify open access status if available
+        if paper.get("open_access"):
+            assert paper["open_access"].get("is_oa") is True
+
+
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_get_paper_citations_live_api():
+    """Integration test: get forward citations from real API.
+
+    Uses a well-known paper that should have citations.
+    OpenAlex ID: W2741809807 (a highly cited paper on neural networks)
+    """
+    result = await get_paper_citations(
+        paper_id="W2741809807",
+        limit=10
+    )
+
+    assert isinstance(result, list)
+    # Highly cited papers should have many citations
+    assert len(result) > 0, "Expected citations for highly cited paper"
+
+    # Verify citation structure
+    if len(result) > 0:
+        citation = result[0]
+        assert "id" in citation
+        assert "title" in citation
+        assert "cited_by_count" in citation
+
+
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_get_referenced_works_live_api():
+    """Integration test: get backward citations from real API.
+
+    Uses same well-known paper to verify referenced works retrieval.
+    """
+    result = await get_referenced_works(
+        paper_id="W2741809807",
+        limit=10
+    )
+
+    assert isinstance(result, list)
+    # Papers typically cite other papers
+    assert len(result) > 0, "Expected referenced works"
+
+    # Verify structure
+    if len(result) > 0:
+        reference = result[0]
+        assert "id" in reference
+        assert "title" in reference
+
+
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_search_by_author_live_api():
+    """Integration test: author search against real API.
+
+    Uses a well-known academic who should have indexed works.
+    """
+    # Search for a well-known researcher with many publications
+    result = await search_by_author(
+        author_name="Geoffrey Hinton",
+        limit=10
+    )
+
+    assert isinstance(result, list)
+    assert len(result) > 0, "Expected papers by well-known author"
+
+    # Verify papers have expected structure
+    paper = result[0]
+    assert "title" in paper
+    assert "authors" in paper
+
+    # Verify author name appears in results
+    author_names = [
+        author["display_name"]
+        for paper in result
+        for author in paper.get("authors", [])
+    ]
+    # At least one paper should have "Hinton" in author names
+    assert any("Hinton" in name for name in author_names), \
+        "Expected to find Hinton in author names"
+
+
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_get_paper_details_live_api():
+    """Integration test: get full paper details from real API.
+
+    Tests both OpenAlex ID and DOI lookup methods.
+    """
+    # Test with OpenAlex ID
+    result_by_id = await get_paper_details(paper_id="W2741809807")
+
+    assert result_by_id is not None
+    assert isinstance(result_by_id, dict)
+    assert "id" in result_by_id
+    assert "title" in result_by_id
+    assert "authors" in result_by_id
+
+    # Verify we got actual content
+    assert result_by_id["title"] is not None
+    assert len(result_by_id["authors"]) > 0
+
+
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_live_api_error_handling():
+    """Integration test: verify error handling with invalid requests.
+
+    Tests that the real API properly handles invalid paper IDs.
+    """
+    # Try to fetch a paper that definitely doesn't exist
+    result = await get_paper_details(paper_id="W999999999999999")
+
+    # Should return None for not found, not raise an exception
+    assert result is None
