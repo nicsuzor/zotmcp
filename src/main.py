@@ -8,11 +8,22 @@ Usage:
 """
 
 import asyncio
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+
+# CRITICAL: Set up temporary stderr logging BEFORE any other imports
+# This prevents stdout pollution during module import phase
+# Buttermilk will replace this handler during init_async()
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    stream=sys.stderr,
+    force=True
+)
 
 from buttermilk import init_async, logger
 from buttermilk.tools import ChromaDBSearchTool
