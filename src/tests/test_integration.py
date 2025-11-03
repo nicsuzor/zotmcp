@@ -9,7 +9,6 @@ These tests verify that the packaged Docker image:
 """
 
 import pytest
-from pytest_lazy_fixtures import lf
 from fastmcp import Client
 import json
 
@@ -17,10 +16,6 @@ import json
 pytestmark = pytest.mark.anyio
 
 
-@pytest.mark.parametrize("mcp_server", [
-    pytest.param(lf("mcp_client_local_function"), id="local-server"),
-    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
-], indirect=True)
 class TestServerStartup:
     """Test that the server starts and initializes correctly."""
 
@@ -30,20 +25,22 @@ class TestServerStartup:
         This test uses get_version_info which doesn't require ChromaDB to be initialized,
         providing fast feedback that the server is responsive.
         """
-        result = await mcp_server.call_tool("get_version_info")
-        assert "buttermilk" in result.data
-        assert result.data["buttermilk"] != "not installed"
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_version_info")
+            assert "buttermilk" in result.data
+            assert result.data["buttermilk"] != "not installed"
 
     async def test_server_connects(self, mcp_server):
         """Verify the server accepts connections."""
-        # mcp_server is already a connected Client
-        assert mcp_server is not None
-        assert await mcp_server.ping()
+        async with Client(mcp_server) as client:
+            assert client is not None
+            assert await client.ping()
 
     async def test_server_lists_tools(self, mcp_server):
         """Verify the server exposes all expected tools."""
-        tools = await mcp_server.list_tools()
-        tool_names = {tool.name for tool in tools}
+        async with Client(mcp_server) as client:
+            tools = await client.list_tools()
+            tool_names = {tool.name for tool in tools}
 
         expected_tools = {
             "search",
@@ -58,10 +55,6 @@ class TestServerStartup:
         )
 
 
-@pytest.mark.parametrize("mcp_server", [
-    pytest.param(lf("mcp_client_local_function"), id="local-server"),
-    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
-], indirect=True)
 class TestCollectionInfo:
     """Test collection metadata retrieval."""
 
@@ -84,10 +77,6 @@ class TestCollectionInfo:
         assert isinstance(result.data["dimensions"], int)
 
 
-@pytest.mark.parametrize("mcp_server", [
-    pytest.param(lf("mcp_client_local_function"), id="local-server"),
-    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
-], indirect=True)
 class TestSearch:
     """Test the search functionality."""
 
@@ -154,10 +143,6 @@ class TestSearch:
         assert "total_results" in result.data
 
 
-@pytest.mark.parametrize("mcp_server", [
-    pytest.param(lf("mcp_client_local_function"), id="local-server"),
-    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
-], indirect=True)
 class TestSimilarItems:
     """Test similar item discovery."""
 
@@ -224,10 +209,6 @@ class TestSimilarItems:
             assert item_key not in similar_keys
 
 
-@pytest.mark.parametrize("mcp_server", [
-    pytest.param(lf("mcp_client_local_function"), id="local-server"),
-    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
-], indirect=True)
 class TestAuthorSearch:
     """Test author search functionality."""
 
@@ -248,10 +229,6 @@ class TestAuthorSearch:
         assert isinstance(result.data["items"], list)
 
 
-@pytest.mark.parametrize("mcp_server", [
-    pytest.param(lf("mcp_client_local_function"), id="local-server"),
-    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
-], indirect=True)
 class TestErrorHandling:
     """Test error handling and edge cases."""
 
@@ -294,10 +271,6 @@ class TestErrorHandling:
         assert "error" in result.data
 
 
-@pytest.mark.parametrize("mcp_server", [
-    pytest.param(lf("mcp_client_local_function"), id="local-server"),
-    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
-], indirect=True)
 class TestCitationSearchTools:
     """Test citation search tools are available via MCP."""
 
@@ -316,10 +289,6 @@ class TestCitationSearchTools:
         assert "get_paper_citations" in tool_names
 
 
-@pytest.mark.parametrize("mcp_server", [
-    pytest.param(lf("mcp_client_local_function"), id="local-server"),
-    pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
-], indirect=True)
 class TestPrompts:
     """Test MCP prompt functionality."""
 

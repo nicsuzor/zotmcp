@@ -126,24 +126,36 @@ async def mcp_client_local_function(mcp_server_local):
         yield client
 
 
-# @pytest.fixture(scope="session")
-# def mcp_server_docker(mcp_docker_cfg):
-#     # Name must match the key in mcpServers
-#     return FastMCP.as_proxy(mcp_docker_cfg, name="zotmcp")
+@pytest.fixture(scope="session")
+def mcp_server_docker(mcp_docker_cfg):
+    """Docker MCP server as a proxy - only initialized when tests request it."""
+    # Name must match the key in mcpServers
+    return FastMCP.as_proxy(mcp_docker_cfg, name="zotmcp")
 
 
-@pytest.fixture
-async def mcp_server(request):
-    """Indirect fixture that receives the actual client from parametrize.
+@pytest.fixture(
+    scope="session",
+    params=[
+        pytest.param("local", id="local-server"),
+        pytest.param("docker", marks=pytest.mark.slow, id="docker-e2e"),
+    ],
+)
+def mcp_server(request, mcp_server_local, mcp_server_docker):
+    """Parametrized fixture that returns FastMCP server for both local and Docker.
 
-    This fixture is used with indirect=True in @pytest.mark.parametrize at the test level.
-    The parametrization is done at the test class/function level, not here, which ensures
-    that only the requested fixture variant (local or docker) gets initialized.
+    - local: in-process server (fast, always available)
+    - docker: Docker container server (slow, only when -m slow is used)
 
-    Tests should use:
-        @pytest.mark.parametrize("mcp_server", [
-            pytest.param(lf("mcp_client_local_function"), id="local-server"),
-            pytest.param(lf("mcp_client_docker_session"), marks=pytest.mark.slow, id="docker-e2e")
-        ], indirect=True)
+    Tests should create their own Client with:
+        async with Client(mcp_server) as client:
+            ...
+
+    This pattern ensures:
+    1. Docker fixture only initialized when actually requested
+    2. Tests work with both server types identically
+    3. No async generator hanging issues
     """
-    return request.param
+    if request.param == "local":
+        return mcp_server_local
+    else:
+        return mcp_server_docker
