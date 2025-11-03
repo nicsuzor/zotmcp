@@ -79,9 +79,8 @@ async def lifespan_manager(server: FastMCP):
     if bm is None:
         if conf is None:
             # Load zotero config - use absolute path from project root
-            conf_dir = str(Path(__file__).parent.parent / "conf")
             # No overrides for FastMCP - avoids conflicts with fastmcp's argument parsing
-            logger.info("Initializing with default configuration (no overrides)")
+            conf_dir = str(Path(__file__).parent.parent / "conf")
             bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=[])
         else:
             bm = await init_async(job="zotmcp_cli", config=conf)
