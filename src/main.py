@@ -53,6 +53,9 @@ async def _initialize_chromadb_background():
     """
     global _chromadb_ready, _chromadb_init_error, search_tool
 
+    # Force immediate yield to event loop so server becomes responsive
+    await asyncio.sleep(0)
+
     try:
         logger.info("🔄 Starting ChromaDB initialization in background")
         search_tool = get_search_tool()
