@@ -199,11 +199,13 @@ def extract_citation_metadata(
     citation_key = metadata.get("citation_key")  # BetterBibTeX citation key
 
     # Extract online library link from zotero_links
+    # Note: zotero_links can be either a dict or a string in ChromaDB metadata
     zotero_links = metadata.get("zotero_links", {})
     zotero_web_link = None
-    if alternate_link := zotero_links.get("alternate"):
-        if isinstance(alternate_link, dict):
-            zotero_web_link = alternate_link.get("href")
+    if isinstance(zotero_links, dict):
+        if alternate_link := zotero_links.get("alternate"):
+            if isinstance(alternate_link, dict):
+                zotero_web_link = alternate_link.get("href")
 
     return citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link
 

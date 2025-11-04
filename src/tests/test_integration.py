@@ -105,21 +105,21 @@ class TestCollectionInfo:
         the collection directly before initialization is complete.
         """
         async with Client(mcp_server) as client:
-            result = await client.call_tool("get_collection_info")
+            collection_result = await client.call_tool("get_collection_info")
             # Use a broad search query that should return results
-            result = await client.call_tool(
+            search_result = await client.call_tool(
                 "search",
                 {
                     "query": "research",
                     "n_results": 1,
                 },
             )
-            assert "total_chunks" in result.data
-            assert result.data["total_chunks"] > 0, (
+            assert "total_chunks" in collection_result.data
+            assert collection_result.data["total_chunks"] > 0, (
                 "Database has no items - collection is empty. "
             )
-            assert "total_results" in result.data
-            assert result.data["total_results"] > 0, (
+            assert "total_results" in search_result.data
+            assert search_result.data["total_results"] > 0, (
                 "Database has no items - search returned 0 results. "
                 "This should not happen with a populated database."
             )

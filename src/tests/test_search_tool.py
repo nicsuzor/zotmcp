@@ -157,3 +157,58 @@ async def test_search_result_metadata_is_dict(mcp_server):
                     assert isinstance(search_result[field], str), (
                         f"{field} must be None or string, got {type(search_result[field]).__name__}"
                     )
+
+
+async def test_extract_citation_metadata_handles_string_zotero_links():
+    """Test that extract_citation_metadata handles zotero_links as string without error.
+
+    This test validates the fix for the bug where zotero_links in ChromaDB metadata
+    could be a string instead of a dict, causing "'str' object has no attribute 'get'"
+    errors when trying to extract the alternate link.
+
+    The function should gracefully handle both cases:
+    - zotero_links as dict: extract alternate link normally
+    - zotero_links as string: skip extraction and return None
+    """
+    # Test with zotero_links as string (the problematic case)
+    metadata_with_string = {
+        "citation": "Test Citation (2024)",
+        "doi_or_url": "https://doi.org/10.1234/test",
+        "uri": "http://zotero.org/users/123/items/ABC",
+        "document_id": "ABC123",
+        "citation_key": "testKey2024",
+        "zotero_links": "https://www.zotero.org/users/123/items/ABC",  # String instead of dict
+    }
+
+    citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+        main.extract_citation_metadata(metadata_with_string)
+    )
+
+    assert citation == "Test Citation (2024)"
+    assert doi_or_url == "https://doi.org/10.1234/test"
+    assert uri == "http://zotero.org/users/123/items/ABC"
+    assert zotero_key == "ABC123"
+    assert citation_key == "testKey2024"
+    assert zotero_web_link is None  # Should be None when zotero_links is string
+
+    # Test with zotero_links as dict (the expected case)
+    metadata_with_dict = {
+        "citation": "Test Citation (2024)",
+        "doi_or_url": "https://doi.org/10.1234/test",
+        "uri": "http://zotero.org/users/123/items/ABC",
+        "document_id": "ABC123",
+        "citation_key": "testKey2024",
+        "zotero_links": {
+            "alternate": {
+                "href": "https://www.zotero.org/users/123/items/ABC",
+                "type": "text/html",
+            }
+        },
+    }
+
+    citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+        main.extract_citation_metadata(metadata_with_dict)
+    )
+
+    assert citation == "Test Citation (2024)"
+    assert zotero_web_link == "https://www.zotero.org/users/123/items/ABC"
