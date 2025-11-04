@@ -82,6 +82,21 @@ class TestCollectionInfo:
             assert "dimensions" in result.data
             assert isinstance(result.data["dimensions"], int)
 
+    async def test_collection_has_items(self, mcp_server):
+        """Verify collection contains data (not empty).
+
+        This test explicitly checks that the database is populated with items.
+        If this test fails, it indicates the database is not properly initialized.
+        """
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_collection_info")
+
+            assert "total_chunks" in result.data
+            assert result.data["total_chunks"] > 0, (
+                "Database has no items - collection is empty. "
+                "This should not happen with a populated database."
+            )
+
 
 class TestSearch:
     """Test the search functionality."""
@@ -426,10 +441,11 @@ class TestDockerSTDIOResponsiveness:
         if gcloud_config.exists():
             docker_args.extend(["-v", f"{gcloud_config}:/root/.config/gcloud:ro"])
 
-        docker_args.extend([
-            "-e", "HYDRA_OVERRIDES=db=test_docker",  # Use test config without GCP
-            "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest",
-        ])
+        docker_args.extend(
+            [
+                "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest",
+            ]
+        )
 
         # Create StdioTransport with docker command
         transport = StdioTransport(command=container_cmd, args=docker_args)

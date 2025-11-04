@@ -2,7 +2,7 @@
 # Zotero Vectorization Pipeline for ZotMCP
 # Inherits shared infrastructure from config.yaml
 #
-# Usage: python -m buttermilk.pipeline.runner --config-path conf --config-name vectorize
+# Usage: python -m buttermilk.runner.cli --config-dir conf --config-name vectorize
 
 defaults:
   - config              # Inherit base configuration
@@ -11,6 +11,10 @@ defaults:
 
 # Pipeline specific configuration
 job: vectorize_zotero
+
+run:
+  mode: pipeline
+  limit: 10
 
 session:
   template_paths:

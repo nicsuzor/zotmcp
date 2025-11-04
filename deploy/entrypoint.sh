@@ -6,7 +6,6 @@
 # - http: Run as HTTP server on port 8024
 #
 # Set MODE environment variable to switch modes
-# Set HYDRA_OVERRIDES to pass config overrides (e.g., "db=test_docker")
 
 # Parse hydra overrides from environment variable
 HYDRA_ARGS=""

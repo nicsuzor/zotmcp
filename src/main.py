@@ -223,6 +223,13 @@ async def search(
 
         formatted_results = []
         for result in results:
+            # Defensive check: ensure metadata is a dict
+            if not isinstance(result.metadata, dict):
+                raise TypeError(
+                    f"Expected result.metadata to be dict, got {type(result.metadata).__name__}. "
+                    f"Value: {result.metadata[:100] if isinstance(result.metadata, str) else result.metadata}"
+                )
+
             # Filter by item type if specified
             if filter_type and result.metadata.get("itemType") != filter_type:
                 continue

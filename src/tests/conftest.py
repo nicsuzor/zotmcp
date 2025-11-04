@@ -82,8 +82,6 @@ def docker_http_server():
         "MCP_HTTP_HOST=0.0.0.0",
         "-e",
         "MCP_HTTP_PORT=8024",
-        "-e",
-        "HYDRA_OVERRIDES=db=test_docker",  # Use test config without GCP
         "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest",
     ]
 

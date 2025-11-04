@@ -28,11 +28,9 @@ def conf_loglevel() -> str:
 
 
 # Test that our complete docker image runs and is accessible
-async def test_docker_server(
-    mcp_client_docker_session, conf_timeout_call
-):
+async def test_docker_server(mcp_server, conf_timeout_call):
     # Use the session-scoped docker client (container already started)
-    client = mcp_client_docker_session
+    client = Client(mcp_server)
 
     # Check version info first
     try:
@@ -63,7 +61,7 @@ async def test_docker_server(
     assert result.data["total_chunks"] > 0
 
 
-async def test_handshake_completes_within_20_seconds(mcp_docker_cfg):
+async def test_handshake_completes_within_20_seconds(mcp_server):
     """Verify MCP server cold-start handshake completes within 20 seconds.
 
     This test creates a fresh Docker container and measures time to complete
@@ -78,7 +76,7 @@ async def test_handshake_completes_within_20_seconds(mcp_docker_cfg):
     start_time = time.perf_counter()
 
     # Create a fresh client connection (cold start)
-    async with Client(mcp_docker_cfg) as client:
+    async with Client(mcp_server) as client:
         # The Client context manager handles initialize() automatically
         # Now make a simple call to verify responsiveness
         await client.list_tools()

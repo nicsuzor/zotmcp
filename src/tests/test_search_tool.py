@@ -75,3 +75,52 @@ async def test_get_collection_works(mcp_server_local):
     assert hasattr(collection, "count")
     assert hasattr(collection, "get")
     assert hasattr(collection, "query")
+
+
+async def test_search_result_metadata_is_dict(mcp_server_local):
+    """Test that SearchResult.metadata is a dict, not a string.
+
+    This validates that result.metadata.get() works correctly.
+    Reproduces bug in main.py lines 227, 231 where result.metadata.get()
+    fails because metadata is a string instead of dict.
+    """
+    # Get the search tool and perform a search
+    search_tool = main.get_search_tool()
+    results = await search_tool.search(query="content moderation", n_results=5)
+
+    # Verify we got results
+    assert len(results) > 0, "Search should return at least one result"
+
+    # Validate each result has metadata as a dict
+    for result in results:
+        # Check that metadata is a dict type
+        assert isinstance(result.metadata, dict), (
+            f"SearchResult.metadata must be a dict, got {type(result.metadata).__name__}"
+        )
+
+        # Validate that .get() method works (this is what main.py line 227 uses)
+        # This should not raise AttributeError
+        item_type = result.metadata.get("itemType")
+        assert item_type is None or isinstance(item_type, str), (
+            "metadata.get('itemType') should return None or a string"
+        )
+
+        # Test that extract_citation_metadata works (main.py line 231)
+        try:
+            # This is what main.py actually does at line 231
+            citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+                main.extract_citation_metadata(result.metadata)
+            )
+            # Should return values without error
+            assert isinstance(citation, str)
+            assert doi_or_url is None or isinstance(doi_or_url, str)
+            assert uri is None or isinstance(uri, str)
+            assert zotero_key is None or isinstance(zotero_key, str)
+            assert citation_key is None or isinstance(citation_key, str)
+            assert zotero_web_link is None or isinstance(zotero_web_link, str)
+        except AttributeError as e:
+            pytest.fail(
+                f"extract_citation_metadata raised AttributeError: {e}. "
+                f"metadata type: {type(result.metadata)}, "
+                f"metadata keys: {list(result.metadata.keys()) if isinstance(result.metadata, dict) else 'NOT A DICT'}"
+            )
