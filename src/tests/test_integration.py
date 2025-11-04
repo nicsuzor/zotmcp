@@ -97,7 +97,7 @@ class TestCollectionInfo:
                 "This should not happen with a populated database."
             )
 
-    async def test_collection_has_items(self, mcp_server):
+    async def test_collection_has_items_search(self, mcp_server):
         """This test explicitly checks that the database is populated with items.
 
         Note: We use search rather than get_collection_info because search
