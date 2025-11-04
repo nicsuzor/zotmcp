@@ -166,3 +166,28 @@ async def test_output_flag_creates_json_file(bm_dev, tmp_path):
     # Verify ALL corrupted documents are included (not just 10 samples)
     # The count in summary should match the length of corrupted_documents list
     assert summary["total_corrupted"] == len(corrupted_docs)
+
+
+@pytest.mark.asyncio
+async def test_limit_option_controls_scan_size(bm_dev):
+    """Test that --limit option controls how many documents are scanned."""
+    from scripts.diagnose_corruption import diagnose_collection
+
+    # Test custom limit of 50 documents
+    report_50 = await diagnose_collection(verbose=False, output_file=None, max_documents=50)
+    assert report_50["total_scanned"] == 50
+
+    # Test default behavior (should scan 1000)
+    report_default = await diagnose_collection(verbose=False, output_file=None)
+    assert report_default["total_scanned"] == 1000
+
+
+def test_cli_limit_option_exists():
+    """Test that CLI accepts --limit option."""
+    from scripts import diagnose_corruption
+
+    runner = CliRunner()
+    result = runner.invoke(diagnose_corruption.main, ["--help"])
+
+    assert result.exit_code == 0
+    assert "--limit" in result.output

@@ -229,7 +229,13 @@ def write_json_output(output_file: str, report: dict):
     type=click.Path(),
     help="Path to output JSON file with detailed corruption report",
 )
-def main(verbose: bool, output: str):
+@click.option(
+    "--limit",
+    type=int,
+    default=1000,
+    help="Number of documents to scan (0 = scan all documents, default: 1000)",
+)
+def main(verbose: bool, output: str, limit: int):
     """Scan ChromaDB collection for corrupted text entries.
 
     This tool identifies documents with PDF encoding artifacts like (cid:XX)
@@ -242,16 +248,22 @@ def main(verbose: bool, output: str):
     - Sample corrupted entries (with --verbose flag)
     - JSON output with all corrupted documents (with --output flag)
     """
-    asyncio.run(diagnose_collection(verbose=verbose, output_file=output))
+    # Convert limit=0 to None (scan all documents)
+    max_documents = None if limit == 0 else limit
+    asyncio.run(diagnose_collection(verbose=verbose, output_file=output, max_documents=max_documents))
 
 
-async def diagnose_collection(verbose: bool = False, output_file: str = None):
+async def diagnose_collection(verbose: bool = False, output_file: str = None, max_documents: int = 1000):
     """Run diagnostic scan on ChromaDB collection.
 
     Args:
         verbose: Show verbose output including sample corrupted entries
         output_file: Path to output JSON file with detailed corruption report
+        max_documents: Maximum number of documents to scan (0 or None = scan all)
     """
+    # Convert max_documents=0 to None (scan all documents)
+    scan_limit = None if max_documents == 0 else max_documents
+
     click.echo("ChromaDB Corruption Diagnostic Tool")
     click.echo("=" * 80)
 
@@ -271,7 +283,7 @@ async def diagnose_collection(verbose: bool = False, output_file: str = None):
         collect_all = output_file is not None
         report = await scan_collection_for_corruption(
             bm,
-            max_documents=1000,
+            max_documents=scan_limit,
             collect_all_corrupted=collect_all
         )
 
@@ -306,7 +318,7 @@ async def diagnose_collection(verbose: bool = False, output_file: str = None):
                 click.echo(f"      Preview: {sample['text_preview'][:100]}...")
 
         click.echo("\n" + "=" * 80)
-        return 0
+        return report
 
     finally:
         await bm.graceful_shutdown()
