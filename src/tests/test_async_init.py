@@ -135,5 +135,4 @@ async def test_tools_work_after_initialization_completes():
     3. No error messages about initialization
     """
     # This test will use the real conftest fixtures
-    # We'll implement this after the basic async init is working
-    pytest.skip("Will implement after async init is working")
+    # Testing if async init is working by running the test
