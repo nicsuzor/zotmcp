@@ -62,6 +62,103 @@ def detect_corruption(text: str) -> dict:
     }
 
 
+def classify_severity(corruption_result: dict) -> str:
+    """Classify corruption severity based on corruption metrics.
+
+    Args:
+        corruption_result: Result from detect_corruption()
+
+    Returns:
+        str: Severity level - "clean", "low", "medium", "high", or "empty"
+    """
+    if corruption_result["corruption_percentage"] == 100.0:
+        return "empty"
+    elif not corruption_result["is_corrupted"]:
+        return "clean"
+    elif corruption_result["corruption_percentage"] < 5.0:
+        return "low"
+    elif corruption_result["corruption_percentage"] < 20.0:
+        return "medium"
+    else:
+        return "high"
+
+
+async def scan_collection_for_corruption(bm, max_documents: int = None) -> dict:
+    """Scan ChromaDB collection for corruption and generate diagnostic report.
+
+    Args:
+        bm: Initialized buttermilk instance
+        max_documents: Maximum number of documents to scan (None = all)
+
+    Returns:
+        dict: Diagnostic report with corruption statistics and samples
+    """
+    # Get collection
+    storage_config = bm.cfg.get_storage_config("zotero_vectors")
+    search_tool = ChromaDBSearchTool(
+        type="chromadb",
+        collection_name=storage_config.collection_name,
+        persist_directory=storage_config.persist_directory,
+        embedding_model=storage_config.embedding_model,
+        dimensionality=storage_config.dimensionality,
+    )
+    await search_tool.ensure_cache_initialized()
+    collection = search_tool.collection
+
+    # Determine scan range
+    total_in_collection = collection.count()
+    scan_limit = min(max_documents, total_in_collection) if max_documents else total_in_collection
+
+    # Initialize counters
+    severity_counts = {"clean": 0, "low": 0, "medium": 0, "high": 0, "empty": 0}
+    corrupted_count = 0
+    sample_corrupted = []
+
+    # Scan collection in batches to avoid memory issues
+    batch_size = 100
+    for offset in range(0, scan_limit, batch_size):
+        batch_limit = min(batch_size, scan_limit - offset)
+
+        # Get batch of documents
+        results = collection.get(
+            limit=batch_limit,
+            offset=offset,
+            include=["documents", "metadatas"]
+        )
+
+        # Analyze each document
+        for doc, metadata in zip(results["documents"], results["metadatas"]):
+            corruption = detect_corruption(doc)
+            severity = classify_severity(corruption)
+
+            severity_counts[severity] += 1
+
+            if corruption["is_corrupted"]:
+                corrupted_count += 1
+
+                # Collect sample corrupted entries (limit to 10)
+                if len(sample_corrupted) < 10:
+                    item_key = metadata.get("item_key", "unknown")
+                    sample_corrupted.append({
+                        "item_key": item_key,
+                        "severity": severity,
+                        "corruption_percentage": corruption["corruption_percentage"],
+                        "cid_count": corruption["cid_count"],
+                        "text_preview": doc[:200] if doc else "(empty)"
+                    })
+
+    # Calculate statistics
+    corruption_rate = (corrupted_count / scan_limit * 100) if scan_limit > 0 else 0.0
+
+    return {
+        "total_scanned": scan_limit,
+        "total_corrupted": corrupted_count,
+        "corruption_rate": corruption_rate,
+        "severity_breakdown": severity_counts,
+        "sample_corrupted": sample_corrupted,
+    }
+
+
 async def get_collection_stats(bm):
     """Get basic statistics about the ChromaDB collection.
 
@@ -120,12 +217,53 @@ def main(verbose: bool):
 
 async def diagnose_collection(verbose: bool = False):
     """Run diagnostic scan on ChromaDB collection."""
-    click.echo("ChromaDB corruption diagnostic tool")
+    click.echo("ChromaDB Corruption Diagnostic Tool")
     click.echo("=" * 80)
 
-    # TODO: Implement collection scanning
-    click.echo("\nDiagnostic scan not yet implemented")
-    return 0
+    # Initialize buttermilk with zotero config
+    conf_dir = str(Path(__file__).parent.parent / "conf")
+    bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=["db=dev"])
+
+    try:
+        # Get collection statistics
+        stats = await get_collection_stats(bm)
+        click.echo(f"\n📊 Collection: {stats['collection_name']}")
+        click.echo(f"   Total documents: {stats['total_documents']:,}")
+
+        # Scan collection for corruption (scan first 1000 by default)
+        click.echo("\n🔍 Scanning for corruption patterns...")
+        report = await scan_collection_for_corruption(bm, max_documents=1000)
+
+        # Display results
+        click.echo(f"\n✅ Scan complete")
+        click.echo(f"   Documents scanned: {report['total_scanned']:,}")
+        click.echo(f"   Corrupted documents: {report['total_corrupted']:,}")
+        click.echo(f"   Corruption rate: {report['corruption_rate']:.2f}%")
+
+        # Display severity breakdown
+        click.echo("\n📈 Severity Breakdown:")
+        severity = report['severity_breakdown']
+        click.echo(f"   Clean:  {severity['clean']:,} ({severity['clean']/report['total_scanned']*100:.1f}%)")
+        click.echo(f"   Low:    {severity['low']:,} ({severity['low']/report['total_scanned']*100:.1f}%)")
+        click.echo(f"   Medium: {severity['medium']:,} ({severity['medium']/report['total_scanned']*100:.1f}%)")
+        click.echo(f"   High:   {severity['high']:,} ({severity['high']/report['total_scanned']*100:.1f}%)")
+        click.echo(f"   Empty:  {severity['empty']:,} ({severity['empty']/report['total_scanned']*100:.1f}%)")
+
+        # Display sample corrupted entries if verbose
+        if verbose and report['sample_corrupted']:
+            click.echo("\n🔎 Sample Corrupted Entries:")
+            for i, sample in enumerate(report['sample_corrupted'][:5], 1):
+                click.echo(f"\n   {i}. Item: {sample['item_key']}")
+                click.echo(f"      Severity: {sample['severity']}")
+                click.echo(f"      Corruption: {sample['corruption_percentage']:.1f}%")
+                click.echo(f"      CID count: {sample['cid_count']}")
+                click.echo(f"      Preview: {sample['text_preview'][:100]}...")
+
+        click.echo("\n" + "=" * 80)
+        return 0
+
+    finally:
+        await bm.graceful_shutdown()
 
 
 if __name__ == "__main__":

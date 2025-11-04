@@ -60,3 +60,63 @@ def test_detect_corruption_patterns():
     assert corruption["is_corrupted"] is True  # Empty is a form of corruption
     assert corruption["corruption_percentage"] == 100.0  # Completely missing
     assert corruption["cid_count"] == 0
+
+
+def test_classify_severity():
+    """Test severity classification based on corruption metrics."""
+    from scripts.diagnose_corruption import classify_severity, detect_corruption
+
+    # Clean text - no corruption
+    clean_result = detect_corruption("Clean text with no issues.")
+    assert classify_severity(clean_result) == "clean"
+
+    # Low corruption (< 5%) - need longer text to dilute percentage
+    # (cid:1) is 7 chars, need >140 chars total for <5%
+    low_corrupt = detect_corruption("This is a long paragraph with mostly clean content and proper text. " * 3 + "(cid:1)")
+    assert classify_severity(low_corrupt) == "low"
+
+    # Medium corruption (5-20%) - multiple artifacts in moderate text
+    # 3 x (cid:X) = 21 chars, need 105-420 chars total for 5-20%
+    medium_corrupt = detect_corruption("This is some text content that will be analyzed for corruption. " * 2 + "(cid:1)(cid:2)(cid:3)")
+    assert classify_severity(medium_corrupt) == "medium"
+
+    # High corruption (> 20%) - heavy artifact density
+    high_corrupt = detect_corruption("(cid:1)(cid:2)(cid:3)(cid:4) text")
+    assert classify_severity(high_corrupt) == "high"
+
+    # Empty text - complete corruption
+    empty_result = detect_corruption("")
+    assert classify_severity(empty_result) == "empty"
+
+
+@pytest.mark.asyncio
+async def test_scan_collection_for_corruption(bm_dev):
+    """Test complete diagnostic workflow: scan collection and generate report."""
+    from scripts.diagnose_corruption import scan_collection_for_corruption
+
+    # Scan a small sample of the collection
+    report = await scan_collection_for_corruption(bm_dev, max_documents=100)
+
+    # Verify report structure
+    assert "total_scanned" in report
+    assert "total_corrupted" in report
+    assert "corruption_rate" in report
+    assert "severity_breakdown" in report
+    assert "sample_corrupted" in report
+
+    # Verify data integrity
+    assert report["total_scanned"] == 100
+    assert report["total_scanned"] >= report["total_corrupted"]
+    assert 0 <= report["corruption_rate"] <= 100
+
+    # Verify severity breakdown
+    severity = report["severity_breakdown"]
+    assert "clean" in severity
+    assert "low" in severity
+    assert "medium" in severity
+    assert "high" in severity
+    assert "empty" in severity
+
+    # Sum of severity counts should equal total scanned
+    total_by_severity = sum(severity.values())
+    assert total_by_severity == report["total_scanned"]
