@@ -10,7 +10,11 @@ These tests verify that the packaged Docker image:
 
 import pytest
 from fastmcp import Client
+from fastmcp.client.transports import StdioTransport
 import json
+import asyncio
+import subprocess
+from pathlib import Path
 
 # Mark all tests in this module as async
 pytestmark = pytest.mark.anyio
@@ -374,3 +378,80 @@ class TestPrompts:
             content = result.messages[0].content.text
             assert "What is platform governance?" in content
             assert "Academic Literature Review" in content
+
+
+class TestDockerSTDIOResponsiveness:
+    """Test Docker container responsiveness in STDIO mode (default mode)."""
+
+    @pytest.mark.slow
+    async def test_docker_stdio_responsiveness(self):
+        """Verify Docker STDIO mode starts and responds within 20 seconds.
+
+        This test verifies the container's default STDIO mode:
+        1. Container starts quickly (no 90s ChromaDB wait needed for basic operations)
+        2. Server responds to ping within 20 seconds
+        3. Server can list tools (>=10 tools) within 20 seconds
+
+        Unlike HTTP mode tests, this uses the default stdio transport which is
+        what MCP clients actually use in production.
+        """
+        # Auto-detect container runtime (docker or podman)
+        container_cmd = None
+        candidates = ["docker", "/usr/bin/docker", "/usr/local/bin/docker",
+                      "podman", "/usr/bin/podman", "/usr/local/bin/podman"]
+
+        for cmd in candidates:
+            try:
+                result = subprocess.run([cmd, "--version"], capture_output=True, timeout=5)
+                if result.returncode == 0:
+                    container_cmd = cmd
+                    break
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+
+        if not container_cmd:
+            pytest.skip("Neither 'docker' nor 'podman' command found or working")
+
+        # Build Docker stdio command
+        gcloud_config = Path.home() / ".config" / "gcloud"
+
+        # Build args for docker run
+        docker_args = [
+            "run",
+            "--rm",
+            "-i",  # Interactive mode for stdio
+        ]
+
+        # Mount gcloud config if it exists
+        if gcloud_config.exists():
+            docker_args.extend(["-v", f"{gcloud_config}:/root/.config/gcloud:ro"])
+
+        docker_args.extend([
+            "-e", "HYDRA_OVERRIDES=db=test_docker",  # Use test config without GCP
+            "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest",
+        ])
+
+        # Create StdioTransport with docker command
+        transport = StdioTransport(command=container_cmd, args=docker_args)
+
+        # Test with 20-second timeout
+        async def verify_server():
+            async with Client(transport) as client:
+                # Verify ping succeeds
+                ping_result = await client.ping()
+                assert ping_result, "Server ping failed"
+
+                # Verify list_tools returns >=10 tools
+                tools = await client.list_tools()
+                tool_count = len(tools)
+                assert tool_count >= 10, f"Expected >=10 tools, got {tool_count}"
+
+                return tool_count
+
+        # Run with 20-second timeout
+        try:
+            tool_count = await asyncio.wait_for(verify_server(), timeout=20.0)
+            # Success - log the result
+            print(f"✓ Docker STDIO mode responded in <20s with {tool_count} tools")
+        except asyncio.TimeoutError:
+            pytest.fail("Docker STDIO mode failed to respond within 20 seconds")
