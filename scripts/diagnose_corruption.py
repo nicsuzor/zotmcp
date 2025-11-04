@@ -6,6 +6,7 @@ artifacts (e.g., (cid:XX) patterns) that indicate failed OCR or corrupted text.
 """
 
 import asyncio
+import json
 import re
 import sys
 from pathlib import Path
@@ -83,15 +84,16 @@ def classify_severity(corruption_result: dict) -> str:
         return "high"
 
 
-async def scan_collection_for_corruption(bm, max_documents: int = None) -> dict:
+async def scan_collection_for_corruption(bm, max_documents: int = None, collect_all_corrupted: bool = False) -> dict:
     """Scan ChromaDB collection for corruption and generate diagnostic report.
 
     Args:
         bm: Initialized buttermilk instance
         max_documents: Maximum number of documents to scan (None = all)
+        collect_all_corrupted: If True, collect ALL corrupted documents (not just 10 samples)
 
     Returns:
-        dict: Diagnostic report with corruption statistics and samples
+        dict: Diagnostic report with corruption statistics and samples/all corrupted docs
     """
     # Get collection
     storage_config = bm.cfg.get_storage_config("zotero_vectors")
@@ -136,8 +138,9 @@ async def scan_collection_for_corruption(bm, max_documents: int = None) -> dict:
             if corruption["is_corrupted"]:
                 corrupted_count += 1
 
-                # Collect sample corrupted entries (limit to 10)
-                if len(sample_corrupted) < 10:
+                # Collect corrupted entries
+                # If collect_all_corrupted is True, collect ALL; otherwise limit to 10
+                if collect_all_corrupted or len(sample_corrupted) < 10:
                     item_key = metadata.get("item_key", "unknown")
                     sample_corrupted.append({
                         "item_key": item_key,
@@ -194,13 +197,39 @@ async def get_collection_stats(bm):
     }
 
 
+def write_json_output(output_file: str, report: dict):
+    """Write corruption report to JSON file.
+
+    Args:
+        output_file: Path to output JSON file
+        report: Diagnostic report from scan_collection_for_corruption()
+    """
+    output_data = {
+        "summary": {
+            "total_scanned": report["total_scanned"],
+            "total_corrupted": report["total_corrupted"],
+            "corruption_rate": report["corruption_rate"],
+            "severity_breakdown": report["severity_breakdown"],
+        },
+        "corrupted_documents": report["sample_corrupted"],
+    }
+
+    with open(output_file, 'w') as f:
+        json.dump(output_data, f, indent=2)
+
+
 @click.command()
 @click.option(
     "--verbose",
     is_flag=True,
     help="Show verbose output including sample corrupted entries",
 )
-def main(verbose: bool):
+@click.option(
+    "--output",
+    type=click.Path(),
+    help="Path to output JSON file with detailed corruption report",
+)
+def main(verbose: bool, output: str):
     """Scan ChromaDB collection for corrupted text entries.
 
     This tool identifies documents with PDF encoding artifacts like (cid:XX)
@@ -211,12 +240,18 @@ def main(verbose: bool):
     - Percentage of documents with corruption
     - Severity breakdown (missing text, partial corruption, heavy corruption)
     - Sample corrupted entries (with --verbose flag)
+    - JSON output with all corrupted documents (with --output flag)
     """
-    asyncio.run(diagnose_collection(verbose=verbose))
+    asyncio.run(diagnose_collection(verbose=verbose, output_file=output))
 
 
-async def diagnose_collection(verbose: bool = False):
-    """Run diagnostic scan on ChromaDB collection."""
+async def diagnose_collection(verbose: bool = False, output_file: str = None):
+    """Run diagnostic scan on ChromaDB collection.
+
+    Args:
+        verbose: Show verbose output including sample corrupted entries
+        output_file: Path to output JSON file with detailed corruption report
+    """
     click.echo("ChromaDB Corruption Diagnostic Tool")
     click.echo("=" * 80)
 
@@ -230,9 +265,15 @@ async def diagnose_collection(verbose: bool = False):
         click.echo(f"\n📊 Collection: {stats['collection_name']}")
         click.echo(f"   Total documents: {stats['total_documents']:,}")
 
-        # Scan collection for corruption (scan first 1000 by default)
+        # Scan collection for corruption
+        # If output file specified, collect ALL corrupted documents
         click.echo("\n🔍 Scanning for corruption patterns...")
-        report = await scan_collection_for_corruption(bm, max_documents=1000)
+        collect_all = output_file is not None
+        report = await scan_collection_for_corruption(
+            bm,
+            max_documents=1000,
+            collect_all_corrupted=collect_all
+        )
 
         # Display results
         click.echo(f"\n✅ Scan complete")
@@ -248,6 +289,11 @@ async def diagnose_collection(verbose: bool = False):
         click.echo(f"   Medium: {severity['medium']:,} ({severity['medium']/report['total_scanned']*100:.1f}%)")
         click.echo(f"   High:   {severity['high']:,} ({severity['high']/report['total_scanned']*100:.1f}%)")
         click.echo(f"   Empty:  {severity['empty']:,} ({severity['empty']/report['total_scanned']*100:.1f}%)")
+
+        # Write JSON output if requested
+        if output_file:
+            write_json_output(output_file, report)
+            click.echo(f"\n💾 Report saved to: {output_file}")
 
         # Display sample corrupted entries if verbose
         if verbose and report['sample_corrupted']:

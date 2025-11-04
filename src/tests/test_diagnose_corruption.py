@@ -120,3 +120,49 @@ async def test_scan_collection_for_corruption(bm_dev):
     # Sum of severity counts should equal total scanned
     total_by_severity = sum(severity.values())
     assert total_by_severity == report["total_scanned"]
+
+
+@pytest.mark.asyncio
+async def test_output_flag_creates_json_file(bm_dev, tmp_path):
+    """Test that --output flag creates JSON file with all corrupted documents."""
+    import json
+    from scripts.diagnose_corruption import diagnose_collection
+
+    # Create temporary output file path
+    output_file = tmp_path / "corruption_report.json"
+
+    # Run diagnostic with output flag
+    await diagnose_collection(verbose=False, output_file=str(output_file))
+
+    # Verify file was created
+    assert output_file.exists()
+
+    # Load and verify JSON structure
+    with open(output_file) as f:
+        data = json.load(f)
+
+    # Verify summary statistics exist
+    assert "summary" in data
+    summary = data["summary"]
+    assert "total_scanned" in summary
+    assert "total_corrupted" in summary
+    assert "corruption_rate" in summary
+    assert "severity_breakdown" in summary
+
+    # Verify corrupted documents list exists
+    assert "corrupted_documents" in data
+    corrupted_docs = data["corrupted_documents"]
+    assert isinstance(corrupted_docs, list)
+
+    # If there are corrupted documents, verify their structure
+    if len(corrupted_docs) > 0:
+        sample_doc = corrupted_docs[0]
+        assert "item_key" in sample_doc
+        assert "severity" in sample_doc
+        assert "corruption_percentage" in sample_doc
+        assert "cid_count" in sample_doc
+        assert "text_preview" in sample_doc
+
+    # Verify ALL corrupted documents are included (not just 10 samples)
+    # The count in summary should match the length of corrupted_documents list
+    assert summary["total_corrupted"] == len(corrupted_docs)
