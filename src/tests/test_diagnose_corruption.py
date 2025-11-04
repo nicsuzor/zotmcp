@@ -157,7 +157,7 @@ async def test_output_flag_creates_json_file(bm_dev, tmp_path):
     # If there are corrupted documents, verify their structure
     if len(corrupted_docs) > 0:
         sample_doc = corrupted_docs[0]
-        assert "item_key" in sample_doc
+        assert "document_id" in sample_doc
         assert "severity" in sample_doc
         assert "corruption_percentage" in sample_doc
         assert "cid_count" in sample_doc
@@ -191,3 +191,38 @@ def test_cli_limit_option_exists():
 
     assert result.exit_code == 0
     assert "--limit" in result.output
+
+
+@pytest.mark.asyncio
+async def test_corrupted_documents_include_document_id_from_metadata(bm_dev):
+    """Test that corrupted documents include actual document_id from ChromaDB metadata.
+
+    BUG FIX TEST: The diagnostic script was using metadata.get("item_key", "unknown")
+    but the actual field in ChromaDB is "document_id". This test verifies that
+    corrupted documents in the scan results contain real document_id values.
+    """
+    from scripts.diagnose_corruption import scan_collection_for_corruption
+
+    # Scan larger sample to ensure we find some corrupted documents
+    report = await scan_collection_for_corruption(bm_dev, max_documents=1000)
+
+    # We should find at least one corrupted document in 1000 samples
+    assert report["total_corrupted"] > 0, \
+        "Expected to find at least one corrupted document in sample of 1000"
+
+    assert len(report["sample_corrupted"]) > 0, \
+        "sample_corrupted list should not be empty when corrupted documents exist"
+
+    first_corrupted = report["sample_corrupted"][0]
+
+    # The field should be named "document_id" (not "item_key")
+    assert "document_id" in first_corrupted, \
+        "Corrupted document should have 'document_id' field from metadata"
+
+    # The document_id should be a real Zotero key, not "unknown"
+    document_id = first_corrupted["document_id"]
+    assert document_id != "unknown", \
+        f"document_id should be actual Zotero key from metadata, not 'unknown'. Got: {document_id}"
+
+    # Zotero keys are typically 8 alphanumeric characters
+    assert len(document_id) > 0, "document_id should not be empty"

@@ -141,9 +141,9 @@ async def scan_collection_for_corruption(bm, max_documents: int = None, collect_
                 # Collect corrupted entries
                 # If collect_all_corrupted is True, collect ALL; otherwise limit to 10
                 if collect_all_corrupted or len(sample_corrupted) < 10:
-                    item_key = metadata.get("item_key", "unknown")
+                    document_id = metadata.get("document_id", "unknown")
                     sample_corrupted.append({
-                        "item_key": item_key,
+                        "document_id": document_id,
                         "severity": severity,
                         "corruption_percentage": corruption["corruption_percentage"],
                         "cid_count": corruption["cid_count"],
@@ -311,7 +311,7 @@ async def diagnose_collection(verbose: bool = False, output_file: str = None, ma
         if verbose and report['sample_corrupted']:
             click.echo("\n🔎 Sample Corrupted Entries:")
             for i, sample in enumerate(report['sample_corrupted'][:5], 1):
-                click.echo(f"\n   {i}. Item: {sample['item_key']}")
+                click.echo(f"\n   {i}. Document ID: {sample['document_id']}")
                 click.echo(f"      Severity: {sample['severity']}")
                 click.echo(f"      Corruption: {sample['corruption_percentage']:.1f}%")
                 click.echo(f"      CID count: {sample['cid_count']}")
