@@ -6,6 +6,7 @@ artifacts (e.g., (cid:XX) patterns) that indicate failed OCR or corrupted text.
 """
 
 import asyncio
+import re
 import sys
 from pathlib import Path
 
@@ -16,6 +17,49 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from buttermilk import init_async, logger
 from buttermilk.tools import ChromaDBSearchTool
+
+# Pattern to detect PDF encoding artifacts like (cid:XX)
+CID_PATTERN = re.compile(r'\(cid:\d+\)')
+
+
+def detect_corruption(text: str) -> dict:
+    """Detect corruption patterns in text content.
+
+    Args:
+        text: Text content to analyze
+
+    Returns:
+        dict: Corruption analysis with keys:
+            - is_corrupted: bool indicating if text has corruption
+            - corruption_percentage: float from 0-100
+            - cid_count: int count of (cid:XX) patterns found
+    """
+    if not text or len(text.strip()) == 0:
+        # Empty text is considered completely corrupted
+        return {
+            "is_corrupted": True,
+            "corruption_percentage": 100.0,
+            "cid_count": 0,
+        }
+
+    # Find all (cid:XX) patterns
+    cid_matches = CID_PATTERN.findall(text)
+    cid_count = len(cid_matches)
+
+    # Calculate corruption percentage based on:
+    # - Ratio of cid patterns to text length
+    # - Presence of any cid patterns indicates corruption
+    total_chars = len(text)
+    cid_chars = sum(len(match) for match in cid_matches)
+    corruption_percentage = (cid_chars / total_chars * 100) if total_chars > 0 else 0.0
+
+    is_corrupted = cid_count > 0
+
+    return {
+        "is_corrupted": is_corrupted,
+        "corruption_percentage": corruption_percentage,
+        "cid_count": cid_count,
+    }
 
 
 async def get_collection_stats(bm):
