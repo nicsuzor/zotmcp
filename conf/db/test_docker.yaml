@@ -1,0 +1,11 @@
+# @package _global_
+# Configuration for Docker e2e tests
+# Disables GCP infrastructure that requires credentials
+
+infrastructure:
+  clouds: []  # Disable GCP - tests only need ChromaDB access
+
+storage:
+  zotero_vectors:
+    # Use the ChromaDB that was copied into the Docker image
+    persist_directory: /chromadb

@@ -27,32 +27,26 @@ def anyio_backend():
 
 
 @pytest.fixture(scope="session")
-def mcp_docker_cfg():
-    """MCP configuration for connecting to the Docker container.
+def docker_http_server():
+    """Session-scoped Docker container running in HTTP mode.
 
-    Auto-detects whether to use 'docker' or 'podman' based on what's available.
+    Starts the container once, waits for it to be ready (90s for ChromaDB init),
+    and keeps it running for all tests. This avoids the 60+ second ChromaDB
+    initialization for each test.
     """
     import subprocess
+    import time
+    import requests
+    from pathlib import Path
 
-    # Auto-detect container runtime by trying common locations
+    # Auto-detect container runtime
     container_cmd = None
-    candidates = [
-        "docker",  # Try PATH first
-        "/usr/bin/docker",
-        "/usr/local/bin/docker",
-        "podman",
-        "/usr/bin/podman",
-        "/usr/local/bin/podman",
-    ]
+    candidates = ["docker", "/usr/bin/docker", "/usr/local/bin/docker",
+                  "podman", "/usr/bin/podman", "/usr/local/bin/podman"]
 
     for cmd in candidates:
         try:
-            # Try to run --version to check if command exists and works
-            result = subprocess.run(
-                [cmd, "--version"],
-                capture_output=True,
-                timeout=5
-            )
+            result = subprocess.run([cmd, "--version"], capture_output=True, timeout=5)
             if result.returncode == 0:
                 container_cmd = cmd
                 break
@@ -60,46 +54,89 @@ def mcp_docker_cfg():
             continue
 
     if not container_cmd:
-        raise RuntimeError(
-            "Neither 'docker' nor 'podman' command found or working. "
-            "Tried: docker, /usr/bin/docker, /usr/local/bin/docker, "
-            "podman, /usr/bin/podman, /usr/local/bin/podman"
-        )
+        raise RuntimeError("Neither 'docker' nor 'podman' command found or working")
 
-    gcloud_config = str(Path.home() / ".config" / "gcloud")
-    return {
-        "mcpServers": {
-            "zotmcp": {
-                "command": container_cmd,
-                "args": [
-                    "run",
-                    "-i",
-                    "--rm",
-                    "-v",
-                    f"{gcloud_config}:/root/.config/gcloud:ro",
-                    "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest",
-                ],
-            }
-        }
-    }
+    gcloud_config = Path.home() / ".config" / "gcloud"
 
+    # Build volume mounts - only mount gcloud config if it exists
+    volume_mounts = []
+    if gcloud_config.exists():
+        volume_mounts.extend(["-v", f"{gcloud_config}:/root/.config/gcloud:ro"])
+    else:
+        logger.warning("No gcloud config found - container will run without GCP credentials")
 
-@pytest.fixture(scope="session")
-async def mcp_client_docker_session(mcp_docker_cfg):
-    """Session-scoped Docker client - container stays running for all docker tests.
+    # Start container in HTTP mode on port 8024
+    logger.info("Starting Docker container in HTTP mode...")
 
-    This ensures the Docker container is started ONCE per test session and reused
-    across all tests, avoiding the 60+ second ChromaDB initialization for each test.
-    """
-    from fastmcp import Client
+    cmd_args = [
+        container_cmd,
+        "run",
+        "--rm",
+        "--network=host",
+        *volume_mounts,
+        "-e",
+        "MODE=http",  # For entrypoint.sh
+        "-e",
+        "MCP_TRANSPORT=http",  # For main.py
+        "-e",
+        "MCP_HTTP_HOST=0.0.0.0",
+        "-e",
+        "MCP_HTTP_PORT=8024",
+        "-e",
+        "HYDRA_OVERRIDES=db=test_docker",  # Use test config without GCP
+        "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest",
+    ]
 
-    async with Client(mcp_docker_cfg) as client:
-        # Wait for basic server responsiveness (not ChromaDB)
-        # This ensures the server is ready before tests start
-        await client.list_tools()
-        logger.info("Docker container started and ready for tests")
-        yield client
-        logger.info("Docker container stopping at session end")
+    process = subprocess.Popen(
+        cmd_args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,  # Combine stderr into stdout for easier logging
+    )
+
+    # Wait up to 90 seconds for server to be ready
+    logger.info("Waiting for Docker container to initialize (up to 90s for ChromaDB)...")
+    server_url = "http://localhost:8024"
+    max_wait = 90
+    start_time = time.time()
+
+    while time.time() - start_time < max_wait:
+        # Check if process has terminated
+        if process.poll() is not None:
+            # Process died, get output
+            stdout, _ = process.communicate()
+            logger.error(f"Docker container exited unexpectedly:\n{stdout.decode()}")
+            raise RuntimeError("Docker container exited unexpectedly")
+
+        try:
+            # Try to connect to the SSE endpoint which FastMCP streamable-http uses
+            response = requests.get(f"{server_url}/sse", timeout=2, stream=True)
+            # If we get a response (even if it's waiting for SSE), server is up
+            if response.status_code in (200, 400, 404):  # Any response means server is running
+                logger.info(f"Docker container ready after {time.time() - start_time:.1f}s")
+                break
+        except (requests.ConnectionError, requests.Timeout):
+            time.sleep(2)
+    else:
+        # Timeout - capture output before killing
+        process.terminate()
+        try:
+            stdout, _ = process.communicate(timeout=5)
+            logger.error(f"Docker container timeout. Last output:\n{stdout.decode()}")
+        except subprocess.TimeoutExpired:
+            process.kill()
+        raise RuntimeError(f"Docker container failed to start within {max_wait}s")
+
+    yield server_url
+
+    # Cleanup
+    logger.info("Stopping Docker container...")
+    process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+    logger.info("Docker container stopped")
 
 
 @asynccontextmanager
@@ -164,10 +201,13 @@ async def mcp_client_local_function(mcp_server_local):
 
 
 @pytest.fixture(scope="session")
-def mcp_server_docker(mcp_docker_cfg):
-    """Docker MCP server as a proxy - only initialized when tests request it."""
-    # Name must match the key in mcpServers
-    return FastMCP.as_proxy(mcp_docker_cfg, name="zotmcp")
+def mcp_server_docker(docker_http_server):
+    """Docker MCP server as HTTP endpoint.
+
+    This returns the HTTP server URL that FastMCP Client can connect to.
+    """
+    # FastMCP streamable-http mode uses /mcp endpoint
+    return f"{docker_http_server}/mcp"
 
 
 @pytest.fixture(
