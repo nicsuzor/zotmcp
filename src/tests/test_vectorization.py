@@ -72,26 +72,16 @@ class TestButtermilkBugs:
 class TestVectorizationPipeline:
     """Test vectorization pipeline with potentially problematic records."""
 
-    @pytest.fixture(scope="class")
-    async def buttermilk_instance(self):
-        """Initialize Buttermilk with vectorize config."""
-        conf_dir = str(Path(__file__).parent.parent.parent / "conf")
-        bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=["db=upstream"])
-        yield bm
-        await bm.graceful_shutdown()
-
-    @pytest.fixture(scope="class")
-    async def zotero_source(self, buttermilk_instance):
-        """Create a ZoteroSource instance for fetching items."""
-        cfg = buttermilk_instance.cfg
+    async def test_fetch_item_from_zotero(self, bm_vectorize):
+        """Basic test to verify we can fetch an item from Zotero."""
+        # Create ZoteroSource from bm_vectorize fixture
+        cfg = bm_vectorize.cfg
         pipeline = cfg.pipeline if hasattr(cfg, "pipeline") else cfg["pipeline"]
         source = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
         library_id = source["library_id"] if isinstance(source, dict) else source.library_id
         save_dir = str(Path.home() / ".cache" / "buttermilk" / "zotero" / "state")
-        return ZoteroSource(library_id=library_id, save_dir=save_dir)
+        zotero_source = ZoteroSource(library_id=library_id, save_dir=save_dir)
 
-    async def test_fetch_item_from_zotero(self, zotero_source):
-        """Basic test to verify we can fetch an item from Zotero."""
         zot = zotero_source.zot
 
         # Fetch the problematic item
@@ -114,24 +104,16 @@ class TestVectorizationPipeline:
 class TestZoteroRecordTypes:
     """Test different Zotero item types to understand their structure."""
 
-    @pytest.fixture(scope="class")
-    async def zotero_source(self):
-        """Create a ZoteroSource instance."""
-        from buttermilk import init_async
-
-        conf_dir = str(Path(__file__).parent.parent.parent / "conf")
-        bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=["db=upstream"])
-        cfg = bm.cfg
+    async def test_analyze_item_structure(self, bm_vectorize):
+        """Analyze the structure of item B7ZX9ISZ to understand why it fails."""
+        # Create ZoteroSource from bm_vectorize fixture
+        cfg = bm_vectorize.cfg
         pipeline = cfg.pipeline if hasattr(cfg, "pipeline") else cfg["pipeline"]
         source = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
         library_id = source["library_id"] if isinstance(source, dict) else source.library_id
         save_dir = str(Path.home() / ".cache" / "buttermilk" / "zotero" / "state")
-        zs = ZoteroSource(library_id=library_id, save_dir=save_dir)
-        yield zs
-        await bm.graceful_shutdown()
+        zotero_source = ZoteroSource(library_id=library_id, save_dir=save_dir)
 
-    async def test_analyze_item_structure(self, zotero_source):
-        """Analyze the structure of item B7ZX9ISZ to understand why it fails."""
         zot = zotero_source.zot
         item_key = "B7ZX9ISZ"
 
@@ -160,21 +142,13 @@ class TestZoteroRecordTypes:
 class TestZoteroSyncDiagnostics:
     """Diagnostic tests to understand sync issues."""
 
-    @pytest.fixture(scope="class")
-    async def buttermilk_instance(self):
-        """Initialize Buttermilk with vectorize config."""
-        conf_dir = str(Path(__file__).parent.parent.parent / "conf")
-        bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=["db=upstream"])
-        yield bm
-        await bm.graceful_shutdown()
-
-    async def test_check_recent_items_in_chromadb(self, buttermilk_instance):
+    async def test_check_recent_items_in_chromadb(self, bm_vectorize):
         """Check if recently modified items from Zotero are in ChromaDB."""
         from buttermilk.libs.zotero import ZoteroSource
         from buttermilk.tools import ChromaDBSearchTool
 
         # Get Zotero source
-        cfg = buttermilk_instance.cfg
+        cfg = bm_vectorize.cfg
         pipeline = cfg["pipeline"] if isinstance(cfg, dict) else cfg.pipeline
         source_cfg = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
 
@@ -186,7 +160,7 @@ class TestZoteroSyncDiagnostics:
         recent_items = zot.items(limit=10, sort="dateModified", direction="desc")
 
         # Initialize ChromaDB search tool
-        cfg = buttermilk_instance.cfg
+        cfg = bm_vectorize.cfg
         if hasattr(cfg, "storage"):
             storage = cfg.storage
         else:
@@ -272,12 +246,12 @@ class TestZoteroSyncDiagnostics:
 
         logger.info("="*80 + "\n")
 
-    async def test_check_if_recent_items_should_have_fulltext(self, buttermilk_instance):
+    async def test_check_if_recent_items_should_have_fulltext(self, bm_vectorize):
         """Check if recent items from Zotero actually have attachments/PDFs that should be processed."""
         from buttermilk.libs.zotero import ZoteroSource
 
         # Get Zotero source
-        cfg = buttermilk_instance.cfg
+        cfg = bm_vectorize.cfg
         pipeline = cfg["pipeline"] if isinstance(cfg, dict) else cfg.pipeline
         source_cfg = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
 
@@ -381,22 +355,18 @@ def library_info_fixture(bm_vectorize):
 class TestZoteroSyncState:
     """Test Zotero sync state to verify cache freshness."""
 
-    @pytest.fixture(scope="class")
-    async def zotero_source(self, library_info_fixture):
-        """Create a ZoteroSource instance."""
-        return ZoteroSource(
-            library_id=library_info_fixture["library_id"],
-        )
-
     @pytest.mark.slow
-    async def test_sync_state_freshness(self, library_info_fixture, zotero_source):
+    async def test_sync_state_freshness(self, library_info_fixture):
         """Compare local sync state cache with live Zotero API to check freshness.
 
         This test helps identify if the local sync cache is out of date.
         """
+        # Create ZoteroSource instance
+        library_id = library_info_fixture["library_id"]
+        zotero_source = ZoteroSource(library_id=library_id)
+
         # Get the sync state file path
         save_dir = library_info_fixture["save_dir"]
-        library_id = library_info_fixture["library_id"]
         # Try both possible filenames
         sync_state_file = save_dir / ".zotero_sync_state.json"
         if not sync_state_file.exists():
@@ -498,8 +468,12 @@ class TestZoteroSyncState:
         else:
             pytest.fail("Could not determine current API version")
 
-    async def test_list_recent_modifications(self, zotero_source):
+    async def test_list_recent_modifications(self, library_info_fixture):
         """List the 10 most recently modified items from Zotero API."""
+        # Create ZoteroSource instance
+        library_id = library_info_fixture["library_id"]
+        zotero_source = ZoteroSource(library_id=library_id)
+
         zot = zotero_source.zot
 
         logger.info("\n" + "="*80)
