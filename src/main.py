@@ -71,7 +71,9 @@ async def _initialize_chromadb_background():
 async def lifespan_manager(server: FastMCP):
     """Initialize buttermilk with zotero config on startup.
 
-    ChromaDB initialization is deferred until first tool call that needs it.
+    This starts ChromaDB initialization in the background immediately,
+    allowing the MCP server to become responsive without waiting for
+    ChromaDB to be ready.
     """
     global bm, search_tool, conf, _chromadb_init_task
 
@@ -84,6 +86,12 @@ async def lifespan_manager(server: FastMCP):
             bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=[])
         else:
             bm = await init_async(job="zotmcp_cli", config=conf)
+
+    # Start ChromaDB initialization in background - don't await it!
+    # This allows the server to become responsive immediately while ChromaDB initializes
+    if _chromadb_init_task is None or _chromadb_init_task.done():
+        logger.info("🚀 Starting background ChromaDB initialization")
+        _chromadb_init_task = asyncio.create_task(_initialize_chromadb_background())
 
     logger.info("✅ Lifespan startup complete - yielding control to FastMCP")
     yield
@@ -105,16 +113,20 @@ mcp = FastMCP("ZotMCP - Academic Literature Search", lifespan=lifespan_manager)
 
 
 def _check_chromadb_ready() -> Optional[dict]:
-    """Check if ChromaDB is ready for use. Starts initialization on first call.
+    """Check if ChromaDB is ready for use.
+
+    The background task should already be running from lifespan startup.
+    This function just checks the status and returns an error if not ready.
 
     Returns:
         None if ready, or a dict with error information if not ready.
     """
     global _chromadb_init_task
 
-    # Start initialization on first call
+    # Safety fallback: start initialization if somehow it wasn't started in lifespan
+    # This should never happen in normal operation
     if _chromadb_init_task is None and not _chromadb_ready:
-        logger.info("🚀 Starting ChromaDB initialization (triggered by first tool call)")
+        logger.warning("⚠️  ChromaDB task not found - starting late initialization (this shouldn't happen)")
         _chromadb_init_task = asyncio.create_task(_initialize_chromadb_background())
 
     if _chromadb_init_error:
