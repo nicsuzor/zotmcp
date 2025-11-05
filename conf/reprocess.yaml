@@ -1,0 +1,83 @@
+# @package _global_
+# Reprocessing Pipeline for Specific Zotero Items
+# Inherits shared infrastructure from config.yaml
+#
+# Usage: python -m buttermilk.runner.cli --config-dir conf --config-name reprocess
+#
+# This config reprocesses specific Zotero items (e.g., corrupt documents)
+# using ZoteroItemSource instead of iterating through the entire library.
+# All processors are identical to vectorize.yaml.
+
+defaults:
+  - config              # Inherit base configuration
+  - db: upstream        # Use upstream GCS bucket for vectorization
+  - _self_
+
+# Pipeline specific configuration
+job: reprocess_zotero
+
+run:
+  mode: pipeline
+  limit: null  # Process all items in the file
+
+session:
+  template_paths:
+    - templates
+
+vectoriser:
+  _target_: buttermilk.data.vector.ChromaDBEmbeddings
+  persist_directory: ${storage.zotero_vectors.persist_directory}
+  collection_name: ${storage.zotero_vectors.collection_name}
+  embedding_model: ${storage.zotero_vectors.embedding_model}
+  dimensionality: ${storage.zotero_vectors.dimensionality}
+  concurrency: ${pipeline.concurrency}
+  sync_batch_size: 500
+  deduplication_strategy: record_id  # Skip existing records before downloading
+  enable_record_cache: true
+
+pipeline:
+  _target_: buttermilk.pipeline.PipelineOrchestrator
+  pipeline_name: zotero_reprocessing
+  concurrency: 1
+  limit: ${run.limit}
+
+  # Source: Fetch specific items by key from file
+  source:
+    _target_: src.zotero_items.ZoteroItemSource
+    library_id: ${oc.env:ZOTERO_LIBRARY_ID}
+    item_keys_file: documents_to_remove_ids.txt
+
+  processors:
+    # 0. Download PDFs
+    - _target_: buttermilk.libs.zotero.ZoteroDownloadProcessor
+      library_id: ${oc.env:ZOTERO_LIBRARY_ID}
+      save_dir: ${oc.env:HOME}/.cache/buttermilk/zotero/items
+
+    # 1. Extract text using pdftotext (replaces pdfminer extraction)
+    - _target_: buttermilk.processors.bash.PDFToTextProcessor
+
+    # 2. Generate citations using LLM
+    - _target_: buttermilk.tools.citator.Citator
+      model: gemini25flash
+      template: citator
+
+    # 3. Chunk text semantically
+    - _target_: buttermilk.data.vector.SemanticSplitter
+      chunk_size: 500
+      chunk_overlap: 200
+
+    # 4. Filter corrupt documents (document-level quality check)
+    - _target_: src.quality_processor.QualityFilterProcessor
+      corruption_threshold: 80.0
+      pattern_threshold: 80.0
+
+    # 5. Generate embeddings (pure, no side effects)
+    - _target_: buttermilk.processors.embeddings.EmbeddingGenerator
+      embedding_model: ${storage.zotero_vectors.embedding_model}
+      dimensionality: ${storage.zotero_vectors.dimensionality}
+      embedding_batch_size: 100
+      embedding_max_retries: 5
+      embedding_cooldown_seconds: 0.1
+
+    # 6. Store in ChromaDB
+    - ${vectoriser}
