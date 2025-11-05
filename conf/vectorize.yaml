@@ -69,7 +69,7 @@ pipeline:
 
     # 4. Filter corrupt documents (document-level quality check)
     - _target_: src.quality_processor.QualityFilterProcessor
-      corruption_threshold: 95.0
+      corruption_threshold: 80.0
       pattern_threshold: 80.0
 
     # 5. Generate embeddings (pure, no side effects)
