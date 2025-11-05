@@ -226,3 +226,55 @@ async def test_corrupted_documents_include_document_id_from_metadata(bm_dev):
 
     # Zotero keys are typically 8 alphanumeric characters
     assert len(document_id) > 0, "document_id should not be empty"
+
+
+def test_detect_corruption_with_language_detection():
+    """Test that language-based corruption detection identifies non-English artifacts.
+
+    EXPERIMENTAL FEATURE: This test validates langdetect integration to catch
+    corruption patterns that don't have (cid:XX) markers but are still corrupted
+    (e.g., 'o o o o o...', 't u o S . S . U...').
+
+    Language detection supplements CID pattern matching and may be refined/replaced
+    in future iterations based on false positive rates and detection accuracy.
+    """
+    from scripts.diagnose_corruption import detect_corruption
+
+    # Clean English text - should NOT be detected as corrupted
+    clean_text = "This is a normal document with regular text content and proper English sentences."
+    corruption = detect_corruption(clean_text)
+    assert corruption["is_corrupted"] is False
+    assert "detected_language" in corruption
+    assert corruption["detected_language"] == "en"  # English
+
+    # Pattern: 'o o o o o...' - detected as Portuguese by langdetect
+    # This is a known corruption pattern from document RJU3NH8P
+    o_pattern_text = "o o o o o o o o o o o o o o o o o o o o o o o o o o o o o o"
+    corruption = detect_corruption(o_pattern_text)
+    assert corruption["is_corrupted"] is True
+    assert "detected_language" in corruption
+    assert corruption["detected_language"] != "en"  # Should detect as non-English
+
+    # Pattern: 't u o S . S . U...' - detected as Croatian/Welsh by langdetect
+    # This is a known corruption pattern from document MBGHP5HR
+    t_pattern_text = "t u o S . S . U t u o S . S . U t u o S . S . U t u o S . S . U"
+    corruption = detect_corruption(t_pattern_text)
+    assert corruption["is_corrupted"] is True
+    assert "detected_language" in corruption
+    assert corruption["detected_language"] != "en"  # Should detect as non-English
+
+    # CID pattern - should still be detected (backward compatibility)
+    cid_text = "(cid:62)(cid:146)(cid:209)(cid:176)(cid:197)(cid:160) some text (cid:123)"
+    corruption = detect_corruption(cid_text)
+    assert corruption["is_corrupted"] is True
+    assert corruption["cid_count"] > 0
+    # CID patterns often detect as Spanish/other languages
+    assert "detected_language" in corruption
+
+    # Mixed corruption: English text with CID patterns
+    mixed_text = "This is mostly clean text but has (cid:42) one artifact here."
+    corruption = detect_corruption(mixed_text)
+    assert corruption["is_corrupted"] is True  # CID pattern triggers corruption
+    assert corruption["cid_count"] == 1
+    # Should detect as English despite CID (majority of text is English)
+    assert "detected_language" in corruption

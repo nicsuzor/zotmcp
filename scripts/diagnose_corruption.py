@@ -3,6 +3,10 @@
 
 This script scans the ChromaDB collection for documents with PDF encoding
 artifacts (e.g., (cid:XX) patterns) that indicate failed OCR or corrupted text.
+
+EXPERIMENTAL ENHANCEMENT: Language detection via langdetect to catch corruption
+patterns without (cid:XX) markers (e.g., 'o o o o...', 't u o S...'). This feature
+is subject to refinement based on false positive rates and detection accuracy.
 """
 
 import asyncio
@@ -12,6 +16,7 @@ import sys
 from pathlib import Path
 
 import click
+from langdetect import detect, DetectorFactory, LangDetectException
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -22,18 +27,29 @@ from buttermilk.tools import ChromaDBSearchTool
 # Pattern to detect PDF encoding artifacts like (cid:XX)
 CID_PATTERN = re.compile(r'\(cid:\d+\)')
 
+# Ensure consistent language detection results
+DetectorFactory.seed = 0
+
 
 def detect_corruption(text: str) -> dict:
     """Detect corruption patterns in text content.
+
+    Uses two detection methods:
+    1. CID pattern matching: Detects (cid:XX) PDF encoding artifacts
+    2. Language detection: Flags non-English text as potential corruption
+
+    EXPERIMENTAL: Language detection is a supplementary signal that may produce
+    false positives for legitimate non-English content. Subject to refinement.
 
     Args:
         text: Text content to analyze
 
     Returns:
         dict: Corruption analysis with keys:
-            - is_corrupted: bool indicating if text has corruption
-            - corruption_percentage: float from 0-100
+            - is_corrupted: bool indicating if text has corruption (ANY signal)
+            - corruption_percentage: float from 0-100 based on CID density
             - cid_count: int count of (cid:XX) patterns found
+            - detected_language: str language code from langdetect ('en', 'es', etc.)
     """
     if not text or len(text.strip()) == 0:
         # Empty text is considered completely corrupted
@@ -41,9 +57,10 @@ def detect_corruption(text: str) -> dict:
             "is_corrupted": True,
             "corruption_percentage": 100.0,
             "cid_count": 0,
+            "detected_language": "unknown",
         }
 
-    # Find all (cid:XX) patterns
+    # SIGNAL 1: Find all (cid:XX) patterns
     cid_matches = CID_PATTERN.findall(text)
     cid_count = len(cid_matches)
 
@@ -54,12 +71,28 @@ def detect_corruption(text: str) -> dict:
     cid_chars = sum(len(match) for match in cid_matches)
     corruption_percentage = (cid_chars / total_chars * 100) if total_chars > 0 else 0.0
 
-    is_corrupted = cid_count > 0
+    # SIGNAL 2: Language detection
+    # Non-English text is flagged as potential corruption
+    # (NOTE: This may produce false positives for legitimate multilingual content)
+    detected_language = "unknown"
+    language_indicates_corruption = False
+
+    try:
+        detected_language = detect(text)
+        # Flag as corrupted if language is NOT English
+        language_indicates_corruption = (detected_language != "en")
+    except LangDetectException:
+        # If language detection fails, assume unknown language = potential corruption
+        language_indicates_corruption = True
+
+    # Mark as corrupted if EITHER signal triggers
+    is_corrupted = (cid_count > 0) or language_indicates_corruption
 
     return {
         "is_corrupted": is_corrupted,
         "corruption_percentage": corruption_percentage,
         "cid_count": cid_count,
+        "detected_language": detected_language,
     }
 
 
@@ -147,6 +180,7 @@ async def scan_collection_for_corruption(bm, max_documents: int = None, collect_
                         "severity": severity,
                         "corruption_percentage": corruption["corruption_percentage"],
                         "cid_count": corruption["cid_count"],
+                        "detected_language": corruption["detected_language"],
                         "text_preview": doc[:200] if doc else "(empty)"
                     })
 
