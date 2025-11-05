@@ -11,6 +11,7 @@ Conservative removal criteria:
 - Repetitive patterns (>50% single char or dots)
 """
 
+import random
 from collections import Counter
 
 
@@ -93,3 +94,96 @@ def should_remove_document(doc: dict) -> bool:
         return True
 
     return False
+
+
+def get_removal_reason(doc: dict) -> str:
+    """Categorize why a document should be removed.
+
+    Args:
+        doc: Document dict with corruption metrics
+
+    Returns:
+        str: Removal reason category - 'empty', 'high_corruption', 'high_cid', 'repetitive_pattern'
+
+    Raises:
+        KeyError: If required keys are missing from document dict
+    """
+    # Validate required keys exist (fail-fast - no defaults)
+    required_keys = ["severity", "corruption_percentage", "cid_count", "text_preview"]
+    missing_keys = [key for key in required_keys if key not in doc]
+    if missing_keys:
+        raise KeyError(f"Document missing required keys: {missing_keys}")
+
+    # Check criteria in priority order
+    if doc["severity"] == "empty":
+        return "empty"
+
+    if doc["corruption_percentage"] >= 50:
+        return "high_corruption"
+
+    if doc["cid_count"] >= 50:
+        return "high_cid"
+
+    if detect_repetitive_pattern(doc["text_preview"]):
+        return "repetitive_pattern"
+
+    # Should not reach here if document passes should_remove_document()
+    raise ValueError(f"Document {doc.get('document_id', 'unknown')} does not match any removal criteria")
+
+
+def generate_random_samples(documents: list, count: int) -> list:
+    """Generate random sample of documents for verification.
+
+    Args:
+        documents: List of document dicts to sample from
+        count: Number of samples to generate
+
+    Returns:
+        list: Random sample of documents (up to count, or all if fewer available)
+    """
+    if not documents:
+        return []
+
+    # Return all documents if fewer than requested count
+    if len(documents) <= count:
+        return documents.copy()
+
+    # Return random sample of requested count
+    return random.sample(documents, count)
+
+
+def calculate_statistics(all_documents: list, documents_to_remove: list) -> dict:
+    """Calculate statistics about removal operation.
+
+    Args:
+        all_documents: Complete list of all corrupted documents scanned
+        documents_to_remove: List of documents that will be removed
+
+    Returns:
+        dict: Statistics including counts, percentages, and breakdown by removal reason
+    """
+    total = len(all_documents)
+    to_remove = len(documents_to_remove)
+    to_keep = total - to_remove
+
+    removal_percentage = (to_remove / total * 100) if total > 0 else 0.0
+
+    # Categorize removals by reason
+    removal_by_reason = {
+        "empty": 0,
+        "high_corruption": 0,
+        "high_cid": 0,
+        "repetitive_pattern": 0
+    }
+
+    for doc in documents_to_remove:
+        reason = get_removal_reason(doc)
+        removal_by_reason[reason] += 1
+
+    return {
+        "total_documents": total,
+        "documents_to_remove": to_remove,
+        "documents_to_keep": to_keep,
+        "removal_percentage": removal_percentage,
+        "removal_by_reason": removal_by_reason
+    }
