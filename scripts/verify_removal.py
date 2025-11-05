@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Verification tool to validate corruption detection outputs before database changes.
+"""Verification tool for document-level corruption analysis.
 
-This script applies conservative removal filters to corrupted documents and generates
-verification outputs for human review. NO DATABASE MODIFICATIONS are made.
+This script analyzes corruption at the DOCUMENT level (not chunk level) and applies
+conservative removal filters. NO DATABASE MODIFICATIONS are made.
 
-Conservative removal criteria:
-- severity == 'empty'
-- corruption_percentage >= 50
-- cid_count >= 50
-- Repetitive patterns (>50% single char or dots)
+Document-level removal criteria:
+- ≥95% of chunks are high severity (corruption_percentage ≥ 20%)
+- ≥80% of chunks have repetitive patterns
+- Otherwise: KEEP (good documents with localized corruption)
+
+This approach avoids false positives like GH6GBZQT (21% corrupt, should keep).
 """
 
 import random
-from collections import Counter
+from collections import Counter, defaultdict
+from typing import List, Dict
 
 
 def detect_repetitive_pattern(text: str) -> bool:
@@ -50,6 +52,97 @@ def detect_repetitive_pattern(text: str) -> bool:
         return True
 
     return False
+
+
+def group_chunks_by_document(corrupted_chunks: List[dict]) -> Dict[str, List[dict]]:
+    """Group chunks by their document_id.
+
+    Args:
+        corrupted_chunks: List of chunk dicts from corruption detection
+
+    Returns:
+        Dict mapping document_id to list of chunks for that document
+    """
+    documents = defaultdict(list)
+    for chunk in corrupted_chunks:
+        doc_id = chunk.get("document_id")
+        if doc_id:
+            documents[doc_id].append(chunk)
+    return dict(documents)
+
+
+def should_remove_document_v2(document_data: dict) -> bool:
+    """Determine if a document should be removed using document-level criteria.
+
+    Removal criteria (ANY triggers removal):
+    1. ≥95% of chunks have high severity (corruption_percentage ≥ 20%)
+    2. ≥80% of chunks have repetitive patterns
+
+    Otherwise: KEEP the document (may have localized corruption, but mostly good)
+
+    Args:
+        document_data: Dict with keys:
+            - document_id: str
+            - chunks: List[dict] with corruption_percentage, severity, text_preview
+
+    Returns:
+        bool: True if document should be removed, False to keep
+    """
+    chunks = document_data.get("chunks", [])
+    if not chunks:
+        return True  # Empty document should be removed
+
+    total_chunks = len(chunks)
+
+    # Count high severity chunks (corruption_percentage ≥ 20%)
+    high_severity_chunks = sum(
+        1 for chunk in chunks
+        if chunk.get("corruption_percentage", 0) >= 20.0
+    )
+
+    high_severity_rate = (high_severity_chunks / total_chunks * 100) if total_chunks > 0 else 0
+
+    # Criterion 1: ≥95% of chunks are high severity
+    if high_severity_rate >= 95.0:
+        return True
+
+    # Count chunks with repetitive patterns
+    repetitive_chunks = sum(
+        1 for chunk in chunks
+        if detect_repetitive_pattern(chunk.get("text_preview", ""))
+    )
+
+    repetitive_rate = (repetitive_chunks / total_chunks * 100) if total_chunks > 0 else 0
+
+    # Criterion 2: ≥80% of chunks have repetitive patterns
+    if repetitive_rate >= 80.0:
+        return True
+
+    # Otherwise: KEEP the document
+    return False
+
+
+def calculate_document_level_statistics(documents: List[dict]) -> dict:
+    """Calculate statistics at document level.
+
+    Args:
+        documents: List of document dicts with should_remove, total_chunks, etc.
+
+    Returns:
+        dict: Statistics about documents to remove/keep
+    """
+    total_documents = len(documents)
+    documents_to_remove = sum(1 for doc in documents if doc.get("should_remove", False))
+    documents_to_keep = total_documents - documents_to_remove
+
+    removal_percentage = (documents_to_remove / total_documents * 100) if total_documents > 0 else 0.0
+
+    return {
+        "total_documents": total_documents,
+        "documents_to_remove": documents_to_remove,
+        "documents_to_keep": documents_to_keep,
+        "removal_percentage": removal_percentage,
+    }
 
 
 def should_remove_document(doc: dict) -> bool:
