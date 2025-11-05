@@ -356,40 +356,56 @@ def main():
         with open(input, 'r') as f:
             data = json.load(f)
 
-        corrupted_documents = data["corrupted_documents"]
+        corrupted_chunks = data["corrupted_documents"]  # These are actually chunks
         total_scanned = data["summary"]["total_scanned"]
 
-        click.echo(f"Loaded {len(corrupted_documents):,} corrupted documents")
+        click.echo(f"Loaded {len(corrupted_chunks):,} corrupted chunks")
         click.echo(f"Total documents in database: {total_scanned:,}")
 
-        # Apply conservative filters
-        click.echo("\nApplying conservative removal filters...")
-        documents_to_remove = [doc for doc in corrupted_documents if should_remove_document(doc)]
-        documents_to_keep = len(corrupted_documents) - len(documents_to_remove)
+        # Group chunks by document for document-level analysis
+        click.echo("\nGrouping chunks by document...")
+        documents_by_id = group_chunks_by_document(corrupted_chunks)
+        click.echo(f"Found {len(documents_by_id):,} unique documents with corruption")
+
+        # Apply document-level removal criteria
+        click.echo("\nApplying document-level removal filters (≥95% corrupt)...")
+        document_decisions = []
+        for doc_id, chunks in documents_by_id.items():
+            document_data = {
+                "document_id": doc_id,
+                "chunks": chunks
+            }
+            should_remove = should_remove_document_v2(document_data)
+            document_decisions.append({
+                "document_id": doc_id,
+                "should_remove": should_remove,
+                "total_chunks": len(chunks),
+                "chunks": chunks
+            })
+
+        documents_to_remove = [doc for doc in document_decisions if doc["should_remove"]]
+        documents_to_keep = [doc for doc in document_decisions if not doc["should_remove"]]
 
         click.echo(f"Documents to remove: {len(documents_to_remove):,}")
-        click.echo(f"Corrupted documents to keep: {documents_to_keep:,}")
+        click.echo(f"Corrupted documents to keep: {len(documents_to_keep):,}")
 
-        # Calculate statistics
-        stats = calculate_statistics(corrupted_documents, documents_to_remove)
+        # Calculate document-level statistics
+        stats = calculate_document_level_statistics(document_decisions)
 
         # Display summary
         database_percentage = (stats['documents_to_remove'] / total_scanned * 100) if total_scanned > 0 else 0
 
         click.echo("\n" + "=" * 80)
-        click.echo("REMOVAL SUMMARY")
+        click.echo("DOCUMENT-LEVEL REMOVAL SUMMARY")
         click.echo("=" * 80)
         click.echo(f"Total database size: {total_scanned:,} documents")
-        click.echo(f"Corrupted documents: {len(corrupted_documents):,} ({len(corrupted_documents)/total_scanned*100:.1f}%)")
-        click.echo(f"Documents to remove: {stats['documents_to_remove']:,}")
-        click.echo(f"  - {stats['removal_percentage']:.2f}% of corrupted documents")
-        click.echo(f"  - {database_percentage:.2f}% of total database")
-        click.echo(f"False positive estimate: <1% (conservative criteria)")
-
-        click.echo("\nRemoval breakdown by reason:")
-        for reason, count in stats["removal_by_reason"].items():
-            percentage = (count / stats['documents_to_remove'] * 100) if stats['documents_to_remove'] > 0 else 0
-            click.echo(f"  {reason}: {count:,} ({percentage:.1f}%)")
+        click.echo(f"Documents with corruption: {len(documents_by_id):,}")
+        click.echo(f"Documents to remove: {stats['documents_to_remove']:,} (≥95% corrupt)")
+        click.echo(f"Documents to keep: {stats['documents_to_keep']:,} (<95% corrupt)")
+        click.echo(f"  - {stats['removal_percentage']:.2f}% of corrupted documents will be removed")
+        click.echo(f"  - {database_percentage:.2f}% of total database will be removed")
+        click.echo(f"\nNote: Document-level analysis groups chunks by document_id.")
+        click.echo(f"A document is removed only if ≥95% of its chunks are corrupt.")
 
         # Generate random samples
         click.echo(f"\nGenerating {sample_count} random samples for review...")
@@ -412,13 +428,22 @@ def main():
         click.echo("=" * 80)
 
         for i, doc in enumerate(samples[:5], 1):
-            reason = get_removal_reason(doc)
-            click.echo(f"\n{i}. Document ID: {doc['document_id']}")
-            click.echo(f"   Reason: {reason}")
-            click.echo(f"   Severity: {doc['severity']}")
-            click.echo(f"   Corruption: {doc['corruption_percentage']:.1f}%")
-            click.echo(f"   CID count: {doc['cid_count']}")
-            click.echo(f"   Text preview: {doc['text_preview'][:100]}...")
+            doc_id = doc['document_id']
+            total_chunks = doc['total_chunks']
+            chunks = doc['chunks']
+
+            # Calculate document-level stats
+            high_severity_chunks = sum(1 for c in chunks if c.get("corruption_percentage", 0) >= 20.0)
+            corruption_rate = (high_severity_chunks / total_chunks * 100) if total_chunks > 0 else 0
+
+            # Get first chunk's text preview
+            first_chunk_text = chunks[0].get('text_preview', '') if chunks else 'N/A'
+
+            click.echo(f"\n{i}. Document ID: {doc_id}")
+            click.echo(f"   Total chunks: {total_chunks}")
+            click.echo(f"   High severity chunks: {high_severity_chunks} ({corruption_rate:.1f}%)")
+            click.echo(f"   Decision: REMOVE (≥95% corrupt)")
+            click.echo(f"   First chunk preview: {first_chunk_text[:100]}...")
 
         click.echo("\n" + "=" * 80)
         click.echo("Verification complete!")
