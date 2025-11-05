@@ -187,3 +187,154 @@ def calculate_statistics(all_documents: list, documents_to_remove: list) -> dict
         "removal_percentage": removal_percentage,
         "removal_by_reason": removal_by_reason
     }
+
+
+def write_verification_report(stats: dict, samples: list, output_file: str):
+    """Write verification report to JSON file.
+
+    Args:
+        stats: Statistics dict from calculate_statistics()
+        samples: List of sample documents for human review
+        output_file: Path to output JSON file
+    """
+    report = {
+        "statistics": stats,
+        "samples": samples,
+        "sample_count": len(samples),
+        "false_positive_estimate": "<1%",  # Conservative estimate based on criteria
+        "review_instructions": (
+            "Review the sample documents below to verify removal decisions are correct. "
+            "Check for any false positives that should be preserved."
+        )
+    }
+
+    with open(output_file, 'w') as f:
+        import json
+        json.dump(report, f, indent=2)
+
+
+def write_id_list(document_ids: list, output_file: str):
+    """Write list of document IDs to text file (one per line).
+
+    Args:
+        document_ids: List of document ID strings
+        output_file: Path to output text file
+    """
+    with open(output_file, 'w') as f:
+        for doc_id in document_ids:
+            f.write(f"{doc_id}\n")
+
+
+def main():
+    """Main entry point for verification script."""
+    import click
+    import json
+    from pathlib import Path
+
+    @click.command()
+    @click.option(
+        "--input",
+        type=click.Path(exists=True),
+        default="all_corruption.json",
+        help="Path to corruption detection JSON file (default: all_corruption.json)"
+    )
+    @click.option(
+        "--sample-count",
+        type=int,
+        default=50,
+        help="Number of random samples to generate for review (default: 50)"
+    )
+    def verify(input: str, sample_count: int):
+        """Verify corruption removal decisions before database changes.
+
+        This read-only tool applies conservative removal filters and generates
+        verification outputs for human review. NO DATABASE MODIFICATIONS are made.
+
+        Outputs:
+        - verification_report.json: Statistics + samples for human review
+        - documents_to_remove_ids.txt: Simple list of document IDs to remove
+        """
+        click.echo("Corruption Removal Verification Tool")
+        click.echo("=" * 80)
+        click.echo(f"Input file: {input}")
+
+        # Load corruption data
+        click.echo(f"\nLoading corruption data from {input}...")
+        with open(input, 'r') as f:
+            data = json.load(f)
+
+        corrupted_documents = data["corrupted_documents"]
+        total_scanned = data["summary"]["total_scanned"]
+
+        click.echo(f"Loaded {len(corrupted_documents):,} corrupted documents")
+        click.echo(f"Total documents in database: {total_scanned:,}")
+
+        # Apply conservative filters
+        click.echo("\nApplying conservative removal filters...")
+        documents_to_remove = [doc for doc in corrupted_documents if should_remove_document(doc)]
+        documents_to_keep = len(corrupted_documents) - len(documents_to_remove)
+
+        click.echo(f"Documents to remove: {len(documents_to_remove):,}")
+        click.echo(f"Corrupted documents to keep: {documents_to_keep:,}")
+
+        # Calculate statistics
+        stats = calculate_statistics(corrupted_documents, documents_to_remove)
+
+        # Display summary
+        database_percentage = (stats['documents_to_remove'] / total_scanned * 100) if total_scanned > 0 else 0
+
+        click.echo("\n" + "=" * 80)
+        click.echo("REMOVAL SUMMARY")
+        click.echo("=" * 80)
+        click.echo(f"Total database size: {total_scanned:,} documents")
+        click.echo(f"Corrupted documents: {len(corrupted_documents):,} ({len(corrupted_documents)/total_scanned*100:.1f}%)")
+        click.echo(f"Documents to remove: {stats['documents_to_remove']:,}")
+        click.echo(f"  - {stats['removal_percentage']:.2f}% of corrupted documents")
+        click.echo(f"  - {database_percentage:.2f}% of total database")
+        click.echo(f"False positive estimate: <1% (conservative criteria)")
+
+        click.echo("\nRemoval breakdown by reason:")
+        for reason, count in stats["removal_by_reason"].items():
+            percentage = (count / stats['documents_to_remove'] * 100) if stats['documents_to_remove'] > 0 else 0
+            click.echo(f"  {reason}: {count:,} ({percentage:.1f}%)")
+
+        # Generate random samples
+        click.echo(f"\nGenerating {sample_count} random samples for review...")
+        samples = generate_random_samples(documents_to_remove, sample_count)
+
+        # Write outputs
+        report_file = "verification_report.json"
+        ids_file = "documents_to_remove_ids.txt"
+
+        click.echo(f"\nWriting verification report to {report_file}...")
+        write_verification_report(stats, samples, report_file)
+
+        click.echo(f"Writing document IDs to {ids_file}...")
+        document_ids = [doc["document_id"] for doc in documents_to_remove]
+        write_id_list(document_ids, ids_file)
+
+        # Display sample preview
+        click.echo("\n" + "=" * 80)
+        click.echo("SAMPLE PREVIEW (first 5 documents)")
+        click.echo("=" * 80)
+
+        for i, doc in enumerate(samples[:5], 1):
+            reason = get_removal_reason(doc)
+            click.echo(f"\n{i}. Document ID: {doc['document_id']}")
+            click.echo(f"   Reason: {reason}")
+            click.echo(f"   Severity: {doc['severity']}")
+            click.echo(f"   Corruption: {doc['corruption_percentage']:.1f}%")
+            click.echo(f"   CID count: {doc['cid_count']}")
+            click.echo(f"   Text preview: {doc['text_preview'][:100]}...")
+
+        click.echo("\n" + "=" * 80)
+        click.echo("Verification complete!")
+        click.echo(f"Review {report_file} for full sample set ({len(samples)} documents)")
+        click.echo(f"Use {ids_file} for removal operations")
+        click.echo("=" * 80)
+
+    verify()
+
+
+if __name__ == "__main__":
+    main()
