@@ -67,7 +67,12 @@ pipeline:
       chunk_size: 500
       chunk_overlap: 200
 
-    # 4. Generate embeddings (pure, no side effects)
+    # 4. Filter corrupt documents (document-level quality check)
+    - _target_: src.quality_processor.QualityFilterProcessor
+      corruption_threshold: 95.0
+      pattern_threshold: 80.0
+
+    # 5. Generate embeddings (pure, no side effects)
     - _target_: buttermilk.processors.embeddings.EmbeddingGenerator
       embedding_model: ${storage.zotero_vectors.embedding_model}
       dimensionality: ${storage.zotero_vectors.dimensionality}
@@ -75,5 +80,5 @@ pipeline:
       embedding_max_retries: 5
       embedding_cooldown_seconds: 0.1
 
-    # 5. Store in ChromaDB
+    # 6. Store in ChromaDB
     - ${vectoriser}
