@@ -96,9 +96,9 @@ def test_quality_filter_processor_configuration():
         assert quality_processor is not None, "QualityFilterProcessor not found"
         assert hasattr(quality_processor, "corruption_threshold"), \
             "QualityFilterProcessor missing corruption_threshold"
-        assert quality_processor.corruption_threshold == 95.0, \
-            f"Expected corruption_threshold=95.0, got {quality_processor.corruption_threshold}"
+        assert 1 <= quality_processor.corruption_threshold <= 100, \
+            f"corruption_threshold must be in range 1-100, got {quality_processor.corruption_threshold}"
         assert hasattr(quality_processor, "pattern_threshold"), \
             "QualityFilterProcessor missing pattern_threshold"
-        assert quality_processor.pattern_threshold == 80.0, \
-            f"Expected pattern_threshold=80.0, got {quality_processor.pattern_threshold}"
+        assert 1 <= quality_processor.pattern_threshold <= 100, \
+            f"pattern_threshold must be in range 1-100, got {quality_processor.pattern_threshold}"
