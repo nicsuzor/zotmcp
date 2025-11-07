@@ -4,17 +4,18 @@ This processor analyzes document-level corruption and filters out documents
 that exceed corruption thresholds. It should be placed between the chunking
 and embedding steps to prevent corrupt documents from being vectorized.
 
-The processor uses the text_quality module's analyze_document_quality() to
+The processor uses the text_quality module's is_document_corrupt() to
 perform document-level analysis on all chunks and applies configurable
 thresholds to determine if a document should be filtered.
 """
+
 from typing import AsyncGenerator
 
 from pydantic import BaseModel, Field
 
 from buttermilk import logger
 from buttermilk._core.types import Record
-from src.text_quality import analyze_document_quality
+from src.text_quality import is_document_corrupt
 
 
 class QualityFilterProcessor(BaseModel):
@@ -48,21 +49,17 @@ class QualityFilterProcessor(BaseModel):
     corruption_threshold: float = Field(
         default=95.0,
         description="Minimum corruption rate (%) to filter document. "
-        "Documents with >= this percentage of corrupt chunks are filtered."
+        "Documents with >= this percentage of corrupt chunks are filtered.",
     )
 
     pattern_threshold: float = Field(
         default=80.0,
         description="Minimum repetitive pattern rate (%) to consider corrupt. "
-        "Currently used by verification logic, reserved for future use."
+        "Currently used by verification logic, reserved for future use.",
     )
 
     async def process(
-        self,
-        record: Record,
-        *,
-        processor_stage: str,
-        **kwargs
+        self, record: Record, *, processor_stage: str, **kwargs
     ) -> AsyncGenerator[Record, None]:
         """Process a record by analyzing document quality and filtering if corrupt.
 
@@ -93,7 +90,7 @@ class QualityFilterProcessor(BaseModel):
             logger.warning(
                 "Record has empty chunks list, filtering out",
                 record_id=record.record_id,
-                processor_stage=processor_stage
+                processor_stage=processor_stage,
             )
             return
 
@@ -107,17 +104,24 @@ class QualityFilterProcessor(BaseModel):
                 chunk_texts.append(getattr(chunk, "chunk_text", ""))
 
         # Perform document-level quality analysis
-        quality_result = analyze_document_quality(chunk_texts)
+        quality_result = is_document_corrupt(
+            chunk_texts, threshold=self.corruption_threshold
+        )
 
+        is_corrupt = quality_result["is_corrupt"]
         corruption_rate = quality_result["corruption_rate"]
         total_chunks = quality_result["total_chunks"]
         corrupted_chunks = quality_result["corrupted_chunks"]
 
         # Get document title for logging
-        title = record.metadata.get("title", record.record_id) if record.metadata else record.record_id
+        title = (
+            record.metadata.get("title", record.record_id)
+            if record.metadata
+            else record.record_id
+        )
 
         # Apply threshold filter
-        if corruption_rate >= self.corruption_threshold:
+        if is_corrupt:
             # Filter out (do not yield) corrupt document
             logger.info(
                 f"🚫 Filtering corrupt document: {title[:50]}",
@@ -126,7 +130,7 @@ class QualityFilterProcessor(BaseModel):
                 corrupted_chunks=corrupted_chunks,
                 total_chunks=total_chunks,
                 threshold=f"{self.corruption_threshold:.1f}%",
-                processor_stage=processor_stage
+                processor_stage=processor_stage,
             )
             return  # Do not yield - document is filtered
 
@@ -137,7 +141,7 @@ class QualityFilterProcessor(BaseModel):
             corruption_rate=f"{corruption_rate:.1f}%",
             corrupted_chunks=corrupted_chunks,
             total_chunks=total_chunks,
-            processor_stage=processor_stage
+            processor_stage=processor_stage,
         )
 
         yield record

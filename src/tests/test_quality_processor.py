@@ -255,3 +255,112 @@ async def test_quality_filter_logs_filtered_documents(caplog):
     assert len(results) == 0
     # Check that logging occurred (processor should log filtering decision)
     # Note: Exact log format will be implemented in processor
+
+
+@pytest.mark.asyncio
+async def test_quality_filter_uses_is_document_corrupt_with_threshold():
+    """Test QualityFilterProcessor uses is_document_corrupt() instead of analyze_document_quality().
+
+    This test verifies two critical behaviors:
+    1. QualityFilterProcessor calls is_document_corrupt() with the configured threshold
+    2. Documents at exactly the threshold are filtered (>= behavior)
+    3. Documents below the threshold pass through
+
+    Test cases:
+    - 66% corruption with 66.0 threshold -> FILTERED (corruption_rate >= threshold)
+    - 65% corruption with 66.0 threshold -> PASS (corruption_rate < threshold)
+    """
+    # Arrange
+    from src.quality_processor import QualityFilterProcessor
+
+    processor = QualityFilterProcessor(
+        corruption_threshold=66.0,
+        pattern_threshold=80.0,
+    )
+
+    # Test case 1: Document at exactly 66% corruption with 66.0 threshold
+    # Use 20+ CID patterns to trigger corruption detection
+    corrupt_text = " ".join([f"(cid:{i})" for i in range(1, 26)])  # 25 CID patterns
+    corrupt_chunks_66 = [
+        ChunkedDocument(
+            document_title="Threshold Test Doc",
+            chunk_index=i,
+            chunk_text=corrupt_text,
+            document_id="THRESH66",
+            chunk_id=f"THRESH66_{i}",
+            metadata={"title": "Threshold Test Doc"},
+        )
+        for i in range(66)
+    ]
+
+    clean_chunks_66 = [
+        ChunkedDocument(
+            document_title="Threshold Test Doc",
+            chunk_index=i + 66,
+            chunk_text="Normal clean text chunk",
+            document_id="THRESH66",
+            chunk_id=f"THRESH66_{i + 66}",
+            metadata={"title": "Threshold Test Doc"},
+        )
+        for i in range(34)
+    ]
+
+    record_66 = Record(
+        record_id="THRESH66",
+        content="Combined text",
+        metadata={"title": "Threshold Test Doc"},
+        chunks=corrupt_chunks_66 + clean_chunks_66,
+    )
+
+    # Act
+    results_66 = []
+    async for result in processor.process(record_66, processor_stage="quality_filter"):
+        results_66.append(result)
+
+    # Assert - 66% corruption with 66.0 threshold should be FILTERED
+    assert (
+        len(results_66) == 0
+    ), "Document at exactly 66% corruption with 66.0 threshold should be filtered (>= behavior)"
+
+    # Test case 2: Document at 65% corruption with 66.0 threshold
+    corrupt_chunks_65 = [
+        ChunkedDocument(
+            document_title="Below Threshold Doc",
+            chunk_index=i,
+            chunk_text=corrupt_text,
+            document_id="THRESH65",
+            chunk_id=f"THRESH65_{i}",
+            metadata={"title": "Below Threshold Doc"},
+        )
+        for i in range(65)
+    ]
+
+    clean_chunks_65 = [
+        ChunkedDocument(
+            document_title="Below Threshold Doc",
+            chunk_index=i + 65,
+            chunk_text="Normal clean text chunk",
+            document_id="THRESH65",
+            chunk_id=f"THRESH65_{i + 65}",
+            metadata={"title": "Below Threshold Doc"},
+        )
+        for i in range(35)
+    ]
+
+    record_65 = Record(
+        record_id="THRESH65",
+        content="Combined text",
+        metadata={"title": "Below Threshold Doc"},
+        chunks=corrupt_chunks_65 + clean_chunks_65,
+    )
+
+    # Act
+    results_65 = []
+    async for result in processor.process(record_65, processor_stage="quality_filter"):
+        results_65.append(result)
+
+    # Assert - 65% corruption with 66.0 threshold should PASS
+    assert (
+        len(results_65) == 1
+    ), "Document at 65% corruption with 66.0 threshold should pass through (< threshold)"
+    assert results_65[0].record_id == "THRESH65"
