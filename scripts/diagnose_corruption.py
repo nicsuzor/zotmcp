@@ -142,6 +142,7 @@ async def scan_collection_for_corruption(
     # Analyze each document
     corrupted_count = 0
     sample_corrupted = []
+    severity_counts = {"clean": 0, "low": 0, "medium": 0, "high": 0, "empty": 0}
 
     for document_id, doc_data in documents.items():
         chunks = doc_data["chunks"]
@@ -149,6 +150,21 @@ async def scan_collection_for_corruption(
 
         # Analyze document-level corruption
         result = is_document_corrupt(chunks, threshold=document_corruption_threshold)
+
+        # Classify severity based on document-level corruption rate
+        corruption_pct = result["corruption_rate"]
+        if corruption_pct == 100.0:
+            severity = "empty"
+        elif not result["is_corrupt"]:
+            severity = "clean"
+        elif corruption_pct < 75.0:
+            severity = "low"
+        elif corruption_pct < 90.0:
+            severity = "medium"
+        else:
+            severity = "high"
+
+        severity_counts[severity] += 1
 
         if result["is_corrupt"]:
             corrupted_count += 1
@@ -162,6 +178,7 @@ async def scan_collection_for_corruption(
                         "corruption_rate": result["corruption_rate"],
                         "corrupted_chunks": result["corrupted_chunks"],
                         "total_chunks": result["total_chunks"],
+                        "severity": severity,
                     }
                 )
 
@@ -175,6 +192,7 @@ async def scan_collection_for_corruption(
         "total_scanned": total_documents,
         "total_corrupted": corrupted_count,
         "corruption_rate": corruption_rate,
+        "severity_breakdown": severity_counts,
         "sample_corrupted": sample_corrupted,
     }
 
