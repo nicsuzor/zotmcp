@@ -41,7 +41,9 @@ def test_detect_corruption_patterns():
     assert corruption["cid_count"] == 0
 
     # Heavily corrupted text with (cid:XX) patterns
-    corrupted_text = "(cid:62)(cid:146)(cid:209)(cid:176)(cid:197)(cid:160) some text (cid:123)"
+    corrupted_text = (
+        "(cid:62)(cid:146)(cid:209)(cid:176)(cid:197)(cid:160) some text (cid:123)"
+    )
     corruption = detect_corruption(corrupted_text)
     assert corruption["is_corrupted"] is True
     assert corruption["corruption_percentage"] > 0
@@ -72,12 +74,18 @@ def test_classify_severity():
 
     # Low corruption (< 5%) - need longer text to dilute percentage
     # (cid:1) is 7 chars, need >140 chars total for <5%
-    low_corrupt = detect_corruption("This is a long paragraph with mostly clean content and proper text. " * 3 + "(cid:1)")
+    low_corrupt = detect_corruption(
+        "This is a long paragraph with mostly clean content and proper text. " * 3
+        + "(cid:1)"
+    )
     assert classify_severity(low_corrupt) == "low"
 
     # Medium corruption (5-20%) - multiple artifacts in moderate text
     # 3 x (cid:X) = 21 chars, need 105-420 chars total for 5-20%
-    medium_corrupt = detect_corruption("This is some text content that will be analyzed for corruption. " * 2 + "(cid:1)(cid:2)(cid:3)")
+    medium_corrupt = detect_corruption(
+        "This is some text content that will be analyzed for corruption. " * 2
+        + "(cid:1)(cid:2)(cid:3)"
+    )
     assert classify_severity(medium_corrupt) == "medium"
 
     # High corruption (> 20%) - heavy artifact density
@@ -174,7 +182,9 @@ async def test_limit_option_controls_scan_size(bm_dev):
     from scripts.diagnose_corruption import diagnose_collection
 
     # Test custom limit of 50 documents
-    report_50 = await diagnose_collection(verbose=False, output_file=None, max_documents=50)
+    report_50 = await diagnose_collection(
+        verbose=False, output_file=None, max_documents=50
+    )
     assert report_50["total_scanned"] == 50
 
     # Test default behavior (should scan 1000)
@@ -207,22 +217,26 @@ async def test_corrupted_documents_include_document_id_from_metadata(bm_dev):
     report = await scan_collection_for_corruption(bm_dev, max_documents=1000)
 
     # We should find at least one corrupted document in 1000 samples
-    assert report["total_corrupted"] > 0, \
-        "Expected to find at least one corrupted document in sample of 1000"
+    assert (
+        report["total_corrupted"] > 0
+    ), "Expected to find at least one corrupted document in sample of 1000"
 
-    assert len(report["sample_corrupted"]) > 0, \
-        "sample_corrupted list should not be empty when corrupted documents exist"
+    assert (
+        len(report["sample_corrupted"]) > 0
+    ), "sample_corrupted list should not be empty when corrupted documents exist"
 
     first_corrupted = report["sample_corrupted"][0]
 
     # The field should be named "document_id" (not "item_key")
-    assert "document_id" in first_corrupted, \
-        "Corrupted document should have 'document_id' field from metadata"
+    assert (
+        "document_id" in first_corrupted
+    ), "Corrupted document should have 'document_id' field from metadata"
 
     # The document_id should be a real Zotero key, not "unknown"
     document_id = first_corrupted["document_id"]
-    assert document_id != "unknown", \
-        f"document_id should be actual Zotero key from metadata, not 'unknown'. Got: {document_id}"
+    assert (
+        document_id != "unknown"
+    ), f"document_id should be actual Zotero key from metadata, not 'unknown'. Got: {document_id}"
 
     # Zotero keys are typically 8 alphanumeric characters
     assert len(document_id) > 0, "document_id should not be empty"
@@ -264,7 +278,9 @@ def test_detect_corruption_with_language_detection():
     assert corruption["detected_language"] != "en"  # Should detect as non-English
 
     # CID pattern - should still be detected (backward compatibility)
-    cid_text = "(cid:62)(cid:146)(cid:209)(cid:176)(cid:197)(cid:160) some text (cid:123)"
+    cid_text = (
+        "(cid:62)(cid:146)(cid:209)(cid:176)(cid:197)(cid:160) some text (cid:123)"
+    )
     corruption = detect_corruption(cid_text)
     assert corruption["is_corrupted"] is True
     assert corruption["cid_count"] > 0
@@ -278,3 +294,108 @@ def test_detect_corruption_with_language_detection():
     assert corruption["cid_count"] == 1
     # Should detect as English despite CID (majority of text is English)
     assert "detected_language" in corruption
+
+
+@pytest.mark.asyncio
+async def test_scan_collection_aggregates_by_document(bm_dev):
+    """Test that scan_collection_for_corruption aggregates chunks by document.
+
+    Behavior to test:
+    - Group chunks by document_id
+    - Use is_document_corrupt() to determine if each document is corrupt
+    - Only report documents where corruption_rate >= threshold
+    - Accept document_corruption_threshold parameter (default 66.0)
+
+    Mock ChromaDB with test data:
+    - Document A: 2/3 chunks corrupt (66.67%) - should be flagged at 66% threshold
+    - Document B: 1/3 chunks corrupt (33%) - should NOT be flagged at 66% threshold
+    - Document C: 3/3 chunks corrupt (100%) - should be flagged
+    """
+    from scripts.diagnose_corruption import scan_collection_for_corruption
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    # Mock ChromaDB collection with test data
+    mock_collection = MagicMock()
+    mock_collection.count.return_value = 9  # 3 documents, 3 chunks each
+
+    # Document A: 2/3 chunks corrupt (66.67%) - SHOULD be flagged
+    # Note: Need 20+ CIDs to trigger corruption detection (threshold raised to avoid false positives)
+    doc_a_chunks = [
+        " ".join([f"(cid:{i})" for i in range(1, 21)])
+        + " corrupted text",  # Corrupt (20 CIDs)
+        " ".join([f"(cid:{i})" for i in range(21, 41)])
+        + " more corruption",  # Corrupt (20 CIDs)
+        "Clean text without issues",  # Clean
+    ]
+
+    # Document B: 1/3 chunks corrupt (33%) - should NOT be flagged
+    doc_b_chunks = [
+        "Clean text without issues",  # Clean
+        "More clean text here",  # Clean
+        " ".join([f"(cid:{i})" for i in range(41, 61)])
+        + " corrupted chunk",  # Corrupt (20 CIDs)
+    ]
+
+    # Document C: 3/3 chunks corrupt (100%) - SHOULD be flagged
+    doc_c_chunks = [
+        " ".join([f"(cid:{i})" for i in range(61, 81)])
+        + " all corrupt",  # Corrupt (20 CIDs)
+        " ".join([f"(cid:{i})" for i in range(81, 101)])
+        + " more corrupt",  # Corrupt (20 CIDs)
+        " ".join([f"(cid:{i})" for i in range(101, 121)])
+        + " still corrupt",  # Corrupt (20 CIDs)
+    ]
+
+    # ChromaDB returns all chunks in a flat list
+    all_chunks = doc_a_chunks + doc_b_chunks + doc_c_chunks
+
+    mock_collection.get.return_value = {
+        "ids": [f"chunk_{i}" for i in range(9)],
+        "documents": all_chunks,
+        "metadatas": [
+            # Document A metadata
+            {"document_id": "DOC_A"},
+            {"document_id": "DOC_A"},
+            {"document_id": "DOC_A"},
+            # Document B metadata
+            {"document_id": "DOC_B"},
+            {"document_id": "DOC_B"},
+            {"document_id": "DOC_B"},
+            # Document C metadata
+            {"document_id": "DOC_C"},
+            {"document_id": "DOC_C"},
+            {"document_id": "DOC_C"},
+        ],
+    }
+
+    # Mock the ChromaDBSearchTool to return our mock collection
+    with patch("scripts.diagnose_corruption.ChromaDBSearchTool") as mock_search_tool:
+        mock_instance = AsyncMock()
+        mock_instance.collection = mock_collection
+        mock_instance.ensure_cache_initialized = AsyncMock()
+        mock_search_tool.return_value = mock_instance
+
+        # Run scan with document_corruption_threshold=66.0
+        report = await scan_collection_for_corruption(
+            bm_dev, max_documents=9, document_corruption_threshold=66.0
+        )
+
+    # Verify report structure
+    assert "total_scanned" in report
+    assert "total_corrupted" in report
+    assert "corruption_rate" in report
+    assert "sample_corrupted" in report
+
+    # Verify only Documents A and C are flagged (66.67% and 100%)
+    # Document B should NOT be flagged (33% < 66% threshold)
+    assert report["total_corrupted"] == 2, "Should flag exactly 2 documents (A and C)"
+
+    corrupted_doc_ids = {doc["document_id"] for doc in report["sample_corrupted"]}
+    assert "DOC_A" in corrupted_doc_ids, "Document A (66.67%) should be flagged"
+    assert "DOC_C" in corrupted_doc_ids, "Document C (100%) should be flagged"
+    assert "DOC_B" not in corrupted_doc_ids, "Document B (33%) should NOT be flagged"
+
+    # Verify corruption rate is based on documents, not chunks
+    # 2 corrupt documents out of 3 total = 66.67%
+    expected_rate = 2 / 3 * 100
+    assert abs(report["corruption_rate"] - expected_rate) < 0.1

@@ -16,23 +16,21 @@ import sys
 from pathlib import Path
 
 import click
-from langdetect import detect, DetectorFactory, LangDetectException
+from langdetect import DetectorFactory
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from buttermilk import init_async, logger
+from buttermilk import init_async
 from buttermilk.tools import ChromaDBSearchTool
+from text_quality import detect_text_corruption, is_document_corrupt
 
 # Pattern to detect PDF encoding artifacts like (cid:XX)
-CID_PATTERN = re.compile(r'\(cid:\d+\)')
+CID_PATTERN = re.compile(r"\(cid:\d+\)")
 
 # Ensure consistent language detection results
 DetectorFactory.seed = 0
 
-
-# Import improved corruption detection from text_quality module
-from text_quality import detect_text_corruption
 
 def detect_corruption(text: str) -> dict:
     """Detect corruption patterns in text content.
@@ -81,13 +79,19 @@ def classify_severity(corruption_result: dict) -> str:
         return "high"
 
 
-async def scan_collection_for_corruption(bm, max_documents: int = None, collect_all_corrupted: bool = False) -> dict:
+async def scan_collection_for_corruption(
+    bm,
+    max_documents: int = None,
+    collect_all_corrupted: bool = False,
+    document_corruption_threshold: float = 66.0,
+) -> dict:
     """Scan ChromaDB collection for corruption and generate diagnostic report.
 
     Args:
         bm: Initialized buttermilk instance
         max_documents: Maximum number of documents to scan (None = all)
         collect_all_corrupted: If True, collect ALL corrupted documents (not just 10 samples)
+        document_corruption_threshold: Corruption percentage threshold for document-level detection (default: 66.0)
 
     Returns:
         dict: Diagnostic report with corruption statistics and samples/all corrupted docs
@@ -106,12 +110,14 @@ async def scan_collection_for_corruption(bm, max_documents: int = None, collect_
 
     # Determine scan range
     total_in_collection = collection.count()
-    scan_limit = min(max_documents, total_in_collection) if max_documents else total_in_collection
+    scan_limit = (
+        min(max_documents, total_in_collection)
+        if max_documents
+        else total_in_collection
+    )
 
-    # Initialize counters
-    severity_counts = {"clean": 0, "low": 0, "medium": 0, "high": 0, "empty": 0}
-    corrupted_count = 0
-    sample_corrupted = []
+    # Dictionary to group chunks by document_id
+    documents = {}
 
     # Scan collection in batches to avoid memory issues
     batch_size = 100
@@ -120,42 +126,55 @@ async def scan_collection_for_corruption(bm, max_documents: int = None, collect_
 
         # Get batch of documents
         results = collection.get(
-            limit=batch_limit,
-            offset=offset,
-            include=["documents", "metadatas"]
+            limit=batch_limit, offset=offset, include=["documents", "metadatas"]
         )
 
-        # Analyze each document
-        for doc, metadata in zip(results["documents"], results["metadatas"]):
-            corruption = detect_corruption(doc)
-            severity = classify_severity(corruption)
+        # Group chunks by document_id
+        for chunk_id, doc, metadata in zip(
+            results["ids"], results["documents"], results["metadatas"]
+        ):
+            document_id = metadata.get("document_id", "unknown")
+            if document_id not in documents:
+                documents[document_id] = {"chunks": [], "chunk_ids": []}
+            documents[document_id]["chunks"].append(doc)
+            documents[document_id]["chunk_ids"].append(chunk_id)
 
-            severity_counts[severity] += 1
+    # Analyze each document
+    corrupted_count = 0
+    sample_corrupted = []
 
-            if corruption["is_corrupted"]:
-                corrupted_count += 1
+    for document_id, doc_data in documents.items():
+        chunks = doc_data["chunks"]
+        doc_data["chunk_ids"]
 
-                # Collect corrupted entries
-                # If collect_all_corrupted is True, collect ALL; otherwise limit to 10
-                if collect_all_corrupted or len(sample_corrupted) < 10:
-                    document_id = metadata.get("document_id", "unknown")
-                    sample_corrupted.append({
+        # Analyze document-level corruption
+        result = is_document_corrupt(chunks, threshold=document_corruption_threshold)
+
+        if result["is_corrupt"]:
+            corrupted_count += 1
+
+            # Collect corrupted documents
+            # If collect_all_corrupted is True, collect ALL; otherwise limit to 10
+            if collect_all_corrupted or len(sample_corrupted) < 10:
+                sample_corrupted.append(
+                    {
                         "document_id": document_id,
-                        "severity": severity,
-                        "corruption_percentage": corruption["corruption_percentage"],
-                        "cid_count": corruption["cid_count"],
-                        "detected_language": corruption["detected_language"],
-                        "text_preview": doc[:200] if doc else "(empty)"
-                    })
+                        "corruption_rate": result["corruption_rate"],
+                        "corrupted_chunks": result["corrupted_chunks"],
+                        "total_chunks": result["total_chunks"],
+                    }
+                )
 
     # Calculate statistics
-    corruption_rate = (corrupted_count / scan_limit * 100) if scan_limit > 0 else 0.0
+    total_documents = len(documents)
+    corruption_rate = (
+        (corrupted_count / total_documents * 100) if total_documents > 0 else 0.0
+    )
 
     return {
-        "total_scanned": scan_limit,
+        "total_scanned": total_documents,
         "total_corrupted": corrupted_count,
         "corruption_rate": corruption_rate,
-        "severity_breakdown": severity_counts,
         "sample_corrupted": sample_corrupted,
     }
 
@@ -212,7 +231,7 @@ def write_json_output(output_file: str, report: dict):
         "corrupted_documents": report["sample_corrupted"],
     }
 
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(output_data, f, indent=2)
 
 
@@ -248,10 +267,16 @@ def main(verbose: bool, output: str, limit: int):
     """
     # Convert limit=0 to None (scan all documents)
     max_documents = None if limit == 0 else limit
-    asyncio.run(diagnose_collection(verbose=verbose, output_file=output, max_documents=max_documents))
+    asyncio.run(
+        diagnose_collection(
+            verbose=verbose, output_file=output, max_documents=max_documents
+        )
+    )
 
 
-async def diagnose_collection(verbose: bool = False, output_file: str = None, max_documents: int = 1000):
+async def diagnose_collection(
+    verbose: bool = False, output_file: str = None, max_documents: int = 1000
+):
     """Run diagnostic scan on ChromaDB collection.
 
     Args:
@@ -267,7 +292,9 @@ async def diagnose_collection(verbose: bool = False, output_file: str = None, ma
 
     # Initialize buttermilk with zotero config
     conf_dir = str(Path(__file__).parent.parent / "conf")
-    bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=["db=dev"])
+    bm = await init_async(
+        config_dir=conf_dir, config_name="zotero", overrides=["db=dev"]
+    )
 
     try:
         # Get collection statistics
@@ -280,25 +307,33 @@ async def diagnose_collection(verbose: bool = False, output_file: str = None, ma
         click.echo("\n🔍 Scanning for corruption patterns...")
         collect_all = output_file is not None
         report = await scan_collection_for_corruption(
-            bm,
-            max_documents=scan_limit,
-            collect_all_corrupted=collect_all
+            bm, max_documents=scan_limit, collect_all_corrupted=collect_all
         )
 
         # Display results
-        click.echo(f"\n✅ Scan complete")
+        click.echo("\n✅ Scan complete")
         click.echo(f"   Documents scanned: {report['total_scanned']:,}")
         click.echo(f"   Corrupted documents: {report['total_corrupted']:,}")
         click.echo(f"   Corruption rate: {report['corruption_rate']:.2f}%")
 
         # Display severity breakdown
         click.echo("\n📈 Severity Breakdown:")
-        severity = report['severity_breakdown']
-        click.echo(f"   Clean:  {severity['clean']:,} ({severity['clean']/report['total_scanned']*100:.1f}%)")
-        click.echo(f"   Low:    {severity['low']:,} ({severity['low']/report['total_scanned']*100:.1f}%)")
-        click.echo(f"   Medium: {severity['medium']:,} ({severity['medium']/report['total_scanned']*100:.1f}%)")
-        click.echo(f"   High:   {severity['high']:,} ({severity['high']/report['total_scanned']*100:.1f}%)")
-        click.echo(f"   Empty:  {severity['empty']:,} ({severity['empty']/report['total_scanned']*100:.1f}%)")
+        severity = report["severity_breakdown"]
+        click.echo(
+            f"   Clean:  {severity['clean']:,} ({severity['clean'] / report['total_scanned'] * 100:.1f}%)"
+        )
+        click.echo(
+            f"   Low:    {severity['low']:,} ({severity['low'] / report['total_scanned'] * 100:.1f}%)"
+        )
+        click.echo(
+            f"   Medium: {severity['medium']:,} ({severity['medium'] / report['total_scanned'] * 100:.1f}%)"
+        )
+        click.echo(
+            f"   High:   {severity['high']:,} ({severity['high'] / report['total_scanned'] * 100:.1f}%)"
+        )
+        click.echo(
+            f"   Empty:  {severity['empty']:,} ({severity['empty'] / report['total_scanned'] * 100:.1f}%)"
+        )
 
         # Write JSON output if requested
         if output_file:
@@ -306,9 +341,9 @@ async def diagnose_collection(verbose: bool = False, output_file: str = None, ma
             click.echo(f"\n💾 Report saved to: {output_file}")
 
         # Display sample corrupted entries if verbose
-        if verbose and report['sample_corrupted']:
+        if verbose and report["sample_corrupted"]:
             click.echo("\n🔎 Sample Corrupted Entries:")
-            for i, sample in enumerate(report['sample_corrupted'][:5], 1):
+            for i, sample in enumerate(report["sample_corrupted"][:5], 1):
                 click.echo(f"\n   {i}. Document ID: {sample['document_id']}")
                 click.echo(f"      Severity: {sample['severity']}")
                 click.echo(f"      Corruption: {sample['corruption_percentage']:.1f}%")
