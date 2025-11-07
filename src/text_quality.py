@@ -87,13 +87,14 @@ def detect_text_corruption(text: str) -> dict:
 
     # Calculate composite corruption percentage
     # Weight different signals:
-    # - CID patterns: direct indicator
+    # - CID patterns: direct indicator (threshold: >= 20 to ignore minor header CIDs)
     # - Newline ratio > 10%: strong indicator
     # - Short lines > 50%: strong indicator
     # - Average line length < 10: moderate indicator
     corruption_signals = []
 
-    if cid_count > 0:
+    # Require minimum 20 CIDs to flag as corruption (ignores citation headers with 1-14 CIDs)
+    if cid_count >= 20:
         corruption_signals.append(cid_corruption)
     if newline_ratio > 10.0:
         corruption_signals.append(min(newline_ratio * 2, 50.0))  # Cap at 50%
@@ -106,8 +107,9 @@ def detect_text_corruption(text: str) -> dict:
     corruption_percentage = max(corruption_signals) if corruption_signals else 0.0
 
     # Mark as corrupted if ANY strong signal triggers
+    # CID threshold: >= 20 to ignore minor header artifacts
     is_corrupted = (
-        cid_count > 0 or
+        cid_count >= 20 or
         newline_ratio > 10.0 or
         short_line_ratio > 50.0 or
         (avg_line_length < 10 and avg_line_length > 0) or

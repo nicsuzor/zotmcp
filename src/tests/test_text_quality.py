@@ -8,11 +8,17 @@ from pathlib import Path
 
 
 def test_detect_text_corruption_with_cid_patterns():
-    """Test detect_text_corruption() identifies CID pattern corruption."""
+    """Test detect_text_corruption() identifies heavy CID pattern corruption.
+
+    Updated to use 20+ CID patterns to reflect new threshold that ignores
+    minor header CIDs (1-19 patterns).
+    """
     # Arrange
     from src.text_quality import detect_text_corruption
 
-    text_with_cid = "This is a document with (cid:1) and (cid:2) and (cid:3) corruption patterns."
+    # Create text with 25 CID patterns (well above threshold of 20)
+    cid_patterns = " ".join(f"(cid:{i})" for i in range(25))
+    text_with_cid = f"This is a heavily corrupted document with {cid_patterns} patterns."
 
     # Act
     result = detect_text_corruption(text_with_cid)
@@ -24,9 +30,9 @@ def test_detect_text_corruption_with_cid_patterns():
     assert "cid_count" in result, "Should have cid_count key"
     assert "detected_language" in result, "Should have detected_language key"
 
-    assert result["is_corrupted"] == True, "Text with CID patterns should be marked as corrupted"
-    assert result["cid_count"] == 3, "Should detect 3 CID patterns"
-    assert result["cid_count"] > 0, "CID count should be greater than 0"
+    assert result["is_corrupted"] == True, "Text with 20+ CID patterns should be marked as corrupted"
+    assert result["cid_count"] == 25, "Should detect 25 CID patterns"
+    assert result["cid_count"] >= 20, "CID count should be >= 20 to trigger corruption flag"
 
 
 def test_detect_text_corruption_with_clean_text():
@@ -101,3 +107,36 @@ def test_analyze_document_quality_highly_corrupt_document():
     assert result["corruption_rate"] == 96.0
     assert result["corrupted_chunks"] == 96
     assert result["total_chunks"] == 100
+
+
+def test_detect_text_corruption_ignores_minor_header_cids():
+    """Test that minor CID counts in headers/citations are not flagged as corrupted.
+
+    Real-world case: HeinOnline citation headers contain a few CID characters
+    (typically 1-14) but the document is otherwise clean. These should NOT be
+    flagged as corrupted.
+
+    This test will FAIL until we implement the CID threshold fix.
+    """
+    # Arrange
+    from src.text_quality import detect_text_corruption
+
+    # Real HeinOnline header with 4 CID characters in citation metadata
+    heinonline_header = """Content downloaded/printed from
+HeinOnline
+Sun Jan 12 05:00:23 2020
+Citations:
+(cid:9)
+Bluebook 20th ed.
+John Smith, Privacy Law in the Digital Age, 45 Tech. L. Rev. 123 (2019).
+"""
+
+    # Act
+    result = detect_text_corruption(heinonline_header)
+
+    # Assert
+    assert result["cid_count"] == 1, "Should detect the single CID pattern"
+    assert result["is_corrupted"] == False, \
+        "Minor CID count in header should NOT flag document as corrupted"
+    assert result["corruption_percentage"] < 1.0, \
+        "Minor CID should result in very low corruption percentage"

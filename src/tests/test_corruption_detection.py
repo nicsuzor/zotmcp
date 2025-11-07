@@ -64,13 +64,19 @@ def test_excessive_newline_corruption():
 
 
 def test_cid_pattern_corruption():
-    """Test that CID encoding artifacts are detected as corruption."""
-    corrupted_text = "This text has (cid:123) encoding (cid:456) artifacts (cid:789) throughout."
+    """Test that heavy CID encoding artifacts (20+) are detected as corruption.
+
+    Updated to use 25 CID patterns to reflect new threshold that ignores
+    minor header CIDs (1-19 patterns).
+    """
+    # Create text with 25 CID patterns (well above threshold)
+    cid_patterns = " ".join(f"(cid:{i*10})" for i in range(25))
+    corrupted_text = f"This text has {cid_patterns} encoding artifacts throughout."
 
     result = detect_text_corruption(corrupted_text)
 
-    assert result["is_corrupted"], "CID patterns should be detected as corruption"
-    assert result["cid_count"] == 3, f"Should find 3 CID patterns, got {result['cid_count']}"
+    assert result["is_corrupted"], "20+ CID patterns should be detected as corruption"
+    assert result["cid_count"] == 25, f"Should find 25 CID patterns, got {result['cid_count']}"
 
 
 def test_clean_text_not_flagged():
@@ -122,8 +128,11 @@ def test_whitespace_only_is_corrupted():
     # Excessive newlines
     ("word\n\n\n\n\nword\n\n\n\n\nword", True, "Multiple consecutive newlines"),
 
-    # CID patterns
-    ("Normal text (cid:1) with (cid:2) artifacts", True, "CID encoding artifacts"),
+    # CID patterns - 25 CIDs (above threshold of 20)
+    (" ".join(f"(cid:{i})" for i in range(25)), True, "Heavy CID encoding artifacts (25 patterns)"),
+
+    # Minor CID patterns (below threshold) - should NOT be corrupted
+    ("Normal text (cid:1) with (cid:2) artifacts in header", False, "Minor CID patterns (below threshold)"),
 
     # Clean text
     ("This is a normal paragraph with complete sentences.", False, "Normal paragraph"),

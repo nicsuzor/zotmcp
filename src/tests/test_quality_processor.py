@@ -4,6 +4,7 @@ This processor filters out corrupt documents from the pipeline based on
 document-level quality analysis. It should be placed between chunking
 and embedding steps to prevent corrupt documents from being vectorized.
 """
+
 import pytest
 from buttermilk._core.types import Record
 from buttermilk.data.vector import ChunkedDocument
@@ -16,8 +17,7 @@ async def test_quality_filter_passes_clean_document():
     from src.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
-        corruption_threshold=95.0,
-        pattern_threshold=80.0
+        corruption_threshold=95.0, pattern_threshold=80.0
     )
 
     # Create a record with clean chunks
@@ -28,7 +28,7 @@ async def test_quality_filter_passes_clean_document():
             chunk_text=f"This is normal English text chunk {i}.",
             document_id="CLEAN123",
             chunk_id=f"CLEAN123_{i}",
-            metadata={"title": "Clean Doc"}
+            metadata={"title": "Clean Doc"},
         )
         for i in range(10)
     ]
@@ -37,7 +37,7 @@ async def test_quality_filter_passes_clean_document():
         record_id="CLEAN123",
         content="Combined text",
         metadata={"title": "Clean Doc"},
-        chunks=chunks
+        chunks=chunks,
     )
 
     # Act
@@ -58,19 +58,20 @@ async def test_quality_filter_blocks_95_percent_corrupt_document():
     from src.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
-        corruption_threshold=95.0,
-        pattern_threshold=80.0
+        corruption_threshold=95.0, pattern_threshold=80.0
     )
 
     # Create a record where 96 out of 100 chunks are corrupt
+    # Use 20+ CID patterns to trigger corruption detection (threshold is >=20)
+    corrupt_text = " ".join([f"(cid:{i})" for i in range(1, 26)])  # 25 CID patterns
     corrupt_chunks = [
         ChunkedDocument(
             document_title="Corrupt Doc",
             chunk_index=i,
-            chunk_text="(cid:1)(cid:2)(cid:3)(cid:4)(cid:5)",
+            chunk_text=corrupt_text,
             document_id="CORRUPT123",
             chunk_id=f"CORRUPT123_{i}",
-            metadata={"title": "Corrupt Doc"}
+            metadata={"title": "Corrupt Doc"},
         )
         for i in range(96)
     ]
@@ -82,7 +83,7 @@ async def test_quality_filter_blocks_95_percent_corrupt_document():
             chunk_text="Normal text chunk",
             document_id="CORRUPT123",
             chunk_id=f"CORRUPT123_{i + 96}",
-            metadata={"title": "Corrupt Doc"}
+            metadata={"title": "Corrupt Doc"},
         )
         for i in range(4)
     ]
@@ -91,7 +92,7 @@ async def test_quality_filter_blocks_95_percent_corrupt_document():
         record_id="CORRUPT123",
         content="Combined text",
         metadata={"title": "Corrupt Doc"},
-        chunks=corrupt_chunks + clean_chunks
+        chunks=corrupt_chunks + clean_chunks,
     )
 
     # Act
@@ -110,19 +111,20 @@ async def test_quality_filter_passes_94_percent_corrupt_document():
     from src.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
-        corruption_threshold=95.0,
-        pattern_threshold=80.0
+        corruption_threshold=95.0, pattern_threshold=80.0
     )
 
     # Create a record where 94 out of 100 chunks are corrupt (JUST below threshold)
+    # Use 20+ CID patterns to trigger corruption detection (threshold is >=20)
+    corrupt_text = " ".join([f"(cid:{i})" for i in range(1, 26)])  # 25 CID patterns
     corrupt_chunks = [
         ChunkedDocument(
             document_title="Borderline Doc",
             chunk_index=i,
-            chunk_text="(cid:1)(cid:2)(cid:3)",
+            chunk_text=corrupt_text,
             document_id="BORDER123",
             chunk_id=f"BORDER123_{i}",
-            metadata={"title": "Borderline Doc"}
+            metadata={"title": "Borderline Doc"},
         )
         for i in range(94)
     ]
@@ -134,7 +136,7 @@ async def test_quality_filter_passes_94_percent_corrupt_document():
             chunk_text="Normal text chunk",
             document_id="BORDER123",
             chunk_id=f"BORDER123_{i + 94}",
-            metadata={"title": "Borderline Doc"}
+            metadata={"title": "Borderline Doc"},
         )
         for i in range(6)
     ]
@@ -143,7 +145,7 @@ async def test_quality_filter_passes_94_percent_corrupt_document():
         record_id="BORDER123",
         content="Combined text",
         metadata={"title": "Borderline Doc"},
-        chunks=corrupt_chunks + clean_chunks
+        chunks=corrupt_chunks + clean_chunks,
     )
 
     # Act
@@ -164,18 +166,20 @@ async def test_quality_filter_with_custom_thresholds():
 
     processor = QualityFilterProcessor(
         corruption_threshold=80.0,  # Stricter threshold
-        pattern_threshold=80.0
+        pattern_threshold=80.0,
     )
 
     # Create a record with 85% corruption (would pass 95% threshold, fail 80%)
+    # Use 20+ CID patterns to trigger corruption detection (threshold is >=20)
+    corrupt_text = " ".join([f"(cid:{i})" for i in range(1, 26)])  # 25 CID patterns
     corrupt_chunks = [
         ChunkedDocument(
             document_title="Mid Corrupt Doc",
             chunk_index=i,
-            chunk_text="(cid:1)(cid:2)",
+            chunk_text=corrupt_text,
             document_id="MID123",
             chunk_id=f"MID123_{i}",
-            metadata={"title": "Mid Corrupt Doc"}
+            metadata={"title": "Mid Corrupt Doc"},
         )
         for i in range(85)
     ]
@@ -187,7 +191,7 @@ async def test_quality_filter_with_custom_thresholds():
             chunk_text="Normal text",
             document_id="MID123",
             chunk_id=f"MID123_{i + 85}",
-            metadata={"title": "Mid Corrupt Doc"}
+            metadata={"title": "Mid Corrupt Doc"},
         )
         for i in range(15)
     ]
@@ -196,7 +200,7 @@ async def test_quality_filter_with_custom_thresholds():
         record_id="MID123",
         content="Combined text",
         metadata={"title": "Mid Corrupt Doc"},
-        chunks=corrupt_chunks + clean_chunks
+        chunks=corrupt_chunks + clean_chunks,
     )
 
     # Act
@@ -205,7 +209,9 @@ async def test_quality_filter_with_custom_thresholds():
         results.append(result)
 
     # Assert
-    assert len(results) == 0, "85% corrupt document should be filtered with 80% threshold"
+    assert (
+        len(results) == 0
+    ), "85% corrupt document should be filtered with 80% threshold"
 
 
 @pytest.mark.asyncio
@@ -215,19 +221,20 @@ async def test_quality_filter_logs_filtered_documents(caplog):
     from src.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
-        corruption_threshold=95.0,
-        pattern_threshold=80.0
+        corruption_threshold=95.0, pattern_threshold=80.0
     )
 
     # Create corrupt document
+    # Use 20+ CID patterns to trigger corruption detection (threshold is >=20)
+    corrupt_text = " ".join([f"(cid:{i})" for i in range(1, 26)])  # 25 CID patterns
     chunks = [
         ChunkedDocument(
             document_title="Very Corrupt",
             chunk_index=i,
-            chunk_text="(cid:1)(cid:2)(cid:3)",
+            chunk_text=corrupt_text,
             document_id="LOG123",
             chunk_id=f"LOG123_{i}",
-            metadata={"title": "Very Corrupt"}
+            metadata={"title": "Very Corrupt"},
         )
         for i in range(100)
     ]
@@ -236,7 +243,7 @@ async def test_quality_filter_logs_filtered_documents(caplog):
         record_id="LOG123",
         content="Combined text",
         metadata={"title": "Very Corrupt"},
-        chunks=chunks
+        chunks=chunks,
     )
 
     # Act
