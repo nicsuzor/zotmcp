@@ -45,7 +45,7 @@ pipeline:
   source:
     _target_: src.zotero_items.ZoteroItemSource
     library_id: ${oc.env:ZOTERO_LIBRARY_ID}
-    item_keys_file: documents_to_remove_ids.txt
+    item_keys_file: corrupt_documents_66pct.txt
 
   processors:
     # 0. Download PDFs
