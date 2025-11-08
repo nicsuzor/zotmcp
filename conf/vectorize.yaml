@@ -5,8 +5,8 @@
 # Usage: python -m buttermilk.runner.cli --config-dir conf --config-name vectorize
 
 defaults:
-  - config              # Inherit base configuration
-  - db: upstream        # Use upstream GCS bucket for vectorization
+  - config # Inherit base configuration
+  - db: upstream # Use upstream GCS bucket for vectorization
   - _self_
 
 # Pipeline specific configuration
@@ -28,7 +28,7 @@ vectoriser:
   dimensionality: ${storage.zotero_vectors.dimensionality}
   concurrency: ${pipeline.concurrency}
   sync_batch_size: 500
-  deduplication_strategy: record_id  # Skip existing records before downloading
+  deduplication_strategy: record_id # Skip existing records before downloading
   enable_record_cache: true
 
 pipeline:
@@ -69,7 +69,7 @@ pipeline:
 
     # 4. Filter corrupt documents (document-level quality check)
     - _target_: src.quality_processor.QualityFilterProcessor
-      corruption_threshold: 80.0
+      corruption_threshold: 66.0
       pattern_threshold: 80.0
 
     # 5. Generate embeddings (pure, no side effects)
