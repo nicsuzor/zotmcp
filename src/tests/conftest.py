@@ -181,8 +181,11 @@ async def bm_vectorize():
 
 @pytest.fixture(scope="session")
 async def bm_dev():
-    """Buttermilk instance with dev database for tests."""
+    """Buttermilk instance with dev database for tests.
 
+    Uses mcp.yaml config which has minimal dependencies (no BigQuery)
+    to allow tests to run without GCP credentials.
+    """
     conf_dir = str(Path(__file__).parent.parent.parent / "conf")
     bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=["db=dev"])
     yield bm
