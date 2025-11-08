@@ -4,7 +4,8 @@ This server provides tools for semantic search, literature review, and
 citation retrieval from a ChromaDB-indexed Zotero library.
 
 Usage:
-    uv run python src/main.py +db=dev
+    uv run python src/main.py          # Uses mcp.yaml config (minimal, no GCP)
+    uv run python src/main.py +db=dev  # Override database location
 """
 
 import asyncio
@@ -80,12 +81,11 @@ async def lifespan_manager(server: FastMCP):
     # Initialize buttermilk config (needed by tools)
     if bm is None:
         if conf is None:
-            # Load zotero config - use absolute path from project root
-            # No overrides for FastMCP - avoids conflicts with fastmcp's argument parsing
+            # Load MCP config - minimal config without GCP infrastructure
+            # This allows fast startup without BigQuery/GCP credentials
+            # Use absolute path from project root
             conf_dir = str(Path(__file__).parent.parent / "conf")
-            bm = await init_async(
-                config_dir=conf_dir, config_name="zotero", overrides=[]
-            )
+            bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=[])
         else:
             bm = await init_async(job="zotmcp_cli", config=conf)
 
@@ -729,7 +729,7 @@ Your response should be structured as a ResearchResult with:
 """
 
 
-@hydra.main(version_base="1.3", config_path="../conf", config_name="zotero")
+@hydra.main(version_base="1.3", config_path="../conf", config_name="mcp")
 def main(cfg: DictConfig) -> None:
     """Entry point - loads config and runs async pipeline."""
     global conf
