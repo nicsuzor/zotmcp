@@ -4,7 +4,7 @@
 Tests the complete pipeline from Zotero API fetch through text splitting
 and embedding generation to verify proper record handling.
 """
-import asyncio
+
 import json
 import pytest
 from pathlib import Path
@@ -14,9 +14,8 @@ from datetime import datetime, timezone
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from buttermilk import init_async, logger
+from buttermilk import logger
 from buttermilk.libs.zotero import ZoteroSource
-from hydra.utils import instantiate
 
 
 pytestmark = pytest.mark.anyio
@@ -41,11 +40,13 @@ class TestButtermilkBugs:
         record = BaseRecord(
             record_id="TEST123",
             content="This is some test content that should be split into chunks.",
-            metadata={"test": "metadata"}
+            metadata={"test": "metadata"},
         )
 
         # Verify the record doesn't have a title attribute
-        assert not hasattr(record, "title"), "Test record shouldn't have title attribute"
+        assert not hasattr(record, "title"), (
+            "Test record shouldn't have title attribute"
+        )
 
         # Create semantic splitter
         splitter = SemanticSplitter(chunk_size=20, chunk_overlap=5)
@@ -78,7 +79,9 @@ class TestVectorizationPipeline:
         cfg = bm_vectorize.cfg
         pipeline = cfg.pipeline if hasattr(cfg, "pipeline") else cfg["pipeline"]
         source = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
-        library_id = source["library_id"] if isinstance(source, dict) else source.library_id
+        library_id = (
+            source["library_id"] if isinstance(source, dict) else source.library_id
+        )
         save_dir = str(Path.home() / ".cache" / "buttermilk" / "zotero" / "state")
         zotero_source = ZoteroSource(library_id=library_id, save_dir=save_dir)
 
@@ -110,7 +113,9 @@ class TestZoteroRecordTypes:
         cfg = bm_vectorize.cfg
         pipeline = cfg.pipeline if hasattr(cfg, "pipeline") else cfg["pipeline"]
         source = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
-        library_id = source["library_id"] if isinstance(source, dict) else source.library_id
+        library_id = (
+            source["library_id"] if isinstance(source, dict) else source.library_id
+        )
         save_dir = str(Path.home() / ".cache" / "buttermilk" / "zotero" / "state")
         zotero_source = ZoteroSource(library_id=library_id, save_dir=save_dir)
 
@@ -150,10 +155,19 @@ class TestZoteroSyncDiagnostics:
         # Get Zotero source
         cfg = bm_vectorize.cfg
         pipeline = cfg["pipeline"] if isinstance(cfg, dict) else cfg.pipeline
-        source_cfg = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
+        source_cfg = (
+            pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
+        )
 
-        library_id = source_cfg["library_id"] if isinstance(source_cfg, dict) else source_cfg.library_id
-        zotero_source = ZoteroSource(library_id=library_id, save_dir=str(Path.home() / ".cache/buttermilk/zotero/state"))
+        library_id = (
+            source_cfg["library_id"]
+            if isinstance(source_cfg, dict)
+            else source_cfg.library_id
+        )
+        zotero_source = ZoteroSource(
+            library_id=library_id,
+            save_dir=str(Path.home() / ".cache/buttermilk/zotero/state"),
+        )
         zot = zotero_source.zot
 
         # Fetch 10 most recent items from Zotero
@@ -194,9 +208,9 @@ class TestZoteroSyncDiagnostics:
         await search_tool.ensure_cache_initialized()
         collection = search_tool.collection
 
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("CHECKING RECENT ZOTERO ITEMS IN CHROMADB")
-        logger.info("="*80 + "\n")
+        logger.info("=" * 80 + "\n")
 
         for i, item in enumerate(recent_items, 1):
             item_data = item["data"]
@@ -207,8 +221,7 @@ class TestZoteroSyncDiagnostics:
 
             # Check if this item exists in ChromaDB
             results = collection.get(
-                where={"item_key": {"$eq": item_key}},
-                include=["metadatas"]
+                where={"item_key": {"$eq": item_key}}, include=["metadatas"]
             )
 
             in_chromadb = len(results["ids"]) > 0
@@ -229,22 +242,28 @@ class TestZoteroSyncDiagnostics:
                 content_results = collection.get(
                     where={"item_key": {"$eq": item_key}},
                     include=["documents", "metadatas"],
-                    limit=3  # Just get first 3 chunks
+                    limit=3,  # Just get first 3 chunks
                 )
 
                 if content_results["documents"]:
-                    for idx, (doc, meta) in enumerate(zip(content_results["documents"], content_results["metadatas"])):
+                    for idx, (doc, meta) in enumerate(
+                        zip(content_results["documents"], content_results["metadatas"])
+                    ):
                         doc_preview = doc[:100] if doc else "(empty)"
-                        logger.info(f"   Chunk {idx+1} preview: {doc_preview}...")
-                        logger.info(f"   Chunk {idx+1} length: {len(doc) if doc else 0} chars")
+                        logger.info(f"   Chunk {idx + 1} preview: {doc_preview}...")
+                        logger.info(
+                            f"   Chunk {idx + 1} length: {len(doc) if doc else 0} chars"
+                        )
                         # Check if it looks like actual fulltext or just metadata
                         has_content = doc and len(doc) > 100
-                        logger.info(f"   Chunk {idx+1} has substantial content: {has_content}")
+                        logger.info(
+                            f"   Chunk {idx + 1} has substantial content: {has_content}"
+                        )
                 else:
-                    logger.info(f"   WARNING: In ChromaDB but no documents found!")
+                    logger.info("   WARNING: In ChromaDB but no documents found!")
             logger.info("")
 
-        logger.info("="*80 + "\n")
+        logger.info("=" * 80 + "\n")
 
     async def test_check_if_recent_items_should_have_fulltext(self, bm_vectorize):
         """Check if recent items from Zotero actually have attachments/PDFs that should be processed."""
@@ -253,18 +272,27 @@ class TestZoteroSyncDiagnostics:
         # Get Zotero source
         cfg = bm_vectorize.cfg
         pipeline = cfg["pipeline"] if isinstance(cfg, dict) else cfg.pipeline
-        source_cfg = pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
+        source_cfg = (
+            pipeline["source"] if isinstance(pipeline, dict) else pipeline.source
+        )
 
-        library_id = source_cfg["library_id"] if isinstance(source_cfg, dict) else source_cfg.library_id
-        zotero_source = ZoteroSource(library_id=library_id, save_dir=str(Path.home() / ".cache/buttermilk/zotero/state"))
+        library_id = (
+            source_cfg["library_id"]
+            if isinstance(source_cfg, dict)
+            else source_cfg.library_id
+        )
+        zotero_source = ZoteroSource(
+            library_id=library_id,
+            save_dir=str(Path.home() / ".cache/buttermilk/zotero/state"),
+        )
         zot = zotero_source.zot
 
         # Fetch 10 most recent items from Zotero
         recent_items = zot.items(limit=10, sort="dateModified", direction="desc")
 
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("CHECKING IF RECENT ITEMS SHOULD HAVE FULLTEXT")
-        logger.info("="*80 + "\n")
+        logger.info("=" * 80 + "\n")
 
         for i, item in enumerate(recent_items, 1):
             item_data = item["data"]
@@ -290,43 +318,55 @@ class TestZoteroSyncDiagnostics:
                 content_type = child_data.get("contentType", "")
                 link_mode = child_data.get("linkMode", "")
 
-                logger.info(f"     - {child_type}: {child_data.get('title', 'untitled')}")
-                logger.info(f"       contentType: {content_type}, linkMode: {link_mode}")
+                logger.info(
+                    f"     - {child_type}: {child_data.get('title', 'untitled')}"
+                )
+                logger.info(
+                    f"       contentType: {content_type}, linkMode: {link_mode}"
+                )
 
                 if child_type == "attachment":
-                    if "pdf" in content_type.lower() or child_data.get("title", "").lower().endswith(".pdf"):
+                    if "pdf" in content_type.lower() or child_data.get(
+                        "title", ""
+                    ).lower().endswith(".pdf"):
                         has_pdf = True
-                        logger.info(f"       ✓ PDF attachment found!")
+                        logger.info("       ✓ PDF attachment found!")
                     elif "snapshot" in child_data.get("title", "").lower():
                         has_snapshot = True
-                        logger.info(f"       ✓ Snapshot found")
+                        logger.info("       ✓ Snapshot found")
 
             # Check if the main item itself might have fulltext
             # Journal articles, conference papers, etc. might have abstracts
             abstract = item_data.get("abstractNote", "")
-            extra = item_data.get("extra", "")
+            item_data.get("extra", "")
 
             if abstract and len(abstract) > 100:
                 logger.info(f"   Has abstract: YES ({len(abstract)} chars)")
                 has_fulltext_potential = True
             else:
-                logger.info(f"   Has abstract: NO")
+                logger.info("   Has abstract: NO")
 
             # Determine if this SHOULD be in ChromaDB
-            should_have_fulltext = has_pdf or (has_fulltext_potential and item_type in ["journalArticle", "conferencePaper", "book"])
+            should_have_fulltext = has_pdf or (
+                has_fulltext_potential
+                and item_type in ["journalArticle", "conferencePaper", "book"]
+            )
 
             logger.info(f"   Has PDF: {has_pdf}")
             logger.info(f"   Has snapshot: {has_snapshot}")
             logger.info(f"   SHOULD have fulltext vectors: {should_have_fulltext}")
 
             if not should_have_fulltext:
-                logger.info(f"   → CORRECT that this is NOT in ChromaDB (no fulltext available)")
+                logger.info(
+                    "   → CORRECT that this is NOT in ChromaDB (no fulltext available)"
+                )
             else:
-                logger.info(f"   → SHOULD BE in ChromaDB but isn't!")
+                logger.info("   → SHOULD BE in ChromaDB but isn't!")
 
             logger.info("")
 
-        logger.info("="*80 + "\n")
+        logger.info("=" * 80 + "\n")
+
 
 @pytest.fixture(scope="session")
 def library_info_fixture(bm_vectorize):
@@ -412,11 +452,15 @@ class TestZoteroSyncState:
                 most_recent_modified = most_recent_item["data"].get("dateModified")
                 logger.info(f"Most recent item modified date: {most_recent_modified}")
                 logger.info(f"Most recent item key: {most_recent_item['data']['key']}")
-                logger.info(f"Most recent item type: {most_recent_item['data'].get('itemType')}")
+                logger.info(
+                    f"Most recent item type: {most_recent_item['data'].get('itemType')}"
+                )
 
                 # Parse the modification date
                 if most_recent_modified:
-                    api_modified_dt = datetime.fromisoformat(most_recent_modified.replace("Z", "+00:00"))
+                    api_modified_dt = datetime.fromisoformat(
+                        most_recent_modified.replace("Z", "+00:00")
+                    )
                     logger.info(f"Most recent modification (parsed): {api_modified_dt}")
 
         except Exception as e:
@@ -429,12 +473,14 @@ class TestZoteroSyncState:
             local_version = local_state.get("last_version")
             local_timestamp = local_state.get("last_sync_timestamp")
 
-            logger.info(f"\n{'='*80}")
-            logger.info(f"SYNC STATE COMPARISON")
-            logger.info(f"{'='*80}")
+            logger.info(f"\n{'=' * 80}")
+            logger.info("SYNC STATE COMPARISON")
+            logger.info(f"{'=' * 80}")
             logger.info(f"Local version:   {local_version}")
             logger.info(f"Current version: {current_version}")
-            logger.info(f"Version diff:    {current_version - local_version if local_version else 'N/A'}")
+            logger.info(
+                f"Version diff:    {current_version - local_version if local_version else 'N/A'}"
+            )
 
             if local_timestamp:
                 local_dt = datetime.fromisoformat(local_timestamp)
@@ -445,12 +491,14 @@ class TestZoteroSyncState:
                 logger.info(f"Current time:    {now.isoformat()}")
                 logger.info(f"Time since sync: {time_since_sync}")
                 logger.info(f"Days since sync: {time_since_sync.days}")
-                logger.info(f"Hours since sync: {time_since_sync.total_seconds() / 3600:.1f}")
+                logger.info(
+                    f"Hours since sync: {time_since_sync.total_seconds() / 3600:.1f}"
+                )
 
             if most_recent_modified:
                 logger.info(f"\nMost recent API modification: {most_recent_modified}")
 
-            logger.info(f"{'='*80}\n")
+            logger.info(f"{'=' * 80}\n")
 
             # Assertions to make the test fail if out of date
             if local_version != current_version:
@@ -476,9 +524,9 @@ class TestZoteroSyncState:
 
         zot = zotero_source.zot
 
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("RECENT MODIFICATIONS FROM ZOTERO API")
-        logger.info("="*80 + "\n")
+        logger.info("=" * 80 + "\n")
 
         # Fetch recent items
         items = zot.items(limit=10, sort="dateModified", direction="desc")
@@ -496,7 +544,7 @@ class TestZoteroSyncState:
                 logger.info(f"   Title: {title[:80]}{'...' if len(title) > 80 else ''}")
             logger.info("")
 
-        logger.info("="*80 + "\n")
+        logger.info("=" * 80 + "\n")
 
     async def test_check_sync_state_file_location(self, library_info_fixture):
         """Verify the sync state file location and contents."""
@@ -508,11 +556,15 @@ class TestZoteroSyncState:
         logger.info(f"Directory exists: {save_dir.exists()}")
 
         if save_dir.exists():
-            logger.info(f"Directory contents:")
+            logger.info("Directory contents:")
             for file in save_dir.iterdir():
                 file_size = file.stat().st_size if file.is_file() else "dir"
-                file_mtime = datetime.fromtimestamp(file.stat().st_mtime, tz=timezone.utc)
-                logger.info(f"  - {file.name} ({file_size} bytes, modified: {file_mtime})")
+                file_mtime = datetime.fromtimestamp(
+                    file.stat().st_mtime, tz=timezone.utc
+                )
+                logger.info(
+                    f"  - {file.name} ({file_size} bytes, modified: {file_mtime})"
+                )
 
         # Try both possible filenames
         sync_state_file = save_dir / ".zotero_sync_state.json"

@@ -122,9 +122,9 @@ async def test_diagnostic_scan_sample_with_enhanced_detection(mcp_server_local):
             )
 
     # We expect to find corruption in at least some of these items
-    assert (
-        corruption_found > 0
-    ), "Enhanced detection should find corruption in known bad items"
+    assert corruption_found > 0, (
+        "Enhanced detection should find corruption in known bad items"
+    )
     logger.info(
         f"\nEnhanced detection found corruption in {corruption_found}/{len(test_items)} test items"
     )

@@ -2,8 +2,8 @@
 # Reprocessing Pipeline for Specific Zotero Items
 # Inherits from vectorize.yaml and overrides for forced reprocessing
 #
-# Usage: python -m buttermilk.runner.cli --config-dir conf --config-name reprocess db=dev
-#        uv run python scripts/reprocess.py [items_file] [--db=dev]
+# Usage: uv run python -m buttermilk.runner.cli --config-dir=conf
+#     --config-name=reprocess items_file=corrupt_documents_66pct.txt db=dev
 #
 # Key differences from vectorize.yaml:
 # - Uses ZoteroItemSource (file of item keys) instead of ZoteroSource (full library)
@@ -11,17 +11,14 @@
 # - Parameterized items_file for flexibility
 
 defaults:
-  - config # Inherit base configuration
-  - db: upstream # Use upstream GCS bucket (override with db=dev)
-  - /pipelines/zotero_vectorization@pipeline.processors # Shared pipeline processors
+  - vectorize
   - _self_
 
 # Pipeline specific configuration
 job: reprocess_zotero
 
 # Reprocessing configuration
-reprocess:
-  items_file: corrupt_documents_66pct.txt # File containing document IDs to reprocess
+items_file: corrupt_documents_66pct.txt # File containing document IDs to reprocess
 
 run:
   mode: pipeline
@@ -33,13 +30,6 @@ session:
 
 # Override vectoriser to force reprocessing (no deduplication)
 vectoriser:
-  _target_: buttermilk.data.vector.ChromaDBEmbeddings
-  persist_directory: ${storage.zotero_vectors.persist_directory}
-  collection_name: ${storage.zotero_vectors.collection_name}
-  embedding_model: ${storage.zotero_vectors.embedding_model}
-  dimensionality: ${storage.zotero_vectors.dimensionality}
-  concurrency: ${pipeline.concurrency}
-  sync_batch_size: 500
   deduplication_strategy: none # Force reprocessing, don't skip existing records
   enable_record_cache: false # Disable cache for fresh processing
 
@@ -54,8 +44,6 @@ pipeline:
 
   # Source: Fetch specific items by key from file (overrides ZoteroSource)
   source:
-    _target_: src.zotero_items.ZoteroItemSource
+    _target_: buttermilk.libs.zotero.ZoteroItemSource
     library_id: ${oc.env:ZOTERO_LIBRARY_ID}
-    item_keys_file: ${reprocess.items_file}
-
-  # Processors inherited from /pipelines/zotero_vectorization
+    item_keys_file: ${items_file}

@@ -35,17 +35,18 @@ The reprocessing pipeline:
 **File**: `conf/reprocess.yaml`
 
 Key settings:
+
 ```yaml
 reprocess:
-  items_file: corrupt_documents_66pct.txt  # Override with CLI arg
+  items_file: corrupt_documents_66pct.txt # Override with CLI arg
 
 pipeline:
-  force_reprocess: true          # Ignore all caches
-  enable_record_cache: false     # No per-processor caching
+  force_reprocess: true # Ignore all caches
+  enable_record_cache: false # No per-processor caching
 
 vectoriser:
-  deduplication_strategy: none   # Don't skip existing records
-  enable_record_cache: false     # No vectorizer caching
+  deduplication_strategy: none # Don't skip existing records
+  enable_record_cache: false # No vectorizer caching
 ```
 
 ## Known Issue: Zotero Fulltext Bypass
@@ -82,10 +83,10 @@ ChromaDB storage
 
 ## Comparison: reprocess.py vs run_reprocess.py
 
-| File | Purpose | Interface |
-|------|---------|-----------|
-| `scripts/reprocess.py` | **NEW** - Thin CLI wrapper | Command-line args, uses buttermilk CLI |
-| `scripts/run_reprocess.py` | Legacy - Direct Python invocation | Hardcoded config, uses Hydra compose |
+| File                       | Purpose                           | Interface                              |
+| -------------------------- | --------------------------------- | -------------------------------------- |
+| `scripts/reprocess.py`     | **NEW** - Thin CLI wrapper        | Command-line args, uses buttermilk CLI |
+| `scripts/run_reprocess.py` | Legacy - Direct Python invocation | Hardcoded config, uses Hydra compose   |
 
 **Use `reprocess.py`** - It's cleaner, more flexible, and easier to maintain.
 
@@ -109,14 +110,17 @@ uv run python scripts/reprocess.py corrupt_documents_66pct.txt --db=dev
 ## Cache Control Details
 
 ### Pipeline-Level Caching
+
 - `force_reprocess: true` - Ignores processor-level caches
 - `enable_record_cache: false` - Disables per-processor record cache
 
 ### Vectorizer-Level Caching
+
 - `deduplication_strategy: none` - Doesn't skip existing embeddings
 - `enable_record_cache: false` - No record cache for vectorizer
 
 ### What Still Gets Cached
+
 - Downloaded PDFs in `~/.cache/buttermilk/zotero/items/` (cleared by `clear_caches.py`)
 - LLM citation calls may be cached by buttermilk's LLM layer
 

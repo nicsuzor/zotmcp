@@ -3,6 +3,7 @@
 This Source class is used for reprocessing specific documents (e.g., corrupt ones)
 without iterating through the entire Zotero library.
 """
+
 import pytest
 from pathlib import Path
 from buttermilk._core.types import BaseRecord
@@ -20,10 +21,7 @@ async def test_zotero_item_source_reads_keys_from_file():
     test_file.write_text("KEY1\nKEY2\n  KEY3  \n\nKEY4\n")
 
     # Act
-    source = ZoteroItemSource(
-        library_id="test_library",
-        item_keys_file=str(test_file)
-    )
+    source = ZoteroItemSource(library_id="test_library", item_keys_file=str(test_file))
 
     # Assert
     assert source.item_keys == ["KEY1", "KEY2", "KEY3", "KEY4"]
@@ -47,9 +45,9 @@ async def test_zotero_item_source_fetches_items_by_key(bm_vectorize):
 
     # Act
     import os
+
     source = ZoteroItemSource(
-        library_id=os.getenv("ZOTERO_LIBRARY_ID"),
-        item_keys_file=str(temp_file)
+        library_id=os.getenv("ZOTERO_LIBRARY_ID"), item_keys_file=str(temp_file)
     )
 
     records = []

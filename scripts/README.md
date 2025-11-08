@@ -41,17 +41,15 @@ export ZOTERO_LOCAL="false"  # Set to "true" for local-only testing
 
 ### Performance:
 
-| Scenario | Time | API Calls |
-|----------|------|-----------|
-| **No changes** | ~2-5 min | Zotero API only |
+| Scenario          | Time       | API Calls                        |
+| ----------------- | ---------- | -------------------------------- |
+| **No changes**    | ~2-5 min   | Zotero API only                  |
 | **Few new items** | ~10-20 min | API + LLM citations + embeddings |
-| **Many updates** | ~1-2 hours | Full pipeline |
+| **Many updates**  | ~1-2 hours | Full pipeline                    |
 
 ### Costs:
 
-**Zotero API**: Free (rate limited)
-**PDF downloads**: Bandwidth only
-**LLM citations**: ~$0.001 per item (Gemini Flash)
+**Zotero API**: Free (rate limited) **PDF downloads**: Bandwidth only **LLM citations**: ~$0.001 per item (Gemini Flash)
 **Embeddings**: ~$0.001 per item (gemini-embedding-001)
 
 **Estimate**: ~$0.002 per new item
@@ -72,21 +70,18 @@ docker pull us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest
 
 ### Troubleshooting:
 
-**"ZOTERO_LIBRARY_ID not set"**
-→ Export the environment variable or add to ~/.bashrc
+**"ZOTERO_LIBRARY_ID not set"** → Export the environment variable or add to ~/.bashrc
 
-**"Permission denied (GCS)"**
-→ Run `gcloud auth application-default login`
+**"Permission denied (GCS)"** → Run `gcloud auth application-default login`
 
-**"PDF download failed"**
-→ Check Zotero API key has read permissions
+**"PDF download failed"** → Check Zotero API key has read permissions
 
-**"Out of memory"**
-→ Reduce `pipeline.concurrency` in conf/vectorize.yaml
+**"Out of memory"** → Reduce `pipeline.concurrency` in conf/vectorize.yaml
 
 ### Advanced options:
 
 Edit `conf/vectorize.yaml` to customize:
+
 - `max_records`: Limit number of items to process
 - `concurrency`: Parallel processing (default: 5)
 - `chunk_size`: Text chunk size (default: 1000)

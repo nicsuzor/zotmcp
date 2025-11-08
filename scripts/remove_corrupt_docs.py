@@ -39,7 +39,7 @@ def read_document_ids(input_file: str) -> List[str]:
     Raises:
         FileNotFoundError: If input file does not exist
     """
-    with open(input_file, 'r') as f:
+    with open(input_file, "r") as f:
         lines = f.readlines()
 
     # Strip whitespace and filter out empty lines
@@ -58,15 +58,14 @@ async def get_chunk_count_for_document(collection, document_id: str) -> int:
     Returns:
         int: Number of chunks found for this document
     """
-    results = collection.get(
-        where={"document_id": document_id},
-        include=[]
-    )
+    results = collection.get(where={"document_id": document_id}, include=[])
 
     return len(results["ids"])
 
 
-async def delete_document_chunks(collection, document_id: str, dry_run: bool = True) -> int:
+async def delete_document_chunks(
+    collection, document_id: str, dry_run: bool = True
+) -> int:
     """Delete all chunks for a given document ID.
 
     Args:
@@ -89,16 +88,13 @@ async def delete_document_chunks(collection, document_id: str, dry_run: bool = T
         logger.info(
             f"Deleted {chunk_count} chunks for document {document_id}",
             document_id=document_id,
-            chunks_deleted=chunk_count
+            chunks_deleted=chunk_count,
         )
 
     return chunk_count
 
 
-async def remove_documents(
-    document_ids: List[str],
-    dry_run: bool = True
-) -> dict:
+async def remove_documents(document_ids: List[str], dry_run: bool = True) -> dict:
     """Remove documents from ChromaDB collection.
 
     Args:
@@ -110,7 +106,9 @@ async def remove_documents(
     """
     # Initialize buttermilk with zotero config
     conf_dir = str(Path(__file__).parent.parent / "conf")
-    bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=["db=dev"])
+    bm = await init_async(
+        config_dir=conf_dir, config_name="zotero", overrides=["db=dev"]
+    )
 
     try:
         # Get ChromaDB collection
@@ -131,7 +129,9 @@ async def remove_documents(
         documents_missing = 0
 
         for doc_id in document_ids:
-            chunk_count = await delete_document_chunks(collection, doc_id, dry_run=dry_run)
+            chunk_count = await delete_document_chunks(
+                collection, doc_id, dry_run=dry_run
+            )
 
             if chunk_count > 0:
                 documents_found += 1

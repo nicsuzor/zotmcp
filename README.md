@@ -35,11 +35,13 @@ MCP server for semantic search and literature review across a shared Zotero acad
 ### Distribution
 
 The Docker image includes:
+
 - ✅ All dependencies (FastMCP, ChromaDB, Pydantic)
 - ✅ ChromaDB vectors (baked in, ~3GB)
 - ✅ No local Python setup required
 
 Colleagues just need to:
+
 1. Install Docker Desktop
 2. Pull image: `docker pull us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest`
 3. Configure MCP client (see above)
@@ -48,7 +50,6 @@ Colleagues just need to:
 ## Architecture
 
 ZotMCP is an MCP (Model Context Protocol) server that provides semantic search and literature review capabilities for a shared Zotero academic library.
-
 
 - **Zotero Library**: `prosocial` group library
 - **ChromaDB Collection**: `prosocial_zot`

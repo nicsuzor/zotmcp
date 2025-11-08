@@ -33,7 +33,6 @@ from hydra.utils import instantiate
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from buttermilk import init_async, logger
-from buttermilk._core.types import Record
 
 
 async def process_single_document(document_id: str) -> dict:
@@ -61,7 +60,7 @@ async def process_single_document(document_id: str) -> dict:
             overrides=[
                 "db=dev",
                 "run.limit=1",  # Limit to 1 document
-            ]
+            ],
         )
 
         # Initialize Buttermilk infrastructure
@@ -88,8 +87,12 @@ async def process_single_document(document_id: str) -> dict:
 
             # Instantiate all processors from config
             processors = []
-            pipeline_cfg = cfg.pipeline if hasattr(cfg, 'pipeline') else cfg['pipeline']
-            processor_configs = pipeline_cfg.processors if hasattr(pipeline_cfg, 'processors') else pipeline_cfg['processors']
+            pipeline_cfg = cfg.pipeline if hasattr(cfg, "pipeline") else cfg["pipeline"]
+            processor_configs = (
+                pipeline_cfg.processors
+                if hasattr(pipeline_cfg, "processors")
+                else pipeline_cfg["processors"]
+            )
 
             for processor_config in processor_configs:
                 processor = instantiate(processor_config)
@@ -108,12 +111,18 @@ async def process_single_document(document_id: str) -> dict:
             ]
 
             for idx, processor in enumerate(processors):
-                processor_name = processor_names[idx] if idx < len(processor_names) else f"Processor{idx}"
+                processor_name = (
+                    processor_names[idx]
+                    if idx < len(processor_names)
+                    else f"Processor{idx}"
+                )
                 logger.info(f"Running {processor_name}...")
 
                 next_records = []
                 for rec in current_records:
-                    async for processed_rec in processor.process(rec, processor_stage=processor_name):
+                    async for processed_rec in processor.process(
+                        rec, processor_stage=processor_name
+                    ):
                         next_records.append(processed_rec)
 
                 current_records = next_records
@@ -137,13 +146,15 @@ async def process_single_document(document_id: str) -> dict:
                 logger.info(
                     f"✅ Document {document_id} processed successfully",
                     document_id=document_id,
-                    stages=len(result["stages_completed"])
+                    stages=len(result["stages_completed"]),
                 )
             else:
-                result["error"] = "Document filtered by quality check (corruption >= 80%)"
+                result["error"] = (
+                    "Document filtered by quality check (corruption >= 80%)"
+                )
                 logger.warning(
                     f"⚠️ Document {document_id} filtered by quality check",
-                    document_id=document_id
+                    document_id=document_id,
                 )
 
         except Exception as e:
@@ -151,7 +162,7 @@ async def process_single_document(document_id: str) -> dict:
             logger.error(
                 f"❌ Failed to process document {document_id}",
                 document_id=document_id,
-                error=str(e)
+                error=str(e),
             )
 
         finally:
@@ -206,12 +217,14 @@ def main(document_id: str):
         click.echo("\n✅ Document processed successfully and stored in ChromaDB")
 
     else:
-        click.echo(f"\n❌ Processing failed")
+        click.echo("\n❌ Processing failed")
         if result["error"]:
             click.echo(f"Error: {result['error']}")
 
         if "filtered by quality check" in (result["error"] or ""):
-            click.echo("\nNote: Document was filtered due to high corruption rate (>= 80%)")
+            click.echo(
+                "\nNote: Document was filtered due to high corruption rate (>= 80%)"
+            )
             click.echo("This is expected behavior for corrupt documents.")
 
     click.echo("=" * 80)

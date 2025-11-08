@@ -27,7 +27,13 @@ async def test_search_papers_basic():
                 "id": "https://openalex.org/W1234567890",
                 "title": "Machine Learning for Toxicity Detection",
                 "authorships": [
-                    {"author": {"id": "A1", "display_name": "Jane Smith", "orcid": None}},
+                    {
+                        "author": {
+                            "id": "A1",
+                            "display_name": "Jane Smith",
+                            "orcid": None,
+                        }
+                    },
                     {"author": {"id": "A2", "display_name": "John Doe", "orcid": None}},
                 ],
                 "publication_year": 2023,
@@ -40,14 +46,17 @@ async def test_search_papers_basic():
                     "test": [3],
                     "abstract": [4],
                 },
-                "open_access": {"is_oa": True, "oa_url": "https://example.com/paper.pdf"},
+                "open_access": {
+                    "is_oa": True,
+                    "oa_url": "https://example.com/paper.pdf",
+                },
                 "primary_location": None,
                 "topics": [],
                 "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W1234567890",
-                "referenced_works": []
+                "referenced_works": [],
             }
         ],
-        "meta": {"count": 1}
+        "meta": {"count": 1},
     }
 
     # Set up mock
@@ -127,7 +136,15 @@ async def test_search_papers_handles_missing_abstract():
             {
                 "id": "https://openalex.org/W999",
                 "title": "Paper Without Abstract",
-                "authorships": [{"author": {"id": "A3", "display_name": "Test Author", "orcid": None}}],
+                "authorships": [
+                    {
+                        "author": {
+                            "id": "A3",
+                            "display_name": "Test Author",
+                            "orcid": None,
+                        }
+                    }
+                ],
                 "publication_year": 2024,
                 "doi": None,
                 "cited_by_count": 5,
@@ -136,10 +153,10 @@ async def test_search_papers_handles_missing_abstract():
                 "primary_location": None,
                 "topics": [],
                 "cited_by_api_url": None,
-                "referenced_works": []
+                "referenced_works": [],
             }
         ],
-        "meta": {"count": 1}
+        "meta": {"count": 1},
     }
 
     respx.get("https://api.openalex.org/works").mock(
@@ -163,7 +180,15 @@ async def test_get_paper_citations_basic():
             {
                 "id": "https://openalex.org/W111",
                 "title": "Citing Paper 1",
-                "authorships": [{"author": {"id": "A4", "display_name": "Alice Brown", "orcid": None}}],
+                "authorships": [
+                    {
+                        "author": {
+                            "id": "A4",
+                            "display_name": "Alice Brown",
+                            "orcid": None,
+                        }
+                    }
+                ],
                 "publication_year": 2024,
                 "doi": "https://doi.org/10.1111/cite1",
                 "cited_by_count": 10,
@@ -172,12 +197,14 @@ async def test_get_paper_citations_basic():
                 "primary_location": None,
                 "topics": [],
                 "cited_by_api_url": None,
-                "referenced_works": []
+                "referenced_works": [],
             },
             {
                 "id": "https://openalex.org/W222",
                 "title": "Citing Paper 2",
-                "authorships": [{"author": {"id": "A5", "display_name": "Bob Green", "orcid": None}}],
+                "authorships": [
+                    {"author": {"id": "A5", "display_name": "Bob Green", "orcid": None}}
+                ],
                 "publication_year": 2023,
                 "doi": "https://doi.org/10.2222/cite2",
                 "cited_by_count": 5,
@@ -186,7 +213,7 @@ async def test_get_paper_citations_basic():
                 "primary_location": None,
                 "topics": [],
                 "cited_by_api_url": None,
-                "referenced_works": []
+                "referenced_works": [],
             },
         ]
     }
@@ -217,9 +244,7 @@ async def test_get_paper_citations_with_year_filter():
         return_value=Response(200, json=mock_response)
     )
 
-    await get_paper_citations(
-        paper_id="W123", year_from=2020, limit=10
-    )
+    await get_paper_citations(paper_id="W123", year_from=2020, limit=10)
 
     # Verify filter in request
     assert route.called
@@ -267,7 +292,7 @@ async def test_get_referenced_works():
                 "primary_location": None,
                 "topics": [],
                 "cited_by_api_url": None,
-                "referenced_works": []
+                "referenced_works": [],
             },
             {
                 "id": "https://openalex.org/W222",
@@ -280,8 +305,8 @@ async def test_get_referenced_works():
                 "primary_location": None,
                 "topics": [],
                 "cited_by_api_url": None,
-                "referenced_works": []
-            }
+                "referenced_works": [],
+            },
         ]
     }
 
@@ -311,7 +336,7 @@ async def test_search_by_author():
             {
                 "id": "https://openalex.org/A123456",
                 "display_name": "Jane Smith",
-                "orcid": "https://orcid.org/0000-0001-2345-6789"
+                "orcid": "https://orcid.org/0000-0001-2345-6789",
             }
         ]
     }
@@ -323,7 +348,13 @@ async def test_search_by_author():
                 "id": "https://openalex.org/W555",
                 "title": "Paper by Jane",
                 "authorships": [
-                    {"author": {"id": "A123456", "display_name": "Jane Smith", "orcid": "https://orcid.org/0000-0001-2345-6789"}}
+                    {
+                        "author": {
+                            "id": "A123456",
+                            "display_name": "Jane Smith",
+                            "orcid": "https://orcid.org/0000-0001-2345-6789",
+                        }
+                    }
                 ],
                 "publication_year": 2023,
                 "cited_by_count": 15,
@@ -332,7 +363,7 @@ async def test_search_by_author():
                 "primary_location": None,
                 "topics": [],
                 "cited_by_api_url": None,
-                "referenced_works": []
+                "referenced_works": [],
             }
         ]
     }
@@ -371,7 +402,7 @@ async def test_get_paper_details_by_id():
         "primary_location": None,
         "topics": [],
         "cited_by_api_url": None,
-        "referenced_works": []
+        "referenced_works": [],
     }
 
     respx.get("https://api.openalex.org/works/W333").mock(
@@ -403,7 +434,7 @@ async def test_get_paper_details_by_doi():
         "primary_location": None,
         "topics": [],
         "cited_by_api_url": None,
-        "referenced_works": []
+        "referenced_works": [],
     }
 
     respx.get("https://api.openalex.org/works/https://doi.org/10.5678/test").mock(
@@ -477,7 +508,7 @@ async def test_search_papers_with_filters_live_api():
         year_from=2020,
         year_to=2024,
         open_access_only=True,
-        limit=3
+        limit=3,
     )
 
     assert isinstance(result, list)
@@ -502,10 +533,7 @@ async def test_get_paper_citations_live_api():
     Uses a well-known paper that should have citations.
     OpenAlex ID: W2741809807 (a highly cited paper on neural networks)
     """
-    result = await get_paper_citations(
-        paper_id="W2741809807",
-        limit=10
-    )
+    result = await get_paper_citations(paper_id="W2741809807", limit=10)
 
     assert isinstance(result, list)
     # Highly cited papers should have many citations
@@ -526,10 +554,7 @@ async def test_get_referenced_works_live_api():
 
     Uses same well-known paper to verify referenced works retrieval.
     """
-    result = await get_referenced_works(
-        paper_id="W2741809807",
-        limit=10
-    )
+    result = await get_referenced_works(paper_id="W2741809807", limit=10)
 
     assert isinstance(result, list)
     # Papers typically cite other papers
@@ -550,10 +575,7 @@ async def test_search_by_author_live_api():
     Uses a well-known academic who should have indexed works.
     """
     # Search for a well-known researcher with many publications
-    result = await search_by_author(
-        author_name="Geoffrey Hinton",
-        limit=10
-    )
+    result = await search_by_author(author_name="Geoffrey Hinton", limit=10)
 
     assert isinstance(result, list)
     assert len(result) > 0, "Expected papers by well-known author"
@@ -570,8 +592,9 @@ async def test_search_by_author_live_api():
         for author in paper.get("authors", [])
     ]
     # At least one paper should have "Hinton" in author names
-    assert any("Hinton" in name for name in author_names), \
+    assert any("Hinton" in name for name in author_names), (
         "Expected to find Hinton in author names"
+    )
 
 
 @pytest.mark.slow

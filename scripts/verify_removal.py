@@ -96,11 +96,12 @@ def should_remove_document_v2(document_data: dict) -> bool:
 
     # Count high severity chunks (corruption_percentage ≥ 20%)
     high_severity_chunks = sum(
-        1 for chunk in chunks
-        if chunk.get("corruption_percentage", 0) >= 20.0
+        1 for chunk in chunks if chunk.get("corruption_percentage", 0) >= 20.0
     )
 
-    high_severity_rate = (high_severity_chunks / total_chunks * 100) if total_chunks > 0 else 0
+    high_severity_rate = (
+        (high_severity_chunks / total_chunks * 100) if total_chunks > 0 else 0
+    )
 
     # Criterion 1: ≥95% of chunks are high severity
     if high_severity_rate >= 95.0:
@@ -108,11 +109,14 @@ def should_remove_document_v2(document_data: dict) -> bool:
 
     # Count chunks with repetitive patterns
     repetitive_chunks = sum(
-        1 for chunk in chunks
+        1
+        for chunk in chunks
         if detect_repetitive_pattern(chunk.get("text_preview", ""))
     )
 
-    repetitive_rate = (repetitive_chunks / total_chunks * 100) if total_chunks > 0 else 0
+    repetitive_rate = (
+        (repetitive_chunks / total_chunks * 100) if total_chunks > 0 else 0
+    )
 
     # Criterion 2: ≥80% of chunks have repetitive patterns
     if repetitive_rate >= 80.0:
@@ -135,7 +139,9 @@ def calculate_document_level_statistics(documents: List[dict]) -> dict:
     documents_to_remove = sum(1 for doc in documents if doc.get("should_remove", False))
     documents_to_keep = total_documents - documents_to_remove
 
-    removal_percentage = (documents_to_remove / total_documents * 100) if total_documents > 0 else 0.0
+    removal_percentage = (
+        (documents_to_remove / total_documents * 100) if total_documents > 0 else 0.0
+    )
 
     return {
         "total_documents": total_documents,
@@ -221,7 +227,9 @@ def get_removal_reason(doc: dict) -> str:
         return "repetitive_pattern"
 
     # Should not reach here if document passes should_remove_document()
-    raise ValueError(f"Document {doc.get('document_id', 'unknown')} does not match any removal criteria")
+    raise ValueError(
+        f"Document {doc.get('document_id', 'unknown')} does not match any removal criteria"
+    )
 
 
 def generate_random_samples(documents: list, count: int) -> list:
@@ -266,7 +274,7 @@ def calculate_statistics(all_documents: list, documents_to_remove: list) -> dict
         "empty": 0,
         "high_corruption": 0,
         "high_cid": 0,
-        "repetitive_pattern": 0
+        "repetitive_pattern": 0,
     }
 
     for doc in documents_to_remove:
@@ -278,7 +286,7 @@ def calculate_statistics(all_documents: list, documents_to_remove: list) -> dict
         "documents_to_remove": to_remove,
         "documents_to_keep": to_keep,
         "removal_percentage": removal_percentage,
-        "removal_by_reason": removal_by_reason
+        "removal_by_reason": removal_by_reason,
     }
 
 
@@ -298,11 +306,12 @@ def write_verification_report(stats: dict, samples: list, output_file: str):
         "review_instructions": (
             "Review the sample documents below to verify removal decisions are correct. "
             "Check for any false positives that should be preserved."
-        )
+        ),
     }
 
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         import json
+
         json.dump(report, f, indent=2)
 
 
@@ -313,7 +322,7 @@ def write_id_list(document_ids: list, output_file: str):
         document_ids: List of document ID strings
         output_file: Path to output text file
     """
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         for doc_id in document_ids:
             f.write(f"{doc_id}\n")
 
@@ -322,20 +331,19 @@ def main():
     """Main entry point for verification script."""
     import click
     import json
-    from pathlib import Path
 
     @click.command()
     @click.option(
         "--input",
         type=click.Path(exists=True),
         default="all_corruption.json",
-        help="Path to corruption detection JSON file (default: all_corruption.json)"
+        help="Path to corruption detection JSON file (default: all_corruption.json)",
     )
     @click.option(
         "--sample-count",
         type=int,
         default=50,
-        help="Number of random samples to generate for review (default: 50)"
+        help="Number of random samples to generate for review (default: 50)",
     )
     def verify(input: str, sample_count: int):
         """Verify corruption removal decisions before database changes.
@@ -353,7 +361,7 @@ def main():
 
         # Load corruption data
         click.echo(f"\nLoading corruption data from {input}...")
-        with open(input, 'r') as f:
+        with open(input, "r") as f:
             data = json.load(f)
 
         corrupted_chunks = data["corrupted_documents"]  # These are actually chunks
@@ -371,20 +379,23 @@ def main():
         click.echo("\nApplying document-level removal filters (≥95% corrupt)...")
         document_decisions = []
         for doc_id, chunks in documents_by_id.items():
-            document_data = {
-                "document_id": doc_id,
-                "chunks": chunks
-            }
+            document_data = {"document_id": doc_id, "chunks": chunks}
             should_remove = should_remove_document_v2(document_data)
-            document_decisions.append({
-                "document_id": doc_id,
-                "should_remove": should_remove,
-                "total_chunks": len(chunks),
-                "chunks": chunks
-            })
+            document_decisions.append(
+                {
+                    "document_id": doc_id,
+                    "should_remove": should_remove,
+                    "total_chunks": len(chunks),
+                    "chunks": chunks,
+                }
+            )
 
-        documents_to_remove = [doc for doc in document_decisions if doc["should_remove"]]
-        documents_to_keep = [doc for doc in document_decisions if not doc["should_remove"]]
+        documents_to_remove = [
+            doc for doc in document_decisions if doc["should_remove"]
+        ]
+        documents_to_keep = [
+            doc for doc in document_decisions if not doc["should_remove"]
+        ]
 
         click.echo(f"Documents to remove: {len(documents_to_remove):,}")
         click.echo(f"Corrupted documents to keep: {len(documents_to_keep):,}")
@@ -393,19 +404,27 @@ def main():
         stats = calculate_document_level_statistics(document_decisions)
 
         # Display summary
-        database_percentage = (stats['documents_to_remove'] / total_scanned * 100) if total_scanned > 0 else 0
+        database_percentage = (
+            (stats["documents_to_remove"] / total_scanned * 100)
+            if total_scanned > 0
+            else 0
+        )
 
         click.echo("\n" + "=" * 80)
         click.echo("DOCUMENT-LEVEL REMOVAL SUMMARY")
         click.echo("=" * 80)
         click.echo(f"Total database size: {total_scanned:,} documents")
         click.echo(f"Documents with corruption: {len(documents_by_id):,}")
-        click.echo(f"Documents to remove: {stats['documents_to_remove']:,} (≥95% corrupt)")
+        click.echo(
+            f"Documents to remove: {stats['documents_to_remove']:,} (≥95% corrupt)"
+        )
         click.echo(f"Documents to keep: {stats['documents_to_keep']:,} (<95% corrupt)")
-        click.echo(f"  - {stats['removal_percentage']:.2f}% of corrupted documents will be removed")
+        click.echo(
+            f"  - {stats['removal_percentage']:.2f}% of corrupted documents will be removed"
+        )
         click.echo(f"  - {database_percentage:.2f}% of total database will be removed")
-        click.echo(f"\nNote: Document-level analysis groups chunks by document_id.")
-        click.echo(f"A document is removed only if ≥95% of its chunks are corrupt.")
+        click.echo("\nNote: Document-level analysis groups chunks by document_id.")
+        click.echo("A document is removed only if ≥95% of its chunks are corrupt.")
 
         # Generate random samples
         click.echo(f"\nGenerating {sample_count} random samples for review...")
@@ -428,26 +447,34 @@ def main():
         click.echo("=" * 80)
 
         for i, doc in enumerate(samples[:5], 1):
-            doc_id = doc['document_id']
-            total_chunks = doc['total_chunks']
-            chunks = doc['chunks']
+            doc_id = doc["document_id"]
+            total_chunks = doc["total_chunks"]
+            chunks = doc["chunks"]
 
             # Calculate document-level stats
-            high_severity_chunks = sum(1 for c in chunks if c.get("corruption_percentage", 0) >= 20.0)
-            corruption_rate = (high_severity_chunks / total_chunks * 100) if total_chunks > 0 else 0
+            high_severity_chunks = sum(
+                1 for c in chunks if c.get("corruption_percentage", 0) >= 20.0
+            )
+            corruption_rate = (
+                (high_severity_chunks / total_chunks * 100) if total_chunks > 0 else 0
+            )
 
             # Get first chunk's text preview
-            first_chunk_text = chunks[0].get('text_preview', '') if chunks else 'N/A'
+            first_chunk_text = chunks[0].get("text_preview", "") if chunks else "N/A"
 
             click.echo(f"\n{i}. Document ID: {doc_id}")
             click.echo(f"   Total chunks: {total_chunks}")
-            click.echo(f"   High severity chunks: {high_severity_chunks} ({corruption_rate:.1f}%)")
-            click.echo(f"   Decision: REMOVE (≥95% corrupt)")
+            click.echo(
+                f"   High severity chunks: {high_severity_chunks} ({corruption_rate:.1f}%)"
+            )
+            click.echo("   Decision: REMOVE (≥95% corrupt)")
             click.echo(f"   First chunk preview: {first_chunk_text[:100]}...")
 
         click.echo("\n" + "=" * 80)
         click.echo("Verification complete!")
-        click.echo(f"Review {report_file} for full sample set ({len(samples)} documents)")
+        click.echo(
+            f"Review {report_file} for full sample set ({len(samples)} documents)"
+        )
         click.echo(f"Use {ids_file} for removal operations")
         click.echo("=" * 80)
 

@@ -1,11 +1,81 @@
-# ZotMCP MCP Server Configuration
-# Inherits shared infrastructure from config.yaml
-# Used by the MCP server to access the Zotero library vector database
+# Base Configuration for ZotMCP
+# This is the shared foundation inherited by all mode-specific configs
+# Each mode (zotero.yaml, vectorize.yaml) explicitly selects its own db group
 
-defaults:
-  - config              # Inherit base configuration
-  - db: deploy          # Use deploy for Docker, override with db=dev for local
-  - _self_
+# Session configuration (required by buttermilk)
+session:
+  template_paths: []
+  project_name: zotmcp
+  sessions_dir: "data/sessions"
+  cache_dir: "~/.cache/buttermilk"
+  timeout_minutes: 60
+  cleanup_interval_minutes: 15
+  max_concurrent_sessions: 50
 
-# MCP server specific configuration
-job: mcp_server
+infrastructure:
+  clouds:
+    - type: gcp
+      _target_: buttermilk._core.cloud_config.GCPConfig
+      project_id: prosocial-443205
+      region: us-central1
+      location: us-central1
+      storage_bucket: prosocial-dev
+      secrets:
+        _target_: buttermilk._core.cloud_config.SecretsServiceConfig
+        models_secret: dev__llm__connections
+        credentials_secret: dev__shared_credentials
+      logging:
+        _target_: buttermilk._core.cloud_config.LoggingServiceConfig
+        enabled: true
+        verbose: false
+      pubsub:
+        _target_: buttermilk._core.cloud_config.PubSubServiceConfig
+        jobs_topic: jobs
+        jobs_subscription: jobs-sub
+        status_topic: flow
+        status_subscription: flow-sub
+      vertex:
+        enabled: true
+
+  tracing:
+    weave:
+      enabled: false
+    otel:
+      enabled: false
+
+  logging:
+    type: local
+    verbose: true
+
+# Storage base configuration
+# Note: persist_directory is set by db/* configs (dev.yaml, deploy.yaml, upstream.yaml)
+storage:
+  zotero_vectors:
+    type: chromadb
+    collection_name: prosocial_zot
+    read_only: true
+    embedding_model: gemini-embedding-001
+    dimensionality: 3072
+
+# Metadata fields to extract from Zotero items
+zotero_fields:
+  bibliographic:
+    - title
+    - creators
+    - date
+    - publicationTitle
+    - publisher
+    - DOI
+    - url
+    - itemType
+    - abstractNote
+    - pages
+    - volume
+    - issue
+
+  technical:
+    - item_key
+    - document_id
+    - chunk_index
+    - embedding_model
+    - citation_key

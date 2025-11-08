@@ -3,11 +3,11 @@
 Tests conservative document removal filter logic using real corrupted document data.
 All tests use JSON fixtures for test data (no inline fake data).
 """
+
 import json
 import sys
 from pathlib import Path
 
-import pytest
 
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
@@ -17,7 +17,7 @@ from verify_removal import (
     detect_repetitive_pattern,
     generate_random_samples,
     calculate_statistics,
-    get_removal_reason
+    get_removal_reason,
 )
 
 
@@ -38,7 +38,7 @@ class TestConservativeFilterLogic:
             "corruption_percentage": 100.0,
             "cid_count": 0,
             "detected_language": "unknown",
-            "text_preview": "(empty)"
+            "text_preview": "(empty)",
         }
 
         # Act
@@ -56,7 +56,7 @@ class TestConservativeFilterLogic:
             "corruption_percentage": 75.5,
             "cid_count": 25,
             "detected_language": "en",
-            "text_preview": "(cid:1) (cid:2) test text"
+            "text_preview": "(cid:1) (cid:2) test text",
         }
 
         # Act
@@ -74,7 +74,7 @@ class TestConservativeFilterLogic:
             "corruption_percentage": 30.0,
             "cid_count": 75,
             "detected_language": "en",
-            "text_preview": "(cid:1) (cid:2) (cid:3)..."
+            "text_preview": "(cid:1) (cid:2) (cid:3)...",
         }
 
         # Act
@@ -93,7 +93,7 @@ class TestConservativeFilterLogic:
             "corruption_percentage": 10.0,
             "cid_count": 5,
             "detected_language": "fi",
-            "text_preview": "o o o o o o o o o o o o o o o o o o o o"
+            "text_preview": "o o o o o o o o o o o o o o o o o o o o",
         }
 
         # Act
@@ -111,7 +111,7 @@ class TestConservativeFilterLogic:
             "corruption_percentage": 2.5,
             "cid_count": 3,
             "detected_language": "en",
-            "text_preview": "This is mostly good text with (cid:1) minor issues"
+            "text_preview": "This is mostly good text with (cid:1) minor issues",
         }
 
         # Act
@@ -129,7 +129,7 @@ class TestConservativeFilterLogic:
             "corruption_percentage": 0.0,
             "cid_count": 0,
             "detected_language": "en",
-            "text_preview": "This is completely clean text with no corruption"
+            "text_preview": "This is completely clean text with no corruption",
         }
 
         # Act
@@ -186,6 +186,7 @@ class TestRepetitivePatternDetection:
         # Assert
         assert result is False, "Below threshold repetition should not be flagged"
 
+
 class TestSampleGeneration:
     """Test suite for random sample generation."""
 
@@ -193,8 +194,14 @@ class TestSampleGeneration:
         """Should return exactly the requested number of samples."""
         # Arrange
         documents = [
-            {"document_id": f"DOC{i:03d}", "severity": "high", "corruption_percentage": 60.0,
-             "cid_count": 55, "detected_language": "en", "text_preview": f"Text {i}"}
+            {
+                "document_id": f"DOC{i:03d}",
+                "severity": "high",
+                "corruption_percentage": 60.0,
+                "cid_count": 55,
+                "detected_language": "en",
+                "text_preview": f"Text {i}",
+            }
             for i in range(100)
         ]
         sample_count = 10
@@ -209,8 +216,14 @@ class TestSampleGeneration:
         """Should return all documents if fewer than requested count."""
         # Arrange
         documents = [
-            {"document_id": f"DOC{i:03d}", "severity": "high", "corruption_percentage": 60.0,
-             "cid_count": 55, "detected_language": "en", "text_preview": f"Text {i}"}
+            {
+                "document_id": f"DOC{i:03d}",
+                "severity": "high",
+                "corruption_percentage": 60.0,
+                "cid_count": 55,
+                "detected_language": "en",
+                "text_preview": f"Text {i}",
+            }
             for i in range(5)
         ]
         sample_count = 10
@@ -246,7 +259,7 @@ class TestRemovalReason:
             "corruption_percentage": 100.0,
             "cid_count": 0,
             "detected_language": "unknown",
-            "text_preview": "(empty)"
+            "text_preview": "(empty)",
         }
 
         # Act
@@ -264,14 +277,16 @@ class TestRemovalReason:
             "corruption_percentage": 75.0,
             "cid_count": 10,
             "detected_language": "en",
-            "text_preview": "(cid:1) (cid:2) text"
+            "text_preview": "(cid:1) (cid:2) text",
         }
 
         # Act
         reason = get_removal_reason(doc)
 
         # Assert
-        assert reason == "high_corruption", ">=50% corruption should have reason 'high_corruption'"
+        assert reason == "high_corruption", (
+            ">=50% corruption should have reason 'high_corruption'"
+        )
 
     def test_get_removal_reason_for_high_cid(self):
         """High CID count documents should be categorized as 'high_cid'."""
@@ -282,7 +297,7 @@ class TestRemovalReason:
             "corruption_percentage": 30.0,
             "cid_count": 60,
             "detected_language": "en",
-            "text_preview": "(cid:1) (cid:2) (cid:3)..."
+            "text_preview": "(cid:1) (cid:2) (cid:3)...",
         }
 
         # Act
@@ -300,14 +315,16 @@ class TestRemovalReason:
             "corruption_percentage": 10.0,
             "cid_count": 5,
             "detected_language": "fi",
-            "text_preview": "o o o o o o o o o o o o o o o o o o o o"
+            "text_preview": "o o o o o o o o o o o o o o o o o o o o",
         }
 
         # Act
         reason = get_removal_reason(doc)
 
         # Assert
-        assert reason == "repetitive_pattern", "Repetitive text should have reason 'repetitive_pattern'"
+        assert reason == "repetitive_pattern", (
+            "Repetitive text should have reason 'repetitive_pattern'"
+        )
 
 
 class TestStatisticsCalculation:
@@ -317,11 +334,46 @@ class TestStatisticsCalculation:
         """Should correctly calculate statistics for mixed document set."""
         # Arrange
         all_docs = [
-            {"document_id": "DOC001", "severity": "empty", "corruption_percentage": 100.0, "cid_count": 0, "detected_language": "unknown", "text_preview": ""},
-            {"document_id": "DOC002", "severity": "high", "corruption_percentage": 75.0, "cid_count": 55, "detected_language": "en", "text_preview": "cid text"},
-            {"document_id": "DOC003", "severity": "low", "corruption_percentage": 2.0, "cid_count": 3, "detected_language": "en", "text_preview": "good text"},
-            {"document_id": "DOC004", "severity": "high", "corruption_percentage": 80.0, "cid_count": 70, "detected_language": "en", "text_preview": "more cid"},
-            {"document_id": "DOC005", "severity": "clean", "corruption_percentage": 0.0, "cid_count": 0, "detected_language": "en", "text_preview": "clean text"},
+            {
+                "document_id": "DOC001",
+                "severity": "empty",
+                "corruption_percentage": 100.0,
+                "cid_count": 0,
+                "detected_language": "unknown",
+                "text_preview": "",
+            },
+            {
+                "document_id": "DOC002",
+                "severity": "high",
+                "corruption_percentage": 75.0,
+                "cid_count": 55,
+                "detected_language": "en",
+                "text_preview": "cid text",
+            },
+            {
+                "document_id": "DOC003",
+                "severity": "low",
+                "corruption_percentage": 2.0,
+                "cid_count": 3,
+                "detected_language": "en",
+                "text_preview": "good text",
+            },
+            {
+                "document_id": "DOC004",
+                "severity": "high",
+                "corruption_percentage": 80.0,
+                "cid_count": 70,
+                "detected_language": "en",
+                "text_preview": "more cid",
+            },
+            {
+                "document_id": "DOC005",
+                "severity": "clean",
+                "corruption_percentage": 0.0,
+                "cid_count": 0,
+                "detected_language": "en",
+                "text_preview": "clean text",
+            },
         ]
         to_remove = [all_docs[0], all_docs[1], all_docs[3]]  # 3 documents to remove
 
@@ -332,16 +384,46 @@ class TestStatisticsCalculation:
         assert stats["total_documents"] == 5, "Should count all documents"
         assert stats["documents_to_remove"] == 3, "Should count removal documents"
         assert stats["documents_to_keep"] == 2, "Should count remaining documents"
-        assert stats["removal_percentage"] == 60.0, "Should calculate correct percentage"
+        assert stats["removal_percentage"] == 60.0, (
+            "Should calculate correct percentage"
+        )
 
     def test_calculate_statistics_categorizes_by_reason(self):
         """Should break down removals by reason."""
         # Arrange
         all_docs = [
-            {"document_id": "EMPTY001", "severity": "empty", "corruption_percentage": 100.0, "cid_count": 0, "detected_language": "unknown", "text_preview": ""},
-            {"document_id": "CORRUPT001", "severity": "high", "corruption_percentage": 75.0, "cid_count": 10, "detected_language": "en", "text_preview": "cid text"},
-            {"document_id": "CID001", "severity": "high", "corruption_percentage": 30.0, "cid_count": 60, "detected_language": "en", "text_preview": "more cid"},
-            {"document_id": "REPEAT001", "severity": "medium", "corruption_percentage": 10.0, "cid_count": 5, "detected_language": "fi", "text_preview": "o o o o o o o o o o o o o o o o o o o o"},
+            {
+                "document_id": "EMPTY001",
+                "severity": "empty",
+                "corruption_percentage": 100.0,
+                "cid_count": 0,
+                "detected_language": "unknown",
+                "text_preview": "",
+            },
+            {
+                "document_id": "CORRUPT001",
+                "severity": "high",
+                "corruption_percentage": 75.0,
+                "cid_count": 10,
+                "detected_language": "en",
+                "text_preview": "cid text",
+            },
+            {
+                "document_id": "CID001",
+                "severity": "high",
+                "corruption_percentage": 30.0,
+                "cid_count": 60,
+                "detected_language": "en",
+                "text_preview": "more cid",
+            },
+            {
+                "document_id": "REPEAT001",
+                "severity": "medium",
+                "corruption_percentage": 10.0,
+                "cid_count": 5,
+                "detected_language": "fi",
+                "text_preview": "o o o o o o o o o o o o o o o o o o o o",
+            },
         ]
         to_remove = all_docs  # All should be removed
 
@@ -352,16 +434,34 @@ class TestStatisticsCalculation:
         assert "removal_by_reason" in stats, "Should include breakdown by reason"
         breakdown = stats["removal_by_reason"]
         assert breakdown["empty"] == 1, "Should count empty documents"
-        assert breakdown["high_corruption"] == 1, "Should count high corruption documents"
+        assert breakdown["high_corruption"] == 1, (
+            "Should count high corruption documents"
+        )
         assert breakdown["high_cid"] == 1, "Should count high CID documents"
-        assert breakdown["repetitive_pattern"] == 1, "Should count repetitive pattern documents"
+        assert breakdown["repetitive_pattern"] == 1, (
+            "Should count repetitive pattern documents"
+        )
 
     def test_calculate_statistics_with_no_removals(self):
         """Should handle case with no documents to remove."""
         # Arrange
         all_docs = [
-            {"document_id": "CLEAN001", "severity": "clean", "corruption_percentage": 0.0, "cid_count": 0, "detected_language": "en", "text_preview": "clean text"},
-            {"document_id": "LOW001", "severity": "low", "corruption_percentage": 2.0, "cid_count": 3, "detected_language": "en", "text_preview": "mostly good"},
+            {
+                "document_id": "CLEAN001",
+                "severity": "clean",
+                "corruption_percentage": 0.0,
+                "cid_count": 0,
+                "detected_language": "en",
+                "text_preview": "clean text",
+            },
+            {
+                "document_id": "LOW001",
+                "severity": "low",
+                "corruption_percentage": 2.0,
+                "cid_count": 3,
+                "detected_language": "en",
+                "text_preview": "mostly good",
+            },
         ]
         to_remove = []
 

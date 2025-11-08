@@ -40,7 +40,9 @@ class ZoteroItemSource(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     library_id: str = Field(..., description="Zotero library ID")
-    item_keys_file: str = Field(..., description="Path to text file with item keys (one per line)")
+    item_keys_file: str = Field(
+        ..., description="Path to text file with item keys (one per line)"
+    )
     item_keys: list[str] = Field(default_factory=list, description="Loaded item keys")
 
     _zot: RetryWrapper | None = PrivateAttr(default=None)
@@ -57,9 +59,7 @@ class ZoteroItemSource(BaseModel):
         # Read keys, strip whitespace, skip empty lines
         keys_text = keys_file.read_text()
         self.item_keys = [
-            line.strip()
-            for line in keys_text.split("\n")
-            if line.strip()
+            line.strip() for line in keys_text.split("\n") if line.strip()
         ]
 
         logger.info(f"Loaded {len(self.item_keys)} item keys from {keys_file}")
@@ -110,8 +110,7 @@ class ZoteroItemSource(BaseModel):
                 async def _fetch_item() -> dict[str, Any]:
                     """Async wrapper for synchronous zot.item() call."""
                     return await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: self.zot.client.item(key)
+                        None, lambda: self.zot.client.item(key)
                     )
 
                 item = await self.zot._execute_with_retry(_fetch_item)
@@ -147,7 +146,9 @@ class ZoteroItemSource(BaseModel):
                 )
 
                 yielded_count += 1
-                logger.debug(f"Yielded item {key}: {zotero_data.get('title', 'N/A')[:50]}")
+                logger.debug(
+                    f"Yielded item {key}: {zotero_data.get('title', 'N/A')[:50]}"
+                )
                 yield record
 
             except Exception as e:

@@ -3,7 +3,7 @@
 Verifies that the vectorize.yaml pipeline configuration loads correctly
 and includes the QualityFilterProcessor in the right position.
 """
-import pytest
+
 from hydra import compose, initialize_config_dir
 from pathlib import Path
 
@@ -15,7 +15,9 @@ def test_vectorize_config_loads_successfully():
     assert config_dir.exists(), f"Config directory not found: {config_dir}"
 
     # Act & Assert - should not raise any exceptions
-    with initialize_config_dir(config_dir=str(config_dir.absolute()), version_base=None):
+    with initialize_config_dir(
+        config_dir=str(config_dir.absolute()), version_base=None
+    ):
         cfg = compose(config_name="vectorize")
 
         # Verify basic structure
@@ -30,14 +32,17 @@ def test_quality_filter_processor_in_pipeline():
     config_dir = Path(__file__).parent.parent.parent / "conf"
 
     # Act
-    with initialize_config_dir(config_dir=str(config_dir.absolute()), version_base=None):
+    with initialize_config_dir(
+        config_dir=str(config_dir.absolute()), version_base=None
+    ):
         cfg = compose(config_name="vectorize")
 
         # Assert - find QualityFilterProcessor in processors
         processor_targets = [p._target_ for p in cfg.pipeline.processors]
 
-        assert "src.quality_processor.QualityFilterProcessor" in processor_targets, \
+        assert "src.quality_processor.QualityFilterProcessor" in processor_targets, (
             "QualityFilterProcessor not found in pipeline processors"
+        )
 
 
 def test_quality_filter_processor_position():
@@ -46,7 +51,9 @@ def test_quality_filter_processor_position():
     config_dir = Path(__file__).parent.parent.parent / "conf"
 
     # Act
-    with initialize_config_dir(config_dir=str(config_dir.absolute()), version_base=None):
+    with initialize_config_dir(
+        config_dir=str(config_dir.absolute()), version_base=None
+    ):
         cfg = compose(config_name="vectorize")
 
         processor_targets = [p._target_ for p in cfg.pipeline.processors]
@@ -69,11 +76,13 @@ def test_quality_filter_processor_position():
         assert quality_idx is not None, "QualityFilterProcessor not found"
         assert embedding_idx is not None, "EmbeddingGenerator not found"
 
-        assert chunker_idx < quality_idx, \
+        assert chunker_idx < quality_idx, (
             f"QualityFilterProcessor (idx {quality_idx}) must come after SemanticSplitter (idx {chunker_idx})"
+        )
 
-        assert quality_idx < embedding_idx, \
+        assert quality_idx < embedding_idx, (
             f"QualityFilterProcessor (idx {quality_idx}) must come before EmbeddingGenerator (idx {embedding_idx})"
+        )
 
 
 def test_quality_filter_processor_configuration():
@@ -82,7 +91,9 @@ def test_quality_filter_processor_configuration():
     config_dir = Path(__file__).parent.parent.parent / "conf"
 
     # Act
-    with initialize_config_dir(config_dir=str(config_dir.absolute()), version_base=None):
+    with initialize_config_dir(
+        config_dir=str(config_dir.absolute()), version_base=None
+    ):
         cfg = compose(config_name="vectorize")
 
         # Find QualityFilterProcessor config
@@ -94,11 +105,15 @@ def test_quality_filter_processor_configuration():
 
         # Assert
         assert quality_processor is not None, "QualityFilterProcessor not found"
-        assert hasattr(quality_processor, "corruption_threshold"), \
+        assert hasattr(quality_processor, "corruption_threshold"), (
             "QualityFilterProcessor missing corruption_threshold"
-        assert 1 <= quality_processor.corruption_threshold <= 100, \
+        )
+        assert 1 <= quality_processor.corruption_threshold <= 100, (
             f"corruption_threshold must be in range 1-100, got {quality_processor.corruption_threshold}"
-        assert hasattr(quality_processor, "pattern_threshold"), \
+        )
+        assert hasattr(quality_processor, "pattern_threshold"), (
             "QualityFilterProcessor missing pattern_threshold"
-        assert 1 <= quality_processor.pattern_threshold <= 100, \
+        )
+        assert 1 <= quality_processor.pattern_threshold <= 100, (
             f"pattern_threshold must be in range 1-100, got {quality_processor.pattern_threshold}"
+        )

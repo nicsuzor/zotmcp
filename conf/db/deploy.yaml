@@ -4,4 +4,4 @@
 storage:
   zotero_vectors:
     # This is the path in that Docker image where we sync the GCS bucket
-    persist_directory: /chromadb  
+    persist_directory: /chromadb

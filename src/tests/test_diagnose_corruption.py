@@ -217,26 +217,26 @@ async def test_corrupted_documents_include_document_id_from_metadata(bm_dev):
     report = await scan_collection_for_corruption(bm_dev, max_documents=1000)
 
     # We should find at least one corrupted document in 1000 samples
-    assert (
-        report["total_corrupted"] > 0
-    ), "Expected to find at least one corrupted document in sample of 1000"
+    assert report["total_corrupted"] > 0, (
+        "Expected to find at least one corrupted document in sample of 1000"
+    )
 
-    assert (
-        len(report["sample_corrupted"]) > 0
-    ), "sample_corrupted list should not be empty when corrupted documents exist"
+    assert len(report["sample_corrupted"]) > 0, (
+        "sample_corrupted list should not be empty when corrupted documents exist"
+    )
 
     first_corrupted = report["sample_corrupted"][0]
 
     # The field should be named "document_id" (not "item_key")
-    assert (
-        "document_id" in first_corrupted
-    ), "Corrupted document should have 'document_id' field from metadata"
+    assert "document_id" in first_corrupted, (
+        "Corrupted document should have 'document_id' field from metadata"
+    )
 
     # The document_id should be a real Zotero key, not "unknown"
     document_id = first_corrupted["document_id"]
-    assert (
-        document_id != "unknown"
-    ), f"document_id should be actual Zotero key from metadata, not 'unknown'. Got: {document_id}"
+    assert document_id != "unknown", (
+        f"document_id should be actual Zotero key from metadata, not 'unknown'. Got: {document_id}"
+    )
 
     # Zotero keys are typically 8 alphanumeric characters
     assert len(document_id) > 0, "document_id should not be empty"

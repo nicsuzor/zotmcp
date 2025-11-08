@@ -20,21 +20,21 @@ from typing import Optional
 # Buttermilk will replace this handler during init_async()
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
+    format="%(asctime)s [%(levelname)s] %(message)s",
     stream=sys.stderr,
-    force=True
+    force=True,
 )
 
-from buttermilk import init_async, logger
-from buttermilk.tools import ChromaDBSearchTool
-from fastmcp import FastMCP
+from buttermilk import init_async, logger  # noqa: E402
+from buttermilk.tools import ChromaDBSearchTool  # noqa: E402
+from fastmcp import FastMCP  # noqa: E402
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
 
-import hydra  # For configuration management
-from omegaconf import DictConfig  # Hydra's configuration objects
+import hydra  # For configuration management  # noqa: E402
+from omegaconf import DictConfig  # Hydra's configuration objects  # noqa: E402
 
 # Global buttermilk instance
 bm = None
@@ -83,7 +83,9 @@ async def lifespan_manager(server: FastMCP):
             # Load zotero config - use absolute path from project root
             # No overrides for FastMCP - avoids conflicts with fastmcp's argument parsing
             conf_dir = str(Path(__file__).parent.parent / "conf")
-            bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=[])
+            bm = await init_async(
+                config_dir=conf_dir, config_name="zotero", overrides=[]
+            )
         else:
             bm = await init_async(job="zotmcp_cli", config=conf)
 
@@ -126,7 +128,9 @@ def _check_chromadb_ready() -> Optional[dict]:
     # Safety fallback: start initialization if somehow it wasn't started in lifespan
     # This should never happen in normal operation
     if _chromadb_init_task is None and not _chromadb_ready:
-        logger.warning("⚠️  ChromaDB task not found - starting late initialization (this shouldn't happen)")
+        logger.warning(
+            "⚠️  ChromaDB task not found - starting late initialization (this shouldn't happen)"
+        )
         _chromadb_init_task = asyncio.create_task(_initialize_chromadb_background())
 
     if _chromadb_init_error:
@@ -432,8 +436,8 @@ def get_collection_info() -> dict:
 
 
 @mcp.tool()
-def search_by_author(author_name: str, n_results: int = 20) -> dict:
-    """Search for items by a specific author.
+def search_zotero_by_author(author_name: str, n_results: int = 20) -> dict:
+    """Search Zotero library for items by a specific author.
 
     Args:
         author_name: Author name to search for (can be partial)
@@ -488,7 +492,7 @@ def search_by_author(author_name: str, n_results: int = 20) -> dict:
 # ===== Citation Search Tools (OpenAlex API) =====
 # These tools enable discovery of new academic literature beyond the Zotero library
 
-from citation_search import (
+from citation_search import (  # noqa: E402
     search_papers as _search_papers,
     get_paper_citations as _get_paper_citations,
     get_referenced_works as _get_referenced_works,

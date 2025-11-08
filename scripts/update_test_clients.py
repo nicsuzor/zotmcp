@@ -7,6 +7,7 @@ This script is part of the zotmcp project to optimize Docker E2E tests.
 import re
 from pathlib import Path
 
+
 def update_file(filepath: Path) -> int:
     """Update a test file to remove Client context managers.
 
@@ -14,7 +15,7 @@ def update_file(filepath: Path) -> int:
         Number of replacements made
     """
     content = filepath.read_text()
-    lines = content.split('\n')
+    lines = content.split("\n")
     result = []
     replacements = 0
 
@@ -23,7 +24,7 @@ def update_file(filepath: Path) -> int:
         line = lines[i]
 
         # Check if line contains Client context manager
-        match = re.match(r'(\s*)async with Client\(mcp_server\) as (\w+):\s*$', line)
+        match = re.match(r"(\s*)async with Client\(mcp_server\) as (\w+):\s*$", line)
         if match:
             original_indent = len(match.group(1))
             client_var = match.group(2)
@@ -44,13 +45,13 @@ def update_file(filepath: Path) -> int:
                         break
 
                     # Remove 4 spaces of indentation
-                    if block_line.startswith('    '):
+                    if block_line.startswith("    "):
                         dedented = block_line[4:]
                     else:
                         dedented = block_line
 
                     # Replace client variable with mcp_server
-                    dedented = dedented.replace(client_var, 'mcp_server')
+                    dedented = dedented.replace(client_var, "mcp_server")
                     result.append(dedented)
                 else:
                     # Empty line - keep as is
@@ -63,16 +64,17 @@ def update_file(filepath: Path) -> int:
         i += 1
 
     # Write back
-    filepath.write_text('\n'.join(result))
+    filepath.write_text("\n".join(result))
     return replacements
+
 
 def main():
     """Update all test files."""
-    base_dir = Path(__file__).parent.parent / 'src' / 'tests'
+    base_dir = Path(__file__).parent.parent / "src" / "tests"
 
     test_files = [
-        base_dir / 'test_integration.py',
-        base_dir / 'test_search_tool.py',
+        base_dir / "test_integration.py",
+        base_dir / "test_search_tool.py",
     ]
 
     total = 0
@@ -86,5 +88,6 @@ def main():
 
     print(f"\nTotal: {total} replacements across {len(test_files)} files")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

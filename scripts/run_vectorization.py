@@ -5,8 +5,8 @@ Usage:
     python scripts/run_vectorization.py
     python scripts/run_vectorization.py run.limit=10
 """
+
 import asyncio
-import sys
 
 import hydra
 from omegaconf import DictConfig
@@ -42,7 +42,9 @@ async def run_pipeline(cfg: DictConfig) -> None:
         logger.info(f"✅ Pipeline complete! Processed {processed} records total")
 
     except KeyboardInterrupt:
-        logger.warning(f"⚠️ Pipeline interrupted. Processed {processed} records before stopping.")
+        logger.warning(
+            f"⚠️ Pipeline interrupted. Processed {processed} records before stopping."
+        )
     except Exception as e:
         logger.error(f"❌ Pipeline failed after {processed} records", error=str(e))
         raise

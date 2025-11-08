@@ -2,9 +2,8 @@
 
 Tests validate document-level corruption analysis with ≥95% threshold logic.
 """
+
 import pytest
-import json
-from pathlib import Path
 
 
 def test_group_chunks_by_document():
@@ -36,7 +35,7 @@ def test_should_remove_document_with_95_percent_corrupt():
 
     document_data = {"document_id": "TEST", "chunks": chunks}
 
-    assert should_remove_document_v2(document_data) == True
+    assert should_remove_document_v2(document_data) is True
 
 
 def test_should_keep_document_with_94_percent_corrupt():
@@ -49,31 +48,37 @@ def test_should_keep_document_with_94_percent_corrupt():
 
     document_data = {"document_id": "TEST", "chunks": chunks}
 
-    assert should_remove_document_v2(document_data) == False
+    assert should_remove_document_v2(document_data) is False
 
 
 def test_should_remove_document_with_80_percent_repetitive():
     """Test removal when ≥80% of chunks have repetitive patterns."""
-    from scripts.verify_removal import should_remove_document_v2, detect_repetitive_pattern
+    from scripts.verify_removal import (
+        should_remove_document_v2,
+    )
 
     # 85 out of 100 chunks have repetitive patterns
     chunks = []
     for i in range(85):
-        chunks.append({
-            "corruption_percentage": 10.0,
-            "severity": "low",
-            "text_preview": "o o o o o o o o o o o o o o o o o o o o"  # Repetitive
-        })
+        chunks.append(
+            {
+                "corruption_percentage": 10.0,
+                "severity": "low",
+                "text_preview": "o o o o o o o o o o o o o o o o o o o o",  # Repetitive
+            }
+        )
     for i in range(15):
-        chunks.append({
-            "corruption_percentage": 5.0,
-            "severity": "low",
-            "text_preview": "Normal text without repetition here"
-        })
+        chunks.append(
+            {
+                "corruption_percentage": 5.0,
+                "severity": "low",
+                "text_preview": "Normal text without repetition here",
+            }
+        )
 
     document_data = {"document_id": "TEST", "chunks": chunks}
 
-    assert should_remove_document_v2(document_data) == True
+    assert should_remove_document_v2(document_data) is True
 
 
 def test_calculate_document_level_statistics():
@@ -81,9 +86,24 @@ def test_calculate_document_level_statistics():
     from scripts.verify_removal import calculate_document_level_statistics
 
     documents = [
-        {"document_id": "DOC1", "should_remove": True, "total_chunks": 100, "high_severity_chunks": 98},
-        {"document_id": "DOC2", "should_remove": False, "total_chunks": 50, "high_severity_chunks": 10},
-        {"document_id": "DOC3", "should_remove": True, "total_chunks": 200, "high_severity_chunks": 195},
+        {
+            "document_id": "DOC1",
+            "should_remove": True,
+            "total_chunks": 100,
+            "high_severity_chunks": 98,
+        },
+        {
+            "document_id": "DOC2",
+            "should_remove": False,
+            "total_chunks": 50,
+            "high_severity_chunks": 10,
+        },
+        {
+            "document_id": "DOC3",
+            "should_remove": True,
+            "total_chunks": 200,
+            "high_severity_chunks": 195,
+        },
     ]
 
     stats = calculate_document_level_statistics(documents)

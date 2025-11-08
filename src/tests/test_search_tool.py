@@ -21,10 +21,7 @@ This file uses two fixture types:
    - Once against Docker HTTP server [docker-e2e] (with @pytest.mark.slow)
 """
 
-import pytest
-from pathlib import Path
 from fastmcp import Client
-from buttermilk import init_async
 import main
 
 
@@ -137,7 +134,9 @@ async def test_search_result_metadata_is_dict(mcp_server):
 
         # Verify we got results
         assert "results" in result.data
-        assert len(result.data["results"]) > 0, "Search should return at least one result"
+        assert len(result.data["results"]) > 0, (
+            "Search should return at least one result"
+        )
 
         # Validate each result has properly structured metadata fields
         for search_result in result.data["results"]:
@@ -152,7 +151,14 @@ async def test_search_result_metadata_is_dict(mcp_server):
             )
 
             # Optional fields should be None or strings
-            for field in ["doi_or_url", "uri", "zotero_key", "citation_key", "zotero_link", "zotero_web_link"]:
+            for field in [
+                "doi_or_url",
+                "uri",
+                "zotero_key",
+                "citation_key",
+                "zotero_link",
+                "zotero_web_link",
+            ]:
                 if field in search_result and search_result[field] is not None:
                     assert isinstance(search_result[field], str), (
                         f"{field} must be None or string, got {type(search_result[field]).__name__}"

@@ -52,7 +52,9 @@ async def get_zotero_client_from_buttermilk() -> tuple[zotero.Zotero, str]:
     """
     # Initialize buttermilk with zotero config
     conf_dir = str(Path(__file__).parent.parent / "conf")
-    bm = await init_async(config_dir=conf_dir, config_name="zotero", overrides=["db=dev"])
+    bm = await init_async(
+        config_dir=conf_dir, config_name="zotero", overrides=["db=dev"]
+    )
 
     # Get library_id from environment (same pattern as vectorize.yaml)
     library_id = os.environ.get("ZOTERO_LIBRARY_ID")
@@ -65,11 +67,7 @@ async def get_zotero_client_from_buttermilk() -> tuple[zotero.Zotero, str]:
         raise ValueError("ZOTERO_API_KEY not available in buttermilk credentials")
 
     # Create Zotero client
-    zot = zotero.Zotero(
-        library_id=library_id,
-        library_type="group",
-        api_key=api_key
-    )
+    zot = zotero.Zotero(library_id=library_id, library_type="group", api_key=api_key)
 
     return zot, library_id
 
@@ -130,7 +128,7 @@ def read_item_ids_from_file(input_file: str) -> list[str]:
     Returns:
         List of item ID strings (whitespace stripped, empty lines removed)
     """
-    with open(input_file, 'r') as f:
+    with open(input_file, "r") as f:
         lines = f.readlines()
 
     # Strip whitespace and filter out empty lines
@@ -144,7 +142,7 @@ def read_item_ids_from_file(input_file: str) -> list[str]:
 @click.option(
     "--input",
     type=click.Path(exists=True),
-    help="Path to input file with item IDs (one per line)"
+    help="Path to input file with item IDs (one per line)",
 )
 def main(item_ids: tuple[str], input: str):
     """Check if Zotero items exist and display their metadata.
@@ -208,9 +206,9 @@ async def check_items_async(item_ids: tuple[str], input_file: str):
         results[item_id] = result
 
         if result["exists"]:
-            click.echo(f" ✅ EXISTS")
+            click.echo(" ✅ EXISTS")
         else:
-            click.echo(f" ❌ NOT FOUND")
+            click.echo(" ❌ NOT FOUND")
 
     # Display detailed results
     click.echo()

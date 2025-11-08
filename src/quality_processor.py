@@ -124,7 +124,7 @@ class QualityFilterProcessor(BaseModel):
         if is_corrupt:
             # Filter out (do not yield) corrupt document
             logger.info(
-                f"🚫 Filtering corrupt document: {title[:50]}",
+                f"🚫 Filtering corrupt document: {title[:100]}",
                 record_id=record.record_id,
                 corruption_rate=f"{corruption_rate:.1f}%",
                 corrupted_chunks=corrupted_chunks,
@@ -136,7 +136,7 @@ class QualityFilterProcessor(BaseModel):
 
         # Document passes quality check
         logger.debug(
-            f"✅ Document passed quality check: {title[:50]}",
+            f"✅ Document passed quality check: {title[:100]}",
             record_id=record.record_id,
             corruption_rate=f"{corruption_rate:.1f}%",
             corrupted_chunks=corrupted_chunks,

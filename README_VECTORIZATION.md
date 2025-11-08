@@ -29,10 +29,11 @@ vectoriser:
   deduplication_strategy: record_id
 
 source:
-  vector_store: ${vectoriser}  # Enables early deduplication
+  vector_store: ${vectoriser} # Enables early deduplication
 ```
 
 **What happens:**
+
 1. ZotDownloader queries ChromaDB: "Does this record_id exist?"
 2. **If YES** → Skips entirely (no API call, no PDF download, no processing)
 3. **If NO** → Downloads PDF → Chunks → Embeds → Uploads
@@ -40,6 +41,7 @@ source:
 ## Monitoring Progress
 
 You'll see logs like:
+
 ```
 🔵 Creating download task for ABC123 'New Paper Title'
 Document XYZ789 already exists in vector store, skipping.
@@ -49,11 +51,11 @@ Finished Zotero processing. Processed: 5, Skipped (already exist): 45
 ## Configuration
 
 Edit `conf/vectorize.yaml` to customize:
+
 - `run.limit`: Limit number of records (or null for all) - override on command line with `run.limit=N`
 - `source.download_concurrency`: Parallel downloads (default: 8)
 - `vectoriser.sync_batch_size`: Batch size for ChromaDB uploads (default: 50)
 - `vectoriser.deduplication_strategy`: `record_id`, `content_hash`, or `both`
-
 
 The pipeline syncs to the upstream GCS location automatically.
 

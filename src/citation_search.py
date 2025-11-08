@@ -7,10 +7,10 @@ using the OpenAlex database (240M+ works, no auth required).
 Migrated from outlook_mcp to zotmcp and adapted to async.
 """
 
+import asyncio
 import httpx
 import logging
 import os
-import time
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class Author(BaseModel):
     """Author information."""
+
     id: Optional[str] = None
     display_name: Optional[str] = None
     orcid: Optional[str] = None
@@ -26,6 +27,7 @@ class Author(BaseModel):
 
 class Citation(BaseModel):
     """Citation/Paper information from OpenAlex."""
+
     id: str
     doi: Optional[str] = None
     title: Optional[str] = None
@@ -56,7 +58,9 @@ class OpenAlexClient:
         self.email = email
         self.max_retries = max_retries
 
-    async def _make_request(self, endpoint: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _make_request(
+        self, endpoint: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Make a request to OpenAlex API with exponential backoff retry logic.
 
@@ -69,7 +73,7 @@ class OpenAlexClient:
         """
         # Add email to params for polite pool
         if self.email:
-            params['mailto'] = self.email
+            params["mailto"] = self.email
 
         url = f"{self.BASE_URL}{endpoint}"
 
@@ -83,13 +87,17 @@ class OpenAlexClient:
                     return response.json()
                 elif response.status_code == 403:
                     # Rate limited
-                    wait_time = 2 ** attempt
-                    logger.warning(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}/{self.max_retries}")
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"Rate limited, waiting {wait_time}s before retry {attempt + 1}/{self.max_retries}"
+                    )
                     await asyncio.sleep(wait_time)
                 elif response.status_code >= 500:
                     # Server error
-                    wait_time = 2 ** attempt
-                    logger.warning(f"Server error {response.status_code}, waiting {wait_time}s before retry {attempt + 1}/{self.max_retries}")
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"Server error {response.status_code}, waiting {wait_time}s before retry {attempt + 1}/{self.max_retries}"
+                    )
                     await asyncio.sleep(wait_time)
                 else:
                     # Other error, don't retry
@@ -97,8 +105,10 @@ class OpenAlexClient:
 
             except httpx.TimeoutException:
                 if attempt < self.max_retries - 1:
-                    wait_time = 2 ** attempt
-                    logger.warning(f"Request timeout, waiting {wait_time}s before retry {attempt + 1}/{self.max_retries}")
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"Request timeout, waiting {wait_time}s before retry {attempt + 1}/{self.max_retries}"
+                    )
                     await asyncio.sleep(wait_time)
                 else:
                     raise
@@ -108,39 +118,43 @@ class OpenAlexClient:
     def _parse_work(self, work_data: Dict[str, Any]) -> Citation:
         """Parse OpenAlex work data into Citation model."""
         authors = []
-        if work_data.get('authorships'):
-            for authorship in work_data['authorships'][:10]:  # Limit to first 10 authors
-                author_data = authorship.get('author', {})
-                authors.append(Author(
-                    id=author_data.get('id'),
-                    display_name=author_data.get('display_name'),
-                    orcid=author_data.get('orcid')
-                ))
+        if work_data.get("authorships"):
+            for authorship in work_data["authorships"][
+                :10
+            ]:  # Limit to first 10 authors
+                author_data = authorship.get("author", {})
+                authors.append(
+                    Author(
+                        id=author_data.get("id"),
+                        display_name=author_data.get("display_name"),
+                        orcid=author_data.get("orcid"),
+                    )
+                )
 
         # Get abstract
         abstract = None
-        if work_data.get('abstract_inverted_index'):
+        if work_data.get("abstract_inverted_index"):
             # Convert inverted index to text
-            inverted = work_data['abstract_inverted_index']
+            inverted = work_data["abstract_inverted_index"]
             words = {}
             for word, positions in inverted.items():
                 for pos in positions:
                     words[pos] = word
-            abstract = ' '.join(words[i] for i in sorted(words.keys()))
+            abstract = " ".join(words[i] for i in sorted(words.keys()))
 
         return Citation(
-            id=work_data['id'],
-            doi=work_data.get('doi'),
-            title=work_data.get('title'),
-            publication_year=work_data.get('publication_year'),
-            cited_by_count=work_data.get('cited_by_count', 0),
+            id=work_data["id"],
+            doi=work_data.get("doi"),
+            title=work_data.get("title"),
+            publication_year=work_data.get("publication_year"),
+            cited_by_count=work_data.get("cited_by_count", 0),
             authors=authors,
             abstract=abstract,
-            primary_location=work_data.get('primary_location'),
-            open_access=work_data.get('open_access'),
-            topics=work_data.get('topics', []),
-            cited_by_api_url=work_data.get('cited_by_api_url'),
-            referenced_works=work_data.get('referenced_works', [])
+            primary_location=work_data.get("primary_location"),
+            open_access=work_data.get("open_access"),
+            topics=work_data.get("topics", []),
+            cited_by_api_url=work_data.get("cited_by_api_url"),
+            referenced_works=work_data.get("referenced_works", []),
         )
 
     async def search_papers(
@@ -150,7 +164,7 @@ class OpenAlexClient:
         year_to: Optional[int] = None,
         open_access_only: bool = False,
         limit: int = 25,
-        sort: str = "cited_by_count:desc"
+        sort: str = "cited_by_count:desc",
     ) -> List[Citation]:
         """
         Search for academic papers.
@@ -166,31 +180,29 @@ class OpenAlexClient:
         Returns:
             List of Citation objects
         """
-        params = {
-            'search': query,
-            'per-page': min(limit, 200),
-            'sort': sort
-        }
+        params = {"search": query, "per-page": min(limit, 200), "sort": sort}
 
         # Build filter
         filters = []
         if year_from and year_to:
-            filters.append(f'publication_year:{year_from}-{year_to}')
+            filters.append(f"publication_year:{year_from}-{year_to}")
         elif year_from:
-            filters.append(f'publication_year:>={year_from}')
+            filters.append(f"publication_year:>={year_from}")
         elif year_to:
-            filters.append(f'publication_year:<={year_to}')
+            filters.append(f"publication_year:<={year_to}")
 
         if open_access_only:
-            filters.append('is_oa:true')
+            filters.append("is_oa:true")
 
         if filters:
-            params['filter'] = ','.join(filters)
+            params["filter"] = ",".join(filters)
 
-        data = await self._make_request('/works', params)
-        results = data.get('results', [])
+        data = await self._make_request("/works", params)
+        results = data.get("results", [])
 
-        logger.info(f"Found {data.get('meta', {}).get('count', 0)} total papers, returning {len(results)}")
+        logger.info(
+            f"Found {data.get('meta', {}).get('count', 0)} total papers, returning {len(results)}"
+        )
         return [self._parse_work(work) for work in results]
 
     async def get_paper_by_doi(self, doi: str) -> Optional[Citation]:
@@ -204,11 +216,11 @@ class OpenAlexClient:
             Citation object or None if not found
         """
         # Ensure DOI is in URL format
-        if not doi.startswith('http'):
-            doi = f'https://doi.org/{doi}'
+        if not doi.startswith("http"):
+            doi = f"https://doi.org/{doi}"
 
         try:
-            data = await self._make_request(f'/works/{doi}', {})
+            data = await self._make_request(f"/works/{doi}", {})
             return self._parse_work(data)
         except Exception as e:
             logger.error(f"Error fetching paper by DOI {doi}: {e}")
@@ -225,11 +237,11 @@ class OpenAlexClient:
             Citation object or None if not found
         """
         # Handle both short and full IDs
-        if openalex_id.startswith('http'):
-            openalex_id = openalex_id.split('/')[-1]
+        if openalex_id.startswith("http"):
+            openalex_id = openalex_id.split("/")[-1]
 
         try:
-            data = await self._make_request(f'/works/{openalex_id}', {})
+            data = await self._make_request(f"/works/{openalex_id}", {})
             return self._parse_work(data)
         except Exception as e:
             logger.error(f"Error fetching paper by ID {openalex_id}: {e}")
@@ -240,7 +252,7 @@ class OpenAlexClient:
         paper_id: str,
         limit: int = 50,
         year_from: Optional[int] = None,
-        sort: str = "cited_by_count:desc"
+        sort: str = "cited_by_count:desc",
     ) -> List[Citation]:
         """
         Get papers that cite a given paper (forward citations).
@@ -255,27 +267,29 @@ class OpenAlexClient:
             List of Citation objects
         """
         # Handle DOI
-        if paper_id.startswith('10.'):
-            paper_id = f'https://doi.org/{paper_id}'
-        elif not paper_id.startswith('http') and not paper_id.startswith('W'):
-            paper_id = f'W{paper_id}'
+        if paper_id.startswith("10."):
+            paper_id = f"https://doi.org/{paper_id}"
+        elif not paper_id.startswith("http") and not paper_id.startswith("W"):
+            paper_id = f"W{paper_id}"
 
         params = {
-            'filter': f'cites:{paper_id}',
-            'per-page': min(limit, 200),
-            'sort': sort
+            "filter": f"cites:{paper_id}",
+            "per-page": min(limit, 200),
+            "sort": sort,
         }
 
         if year_from:
-            params['filter'] += f',publication_year:>={year_from}'
+            params["filter"] += f",publication_year:>={year_from}"
 
-        data = await self._make_request('/works', params)
-        results = data.get('results', [])
+        data = await self._make_request("/works", params)
+        results = data.get("results", [])
 
         logger.info(f"Found {len(results)} papers citing {paper_id}")
         return [self._parse_work(work) for work in results]
 
-    async def get_referenced_works(self, paper_id: str, limit: int = 50) -> List[Citation]:
+    async def get_referenced_works(
+        self, paper_id: str, limit: int = 50
+    ) -> List[Citation]:
         """
         Get papers referenced by a given paper (backward citations).
 
@@ -288,7 +302,7 @@ class OpenAlexClient:
         """
         # First get the paper to get its referenced_works
         paper = None
-        if paper_id.startswith('10.'):
+        if paper_id.startswith("10."):
             paper = await self.get_paper_by_doi(paper_id)
         else:
             paper = await self.get_paper_by_id(paper_id)
@@ -299,19 +313,19 @@ class OpenAlexClient:
 
         # Batch fetch referenced works (up to 50 at a time)
         # Extract work IDs from full OpenAlex URLs (e.g., https://openalex.org/W12345 -> W12345)
-        ref_ids = [ref.split('/')[-1] for ref in paper.referenced_works[:limit]]
+        ref_ids = [ref.split("/")[-1] for ref in paper.referenced_works[:limit]]
         if not ref_ids:
             return []
 
         # Use pipe separator for batch lookup
-        batch_ids = '|'.join(ref_ids)
+        batch_ids = "|".join(ref_ids)
         params = {
-            'filter': f'openalex_id:{batch_ids}',
-            'per-page': min(len(ref_ids), 50)
+            "filter": f"openalex_id:{batch_ids}",
+            "per-page": min(len(ref_ids), 50),
         }
 
-        data = await self._make_request('/works', params)
-        results = data.get('results', [])
+        data = await self._make_request("/works", params)
+        results = data.get("results", [])
 
         logger.info(f"Found {len(results)} referenced works for {paper_id}")
         return [self._parse_work(work) for work in results]
@@ -321,7 +335,7 @@ class OpenAlexClient:
         author_name: str,
         limit: int = 50,
         year_from: Optional[int] = None,
-        sort: str = "cited_by_count:desc"
+        sort: str = "cited_by_count:desc",
     ) -> List[Citation]:
         """
         Search for papers by author name (two-step lookup).
@@ -336,41 +350,35 @@ class OpenAlexClient:
             List of Citation objects
         """
         # Step 1: Find author ID
-        author_params = {
-            'search': author_name,
-            'per-page': 1
-        }
-        author_data = await self._make_request('/authors', author_params)
+        author_params = {"search": author_name, "per-page": 1}
+        author_data = await self._make_request("/authors", author_params)
 
-        if not author_data.get('results'):
+        if not author_data.get("results"):
             logger.warning(f"No author found matching '{author_name}'")
             return []
 
-        author = author_data['results'][0]
-        author_id = author['id']
+        author = author_data["results"][0]
+        author_id = author["id"]
         logger.info(f"Found author: {author.get('display_name')} ({author_id})")
 
         # Step 2: Get papers by author
         params = {
-            'filter': f'authorships.author.id:{author_id}',
-            'per-page': min(limit, 200),
-            'sort': sort
+            "filter": f"authorships.author.id:{author_id}",
+            "per-page": min(limit, 200),
+            "sort": sort,
         }
 
         if year_from:
-            params['filter'] += f',publication_year:>={year_from}'
+            params["filter"] += f",publication_year:>={year_from}"
 
-        data = await self._make_request('/works', params)
-        results = data.get('results', [])
+        data = await self._make_request("/works", params)
+        results = data.get("results", [])
 
         logger.info(f"Found {len(results)} papers by {author.get('display_name')}")
         return [self._parse_work(work) for work in results]
 
     async def get_related_papers(
-        self,
-        paper_id: str,
-        limit: int = 20,
-        method: str = "both"
+        self, paper_id: str, limit: int = 20, method: str = "both"
     ) -> Dict[str, List[Citation]]:
         """
         Get papers related to a given paper through citations.
@@ -396,11 +404,7 @@ class OpenAlexClient:
 
 # Create a default client instance
 # Users can override email by setting environment variable OPENALEX_EMAIL
-_client = OpenAlexClient(email=os.getenv('OPENALEX_EMAIL'))
-
-
-# Import asyncio for sleep
-import asyncio
+_client = OpenAlexClient(email=os.getenv("OPENALEX_EMAIL"))
 
 
 # Public API functions
@@ -409,7 +413,7 @@ async def search_papers(
     year_from: Optional[int] = None,
     year_to: Optional[int] = None,
     open_access_only: bool = False,
-    limit: int = 25
+    limit: int = 25,
 ) -> List[Dict[str, Any]]:
     """
     Search for academic papers using OpenAlex.
@@ -424,14 +428,14 @@ async def search_papers(
     Returns:
         List of paper dictionaries
     """
-    results = await _client.search_papers(query, year_from, year_to, open_access_only, limit)
+    results = await _client.search_papers(
+        query, year_from, year_to, open_access_only, limit
+    )
     return [r.model_dump() for r in results]
 
 
 async def get_paper_citations(
-    paper_id: str,
-    limit: int = 50,
-    year_from: Optional[int] = None
+    paper_id: str, limit: int = 50, year_from: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """
     Get papers that cite a given paper (forward citations).
@@ -464,9 +468,7 @@ async def get_referenced_works(paper_id: str, limit: int = 50) -> List[Dict[str,
 
 
 async def search_by_author(
-    author_name: str,
-    limit: int = 50,
-    year_from: Optional[int] = None
+    author_name: str, limit: int = 50, year_from: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """
     Search for papers by author name.
@@ -493,7 +495,7 @@ async def get_paper_details(paper_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Paper dictionary or None if not found
     """
-    if paper_id.startswith('10.'):
+    if paper_id.startswith("10."):
         result = await _client.get_paper_by_doi(paper_id)
     else:
         result = await _client.get_paper_by_id(paper_id)

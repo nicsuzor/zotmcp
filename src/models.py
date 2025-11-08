@@ -9,27 +9,20 @@ class ZoteroReference(BaseModel):
 
     citation: str = Field(
         ...,
-        description="Complete academic citation (author, year, title, journal/publisher)"
+        description="Complete academic citation (author, year, title, journal/publisher)",
     )
     summary: str = Field(
-        ...,
-        description="Brief summary of the relevant finding from this source"
+        ..., description="Brief summary of the relevant finding from this source"
     )
     citation_key: Optional[str] = Field(
-        None,
-        description="BetterBibTeX citation key for use in plain text citations"
+        None, description="BetterBibTeX citation key for use in plain text citations"
     )
-    doi: Optional[str] = Field(
-        None,
-        description="DOI of the reference if available"
-    )
+    doi: Optional[str] = Field(None, description="DOI of the reference if available")
     uri: Optional[str] = Field(
-        None,
-        description="URI or URL of the reference if available"
+        None, description="URI or URL of the reference if available"
     )
     item_key: Optional[str] = Field(
-        None,
-        description="Zotero item key for this reference"
+        None, description="Zotero item key for this reference"
     )
 
     def as_markdown(self) -> str:
@@ -51,19 +44,15 @@ class ResearchResult(BaseModel):
 
     response: str = Field(
         ...,
-        description="Synthesized response to the research question based on the literature"
+        description="Synthesized response to the research question based on the literature",
     )
-    summary: str = Field(
-        ...,
-        description="2-3 sentence summary of the main findings"
-    )
+    summary: str = Field(..., description="2-3 sentence summary of the main findings")
     literature: list[ZoteroReference] = Field(
         default_factory=list,
-        description="List of academic references supporting the response"
+        description="List of academic references supporting the response",
     )
     search_queries: Optional[list[str]] = Field(
-        default=None,
-        description="List of search queries used to find the literature"
+        default=None, description="List of search queries used to find the literature"
     )
 
     def as_markdown(self) -> str:
@@ -75,7 +64,7 @@ class ResearchResult(BaseModel):
             "## Response",
             self.response,
             "",
-            "## References"
+            "## References",
         ]
 
         if self.literature:

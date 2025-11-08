@@ -4,7 +4,6 @@ import inspect
 from pathlib import Path
 from typing import Any
 import pytest
-from pytest_lazy_fixtures import lf
 
 from contextlib import asynccontextmanager
 from fastmcp import FastMCP
@@ -41,8 +40,14 @@ def docker_http_server():
 
     # Auto-detect container runtime
     container_cmd = None
-    candidates = ["docker", "/usr/bin/docker", "/usr/local/bin/docker",
-                  "podman", "/usr/bin/podman", "/usr/local/bin/podman"]
+    candidates = [
+        "docker",
+        "/usr/bin/docker",
+        "/usr/local/bin/docker",
+        "podman",
+        "/usr/bin/podman",
+        "/usr/local/bin/podman",
+    ]
 
     for cmd in candidates:
         try:
@@ -63,7 +68,9 @@ def docker_http_server():
     if gcloud_config.exists():
         volume_mounts.extend(["-v", f"{gcloud_config}:/root/.config/gcloud:ro"])
     else:
-        logger.warning("No gcloud config found - container will run without GCP credentials")
+        logger.warning(
+            "No gcloud config found - container will run without GCP credentials"
+        )
 
     # Start container in HTTP mode on port 8024
     logger.info("Starting Docker container in HTTP mode...")
@@ -92,7 +99,9 @@ def docker_http_server():
     )
 
     # Wait up to 90 seconds for server to be ready
-    logger.info("Waiting for Docker container to initialize (up to 90s for ChromaDB)...")
+    logger.info(
+        "Waiting for Docker container to initialize (up to 90s for ChromaDB)..."
+    )
     server_url = "http://localhost:8024"
     max_wait = 90
     start_time = time.time()
@@ -109,8 +118,14 @@ def docker_http_server():
             # Try to connect to the SSE endpoint which FastMCP streamable-http uses
             response = requests.get(f"{server_url}/sse", timeout=2, stream=True)
             # If we get a response (even if it's waiting for SSE), server is up
-            if response.status_code in (200, 400, 404):  # Any response means server is running
-                logger.info(f"Docker container ready after {time.time() - start_time:.1f}s")
+            if response.status_code in (
+                200,
+                400,
+                404,
+            ):  # Any response means server is running
+                logger.info(
+                    f"Docker container ready after {time.time() - start_time:.1f}s"
+                )
                 break
         except (requests.ConnectionError, requests.Timeout):
             time.sleep(2)
@@ -141,7 +156,7 @@ def docker_http_server():
 async def test_lifespan_manager(server: FastMCP):
     """Test-specific lifespan that initializes buttermilk with db=dev."""
     # Load zotero config with dev database override for tests
-    conf_dir = str(Path(__file__).parent.parent.parent / "conf")
+    str(Path(__file__).parent.parent.parent / "conf")
 
     main.search_tool = main.get_search_tool()
     await main.search_tool.ensure_cache_initialized()
@@ -152,10 +167,10 @@ async def test_lifespan_manager(server: FastMCP):
 
     logger.info("Shutting down ZotMCP test server")
 
+
 @pytest.fixture(scope="session")
 async def bm_vectorize():
     """Get Zotero configuration."""
-    from buttermilk import init_async
 
     conf_dir = str(Path(__file__).parent.parent.parent / "conf")
     bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=[])
@@ -164,18 +179,15 @@ async def bm_vectorize():
     await bm.graceful_shutdown()
 
 
-
 @pytest.fixture(scope="session")
 async def bm_dev():
     """Buttermilk instance with dev database for tests."""
-    from buttermilk import init_async
 
     conf_dir = str(Path(__file__).parent.parent.parent / "conf")
-    bm = await init_async(
-        config_dir=conf_dir, config_name="zotero", overrides=["db=dev"]
-    )
+    bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=["db=dev"])
     yield bm
     await bm.graceful_shutdown()
+
 
 @pytest.fixture(scope="session")
 def mcp_server_local(bm_dev) -> FastMCP[Any]:

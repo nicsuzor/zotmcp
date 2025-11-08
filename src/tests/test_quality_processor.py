@@ -209,9 +209,9 @@ async def test_quality_filter_with_custom_thresholds():
         results.append(result)
 
     # Assert
-    assert (
-        len(results) == 0
-    ), "85% corrupt document should be filtered with 80% threshold"
+    assert len(results) == 0, (
+        "85% corrupt document should be filtered with 80% threshold"
+    )
 
 
 @pytest.mark.asyncio
@@ -318,9 +318,9 @@ async def test_quality_filter_uses_is_document_corrupt_with_threshold():
         results_66.append(result)
 
     # Assert - 66% corruption with 66.0 threshold should be FILTERED
-    assert (
-        len(results_66) == 0
-    ), "Document at exactly 66% corruption with 66.0 threshold should be filtered (>= behavior)"
+    assert len(results_66) == 0, (
+        "Document at exactly 66% corruption with 66.0 threshold should be filtered (>= behavior)"
+    )
 
     # Test case 2: Document at 65% corruption with 66.0 threshold
     corrupt_chunks_65 = [
@@ -360,7 +360,7 @@ async def test_quality_filter_uses_is_document_corrupt_with_threshold():
         results_65.append(result)
 
     # Assert - 65% corruption with 66.0 threshold should PASS
-    assert (
-        len(results_65) == 1
-    ), "Document at 65% corruption with 66.0 threshold should pass through (< threshold)"
+    assert len(results_65) == 1, (
+        "Document at 65% corruption with 66.0 threshold should pass through (< threshold)"
+    )
     assert results_65[0].record_id == "THRESH65"

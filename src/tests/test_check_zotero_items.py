@@ -11,10 +11,10 @@ Testing approach:
 
 import pytest
 from pathlib import Path
-from pyzotero.zotero_errors import ResourceNotFoundError
 
 # Import the module we're testing
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
 import check_zotero_item
 
@@ -33,19 +33,21 @@ class TestCheckZoteroItems:
         """
         # Get library_id from environment (how vectorize.yaml does it)
         import os
+
         library_id = os.environ.get("ZOTERO_LIBRARY_ID")
         assert library_id is not None, "ZOTERO_LIBRARY_ID must be set in environment"
 
         # Get API key from buttermilk credentials
         api_key = bm_dev.credentials.get("ZOTERO_API_KEY")
-        assert api_key is not None, "ZOTERO_API_KEY must be available in buttermilk credentials"
+        assert api_key is not None, (
+            "ZOTERO_API_KEY must be available in buttermilk credentials"
+        )
 
         # Create Zotero client using buttermilk credentials
         from pyzotero import zotero
+
         zot = zotero.Zotero(
-            library_id=library_id,
-            library_type="group",
-            api_key=api_key
+            library_id=library_id, library_type="group", api_key=api_key
         )
 
         # Verify client is initialized
@@ -70,9 +72,7 @@ class TestCheckZoteroItems:
 
         # Create client
         zot = zotero.Zotero(
-            library_id=library_id,
-            library_type="group",
-            api_key=api_key
+            library_id=library_id, library_type="group", api_key=api_key
         )
 
         # Get a real item from the library to test with
@@ -108,9 +108,7 @@ class TestCheckZoteroItems:
 
         # Create client
         zot = zotero.Zotero(
-            library_id=library_id,
-            library_type="group",
-            api_key=api_key
+            library_id=library_id, library_type="group", api_key=api_key
         )
 
         # Use a fake item ID that definitely doesn't exist

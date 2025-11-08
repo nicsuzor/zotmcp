@@ -1,0 +1,9 @@
+defaults:
+  - zotero # Inherit base configuration
+  - db: deploy # Use deploy for Docker, override with db=dev for local
+  - _self_
+
+# MCP server specific configuration
+job: mcp_server
+project_name: zotmcp
+verbose: true

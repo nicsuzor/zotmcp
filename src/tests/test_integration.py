@@ -11,7 +11,6 @@ These tests verify that the packaged Docker image:
 import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
-import json
 import asyncio
 import subprocess
 from pathlib import Path
@@ -369,7 +368,9 @@ class TestPrompts:
         async with Client(mcp_server) as client:
             result = await client.get_prompt(
                 "literature_review",
-                arguments={"question": "What are the effects of content moderation on user behavior?"},
+                arguments={
+                    "question": "What are the effects of content moderation on user behavior?"
+                },
             )
 
             # Should return a PromptResult with messages
@@ -403,7 +404,9 @@ class TestPrompts:
 
             # Check content includes both question and context
             content = result.messages[0].content.text
-            assert "How do transparency reports affect platform accountability?" in content
+            assert (
+                "How do transparency reports affect platform accountability?" in content
+            )
             assert "Focus on empirical studies from the last 5 years" in content
             assert "Multi-Angle Search" in content
             assert "Source Evaluation" in content
@@ -439,12 +442,20 @@ class TestDockerSTDIOResponsiveness:
         """
         # Auto-detect container runtime (docker or podman)
         container_cmd = None
-        candidates = ["docker", "/usr/bin/docker", "/usr/local/bin/docker",
-                      "podman", "/usr/bin/podman", "/usr/local/bin/podman"]
+        candidates = [
+            "docker",
+            "/usr/bin/docker",
+            "/usr/local/bin/docker",
+            "podman",
+            "/usr/bin/podman",
+            "/usr/local/bin/podman",
+        ]
 
         for cmd in candidates:
             try:
-                result = subprocess.run([cmd, "--version"], capture_output=True, timeout=5)
+                result = subprocess.run(
+                    [cmd, "--version"], capture_output=True, timeout=5
+                )
                 if result.returncode == 0:
                     container_cmd = cmd
                     break

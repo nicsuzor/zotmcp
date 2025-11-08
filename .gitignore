@@ -24,6 +24,7 @@ env/
 # Cache and data
 .cache/
 .buttermilk/
+.zotmcp_data/
 
 # Distribution files
 *.tar.gz

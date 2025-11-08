@@ -3,6 +3,7 @@
 These tests verify that the MCP server can start quickly without blocking
 on ChromaDB initialization, and that tools handle uninitialized state gracefully.
 """
+
 import asyncio
 import time
 import pytest
@@ -34,7 +35,7 @@ async def test_lifespan_manager_does_not_block_on_chromadb():
         await asyncio.sleep(30)  # Simulate slow GCS download + initialization
 
     # Patch the search tool's initialize method deeply within buttermilk
-    with patch('main.init_async', new_callable=AsyncMock) as mock_init:
+    with patch("main.init_async", new_callable=AsyncMock) as mock_init:
         # Mock buttermilk initialization (fast part)
         mock_bm = Mock()
         mock_bm.cfg = Mock()
@@ -50,7 +51,9 @@ async def test_lifespan_manager_does_not_block_on_chromadb():
         mock_init.return_value = mock_bm
 
         # Patch ChromaDBSearchTool.initialize to use our slow mock
-        with patch('buttermilk.tools.ChromaDBSearchTool.initialize', new_callable=AsyncMock) as mock_tool_init:
+        with patch(
+            "buttermilk.tools.ChromaDBSearchTool.initialize", new_callable=AsyncMock
+        ) as mock_tool_init:
             mock_tool_init.side_effect = mock_slow_init
 
             # Time how long the lifespan manager takes
@@ -117,7 +120,9 @@ async def test_tools_return_error_when_chromadb_not_ready():
         # Verify response structure
         assert "results" in error_response, "Error response should have 'results' field"
         assert error_response["results"] == [], "Results should be empty list"
-        assert "total_results" in error_response, "Error response should have 'total_results' field"
+        assert "total_results" in error_response, (
+            "Error response should have 'total_results' field"
+        )
         assert error_response["total_results"] == 0, "Total results should be 0"
 
     finally:

@@ -2,7 +2,6 @@
 """CLI tool to lookup Zotero items by ID and display metadata with child items."""
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -11,7 +10,7 @@ import click
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from buttermilk import init_async, logger
+from buttermilk import init_async
 from buttermilk.libs.zotero import ZoteroSource
 
 
@@ -23,7 +22,9 @@ def pretty_print_json(data: dict, indent: int = 0) -> None:
             click.echo(f"{indent_str}{click.style(key, fg='cyan')}:")
             pretty_print_json(value, indent + 1)
         elif isinstance(value, list):
-            click.echo(f"{indent_str}{click.style(key, fg='cyan')}: [{len(value)} items]")
+            click.echo(
+                f"{indent_str}{click.style(key, fg='cyan')}: [{len(value)} items]"
+            )
             for i, item in enumerate(value):
                 if isinstance(item, dict):
                     click.echo(f"{indent_str}  [{i}]:")
@@ -70,12 +71,14 @@ async def lookup_item(item_key: str, show_content: bool = False):
 
     try:
         # Fetch the item from Zotero API
-        click.echo(f"\n{click.style('📚 Fetching item from Zotero API...', fg='blue', bold=True)}\n")
+        click.echo(
+            f"\n{click.style('📚 Fetching item from Zotero API...', fg='blue', bold=True)}\n"
+        )
         item = zot.item(item_key)
 
         # Display item metadata
         click.echo(f"{click.style('Main Item:', fg='green', bold=True)}")
-        click.echo(f"{'='*80}\n")
+        click.echo(f"{'=' * 80}\n")
 
         # Display data section
         if item.get("data"):
@@ -100,19 +103,25 @@ async def lookup_item(item_key: str, show_content: bool = False):
             click.echo(f"{click.style('Version:', fg='yellow')} {item['version']}\n")
 
         # Fetch child items (attachments, notes)
-        click.echo(f"\n{click.style('📎 Fetching child items...', fg='blue', bold=True)}\n")
+        click.echo(
+            f"\n{click.style('📎 Fetching child items...', fg='blue', bold=True)}\n"
+        )
         children = zot.children(item_key)
 
         if children:
-            click.echo(f"{click.style(f'Found {len(children)} child items:', fg='green', bold=True)}")
-            click.echo(f"{'='*80}\n")
+            click.echo(
+                f"{click.style(f'Found {len(children)} child items:', fg='green', bold=True)}"
+            )
+            click.echo(f"{'=' * 80}\n")
 
             for idx, child in enumerate(children, 1):
                 child_type = child.get("data", {}).get("itemType", "unknown")
                 child_title = child.get("data", {}).get("title", "Untitled")
 
-                click.echo(f"{click.style(f'{idx}. {child_title}', fg='magenta', bold=True)} ({child_type})")
-                click.echo(f"{'-'*80}\n")
+                click.echo(
+                    f"{click.style(f'{idx}. {child_title}', fg='magenta', bold=True)} ({child_type})"
+                )
+                click.echo(f"{'-' * 80}\n")
 
                 # Display child data
                 if child.get("data"):
@@ -132,7 +141,9 @@ async def lookup_item(item_key: str, show_content: bool = False):
 
         # Optionally show content from ChromaDB
         if show_content:
-            click.echo(f"\n{click.style('📄 Checking ChromaDB for content...', fg='blue', bold=True)}\n")
+            click.echo(
+                f"\n{click.style('📄 Checking ChromaDB for content...', fg='blue', bold=True)}\n"
+            )
 
             from buttermilk.tools import ChromaDBSearchTool
 
@@ -150,16 +161,21 @@ async def lookup_item(item_key: str, show_content: bool = False):
 
             # Query for the item
             results = collection.get(
-                where={"item_key": {"$eq": item_key}}, include=["metadatas", "documents"]
+                where={"item_key": {"$eq": item_key}},
+                include=["metadatas", "documents"],
             )
 
             if results["documents"]:
-                click.echo(f"{click.style('Found in ChromaDB:', fg='green', bold=True)}")
+                click.echo(
+                    f"{click.style('Found in ChromaDB:', fg='green', bold=True)}"
+                )
                 click.echo(f"Total chunks: {len(results['documents'])}\n")
 
                 # Show first chunk metadata
                 if results["metadatas"]:
-                    click.echo(f"{click.style('ChromaDB Metadata (first chunk):', fg='yellow', bold=True)}")
+                    click.echo(
+                        f"{click.style('ChromaDB Metadata (first chunk):', fg='yellow', bold=True)}"
+                    )
                     pretty_print_json(results["metadatas"][0], indent=1)
                     click.echo()
 
@@ -167,13 +183,19 @@ async def lookup_item(item_key: str, show_content: bool = False):
                 if results["documents"]:
                     content = results["documents"][0]
                     preview = content[:500] + "..." if len(content) > 500 else content
-                    click.echo(f"{click.style('Content Preview:', fg='yellow', bold=True)}")
+                    click.echo(
+                        f"{click.style('Content Preview:', fg='yellow', bold=True)}"
+                    )
                     click.echo(f"  {preview}\n")
             else:
-                click.echo(f"{click.style('Item not found in ChromaDB', fg='yellow')}\n")
+                click.echo(
+                    f"{click.style('Item not found in ChromaDB', fg='yellow')}\n"
+                )
 
     except Exception as e:
-        click.echo(f"\n{click.style('❌ Error:', fg='red', bold=True)} {str(e)}\n", err=True)
+        click.echo(
+            f"\n{click.style('❌ Error:', fg='red', bold=True)} {str(e)}\n", err=True
+        )
         sys.exit(1)
 
 
