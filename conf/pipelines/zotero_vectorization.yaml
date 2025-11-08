@@ -1,0 +1,37 @@
+# @package pipeline.processors
+# Shared Zotero vectorization pipeline processor chain
+# Used by both vectorize.yaml and reprocess.yaml
+
+# 0. Download PDFs
+- _target_: buttermilk.libs.zotero.ZoteroDownloadProcessor
+  library_id: ${oc.env:ZOTERO_LIBRARY_ID}
+  save_dir: ${oc.env:HOME}/.cache/buttermilk/zotero/items
+
+# 1. Extract text using pdftotext (replaces pdfminer extraction)
+- _target_: buttermilk.processors.bash.PDFToTextProcessor
+
+# 2. Generate citations using LLM
+- _target_: buttermilk.tools.citator.Citator
+  model: gemini25flash
+  template: citator
+
+# 3. Chunk text semantically
+- _target_: buttermilk.data.vector.SemanticSplitter
+  chunk_size: 500
+  chunk_overlap: 200
+
+# 4. Filter corrupt documents (document-level quality check)
+- _target_: src.quality_processor.QualityFilterProcessor
+  corruption_threshold: 66.0
+  pattern_threshold: 80.0
+
+# 5. Generate embeddings (pure, no side effects)
+- _target_: buttermilk.processors.embeddings.EmbeddingGenerator
+  embedding_model: ${storage.zotero_vectors.embedding_model}
+  dimensionality: ${storage.zotero_vectors.dimensionality}
+  embedding_batch_size: 100
+  embedding_max_retries: 5
+  embedding_cooldown_seconds: 0.1
+
+# 6. Store in ChromaDB
+- ${vectoriser}

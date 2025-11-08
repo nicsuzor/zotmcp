@@ -1,16 +1,19 @@
 # @package _global_
 # Reprocessing Pipeline for Specific Zotero Items
-# Inherits shared infrastructure from config.yaml
+# Inherits from vectorize.yaml and overrides for forced reprocessing
 #
-# Usage: python -m buttermilk.runner.cli --config-dir conf --config-name reprocess
+# Usage: python -m buttermilk.runner.cli --config-dir conf --config-name reprocess db=dev
+#        uv run python scripts/reprocess.py [items_file] [--db=dev]
 #
-# This config reprocesses specific Zotero items (e.g., corrupt documents)
-# using ZoteroItemSource instead of iterating through the entire library.
-# All processors are identical to vectorize.yaml.
+# Key differences from vectorize.yaml:
+# - Uses ZoteroItemSource (file of item keys) instead of ZoteroSource (full library)
+# - Forces cache bypass: force_reprocess=true, deduplication_strategy=none
+# - Parameterized items_file for flexibility
 
 defaults:
   - config # Inherit base configuration
-  - db: upstream # Use upstream GCS bucket for vectorization
+  - db: upstream # Use upstream GCS bucket (override with db=dev)
+  - /pipelines/zotero_vectorization@pipeline.processors # Shared pipeline processors
   - _self_
 
 # Pipeline specific configuration
@@ -28,6 +31,7 @@ session:
   template_paths:
     - templates
 
+# Override vectoriser to force reprocessing (no deduplication)
 vectoriser:
   _target_: buttermilk.data.vector.ChromaDBEmbeddings
   persist_directory: ${storage.zotero_vectors.persist_directory}
@@ -39,6 +43,7 @@ vectoriser:
   deduplication_strategy: none # Force reprocessing, don't skip existing records
   enable_record_cache: false # Disable cache for fresh processing
 
+# Override pipeline settings for forced reprocessing
 pipeline:
   _target_: buttermilk.pipeline.PipelineOrchestrator
   pipeline_name: zotero_reprocessing
@@ -47,43 +52,10 @@ pipeline:
   force_reprocess: true # Ignore all caches and force fresh processing
   enable_record_cache: false # Disable per-processor record caching
 
-  # Source: Fetch specific items by key from file
+  # Source: Fetch specific items by key from file (overrides ZoteroSource)
   source:
     _target_: src.zotero_items.ZoteroItemSource
     library_id: ${oc.env:ZOTERO_LIBRARY_ID}
     item_keys_file: ${reprocess.items_file}
 
-  processors:
-    # 0. Download PDFs
-    - _target_: buttermilk.libs.zotero.ZoteroDownloadProcessor
-      library_id: ${oc.env:ZOTERO_LIBRARY_ID}
-      save_dir: ${oc.env:HOME}/.cache/buttermilk/zotero/items
-
-    # 1. Extract text using pdftotext (replaces pdfminer extraction)
-    - _target_: buttermilk.processors.bash.PDFToTextProcessor
-
-    # 2. Generate citations using LLM
-    - _target_: buttermilk.tools.citator.Citator
-      model: gemini25flash
-      template: citator
-
-    # 3. Chunk text semantically
-    - _target_: buttermilk.data.vector.SemanticSplitter
-      chunk_size: 500
-      chunk_overlap: 200
-
-    # 4. Filter corrupt documents (document-level quality check)
-    - _target_: src.quality_processor.QualityFilterProcessor
-      corruption_threshold: 66.0
-      pattern_threshold: 80.0
-
-    # 5. Generate embeddings (pure, no side effects)
-    - _target_: buttermilk.processors.embeddings.EmbeddingGenerator
-      embedding_model: ${storage.zotero_vectors.embedding_model}
-      dimensionality: ${storage.zotero_vectors.dimensionality}
-      embedding_batch_size: 100
-      embedding_max_retries: 5
-      embedding_cooldown_seconds: 0.1
-
-    # 6. Store in ChromaDB
-    - ${vectoriser}
+  # Processors inherited from /pipelines/zotero_vectorization
