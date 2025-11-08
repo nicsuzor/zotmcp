@@ -2,24 +2,24 @@
 name = "zotmcp"
 version = "0.1.0"
 description = "MCP server for semantic search of Zotero academic library"
-authors = [{name = "Nicolas Suzor", email = "nic@suzor.com"}]
+authors = [{ name = "Nicolas Suzor", email = "nic@suzor.com" }]
 requires-python = ">=3.10"
 dependencies = [
-    "fastmcp>=0.2.0",
-    "pydantic>=2.0.0",
-    "buttermilk",
-    "pyzotero>=1.6.17",
-    "httpx>=0.27.0",
+  "fastmcp>=0.2.0",
+  "pydantic>=2.0.0",
+  "buttermilk",
+  "pyzotero>=1.6.17",
+  "httpx>=0.27.0",
+  "langdetect>=1.0.9",
 ]
-
 
 [dependency-groups]
 dev = [
-    "anyio>=4.11.0",
-    "pytest>=8.4.2",
-    "pytest-asyncio>=0.24.0",
-    "pytest-httpx>=0.30.0",
-    "respx>=0.21.0",
+  "anyio>=4.11.0",
+  "pytest>=8.4.2",
+  "pytest-asyncio>=0.24.0",
+  "pytest-httpx>=0.30.0",
+  "respx>=0.21.0",
 ]
 
 [tool.uv.sources]
@@ -38,10 +38,6 @@ asyncio_mode = "auto"
 testpaths = ["src/tests"]
 pythonpath = ["src"]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
-addopts = [ "-v", 
-"-rxX",
-    "--capture=fd", "--tb=short",
-    "--continue-on-collection-errors", "-m not slow"
-    ]
+addopts = ["-v", "-rxX", "--capture=fd", "--tb=short", "--continue-on-collection-errors", "-m not slow"]
