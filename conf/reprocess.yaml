@@ -16,6 +16,10 @@ defaults:
 # Pipeline specific configuration
 job: reprocess_zotero
 
+# Reprocessing configuration
+reprocess:
+  items_file: corrupt_documents_66pct.txt # File containing document IDs to reprocess
+
 run:
   mode: pipeline
   limit: null # Process all items in the file
@@ -32,20 +36,22 @@ vectoriser:
   dimensionality: ${storage.zotero_vectors.dimensionality}
   concurrency: ${pipeline.concurrency}
   sync_batch_size: 500
-  deduplication_strategy: record_id # Skip existing records before downloading
-  enable_record_cache: true
+  deduplication_strategy: none # Force reprocessing, don't skip existing records
+  enable_record_cache: false # Disable cache for fresh processing
 
 pipeline:
   _target_: buttermilk.pipeline.PipelineOrchestrator
   pipeline_name: zotero_reprocessing
   concurrency: 1
   limit: ${run.limit}
+  force_reprocess: true # Ignore all caches and force fresh processing
+  enable_record_cache: false # Disable per-processor record caching
 
   # Source: Fetch specific items by key from file
   source:
     _target_: src.zotero_items.ZoteroItemSource
     library_id: ${oc.env:ZOTERO_LIBRARY_ID}
-    item_keys_file: corrupt_documents_66pct.txt
+    item_keys_file: ${reprocess.items_file}
 
   processors:
     # 0. Download PDFs
