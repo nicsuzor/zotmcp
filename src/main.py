@@ -216,71 +216,87 @@ def extract_citation_metadata(
 
 @mcp.tool()
 async def search(
-    query: str, n_results: int = 10, filter_type: Optional[str] = None
+    query: str,
+    n_results: int = 10,
+    search_mode: str = "hybrid",
+    filter_type: Optional[str] = None,
+    author: Optional[str] = None,
+    title: Optional[str] = None,
+    date_from: Optional[int] = None,
+    date_to: Optional[int] = None,
+    fuzzy_threshold: int = 60,
+    semantic_weight: float = 0.6,
 ) -> dict:
-    """Search the Zotero library using semantic similarity.
+    """Search the Zotero library with semantic, fuzzy, or hybrid search.
+
+    This is the main search tool with multiple modes and advanced filtering:
+    - **hybrid** (default): Combines semantic embeddings + fuzzy metadata matching
+    - **semantic**: Pure vector similarity search
+    - **metadata**: Fuzzy text matching on metadata fields
 
     Args:
-        query: Natural language search query
-        n_results: Number of results to return (default: 10, max: 50)
-        filter_type: Optional filter by item type (e.g., 'journalArticle', 'book', 'bookSection')
+        query: Search query
+        n_results: Number of results to return (default: 10, max: 100)
+        search_mode: Search strategy - "hybrid" (recommended), "semantic", or "metadata"
+        filter_type: Filter by item type (e.g., 'journalArticle', 'book', 'bookSection')
+        author: Filter by author name (fuzzy matching, handles typos)
+        title: Search by title (fuzzy matching)
+        date_from: Earliest publication year (e.g., 2020)
+        date_to: Latest publication year (e.g., 2024)
+        fuzzy_threshold: Minimum fuzzy match score 0-100 (default: 60)
+        semantic_weight: Weight for semantic vs fuzzy in hybrid mode (default: 0.6)
 
     Returns:
-        Dictionary with search results including titles, authors, and relevance
+        Dictionary with search results including citations, excerpts, and relevance scores
+
+    Examples:
+        search("machine learning ethics")  # Hybrid search
+        search("privacy", author="Smith", date_from=2020)  # With filters
+        search("AI", search_mode="semantic")  # Pure semantic search
     """
     # Check if ChromaDB is ready
     if error_response := _check_chromadb_ready():
         return error_response
 
     try:
-        n_results = min(n_results, 50)
+        n_results = min(n_results, 100)
 
-        # Use buttermilk's search tool
+        if search_mode not in ["hybrid", "semantic", "metadata"]:
+            return {
+                "error": f"Invalid search_mode: {search_mode}. Must be 'hybrid', 'semantic', or 'metadata'",
+                "results": [],
+            }
+
         tool = get_search_tool()
-        results = await tool.search(query=query, n_results=n_results)
+        coll = get_collection()
 
-        formatted_results = []
-        for result in results:
-            # Defensive check: ensure metadata is a dict
-            if not isinstance(result.metadata, dict):
-                raise TypeError(
-                    f"Expected result.metadata to be dict, got {type(result.metadata).__name__}. "
-                    f"Value: {result.metadata[:100] if isinstance(result.metadata, str) else result.metadata}"
-                )
+        # Use enhanced search engine
+        results = await _advanced_search(
+            search_tool=tool,
+            collection=coll,
+            query=query,
+            n_results=n_results,
+            search_mode=search_mode,
+            author=author,
+            title=title,
+            date_from=date_from,
+            date_to=date_to,
+            item_type=filter_type,
+            fuzzy_threshold=fuzzy_threshold,
+            semantic_weight=semantic_weight,
+        )
 
-            # Filter by item type if specified
-            if filter_type and result.metadata.get("itemType") != filter_type:
-                continue
-
-            citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
-                extract_citation_metadata(result.metadata)
-            )
-
-            # Create Zotero app link
-            zotero_link = (
-                f"zotero://select/library/items/{zotero_key}" if zotero_key else None
-            )
-
-            formatted_results.append(
-                {
-                    "citation": citation,
-                    "excerpt": result.content,
-                    "similarity": round(result.score, 3) if result.score else None,
-                    "doi_or_url": doi_or_url,
-                    "uri": uri,
-                    "zotero_key": zotero_key,
-                    "citation_key": citation_key,
-                    "zotero_link": zotero_link,
-                    "zotero_web_link": zotero_web_link,
-                }
-            )
+        formatted_results = [_format_search_result(r) for r in results]
 
         return {
             "query": query,
+            "search_mode": search_mode,
             "total_results": len(formatted_results),
             "results": formatted_results,
         }
+
     except Exception as e:
+        logger.error(f"Search error: {e}", exc_info=True)
         return {
             "error": str(e),
             "results": [],
@@ -667,168 +683,7 @@ def _format_search_result(result: SearchResult) -> dict:
 
 
 # ===== Enhanced Search MCP Tools =====
-
-
-@mcp.tool()
-async def advanced_search(
-    query: str,
-    n_results: int = 20,
-    search_mode: str = "hybrid",
-    author: Optional[str] = None,
-    title: Optional[str] = None,
-    date_from: Optional[int] = None,
-    date_to: Optional[int] = None,
-    item_type: Optional[str] = None,
-    fuzzy_threshold: int = 60,
-    semantic_weight: float = 0.6,
-) -> dict:
-    """Advanced search with multiple modes and fuzzy matching.
-
-    This is the most powerful search tool, combining semantic search with
-    fuzzy metadata matching. It supports multiple search modes and filters.
-
-    Args:
-        query: Main search query
-        n_results: Number of results to return (default: 20, max: 100)
-        search_mode: Search strategy - "hybrid" (semantic + fuzzy, recommended),
-                     "semantic" (embeddings only), or "metadata" (fuzzy text only)
-        author: Filter by author name (fuzzy matching, handles typos)
-        title: Search by title (fuzzy matching)
-        date_from: Earliest publication year (e.g., 2020)
-        date_to: Latest publication year (e.g., 2024)
-        item_type: Filter by type (e.g., 'journalArticle', 'book', 'bookSection')
-        fuzzy_threshold: Minimum fuzzy match score 0-100 (default: 60)
-        semantic_weight: Weight for semantic vs fuzzy scores in hybrid mode (default: 0.6)
-
-    Returns:
-        Dictionary with ranked search results and metadata
-
-    Examples:
-        - advanced_search("machine learning ethics", search_mode="hybrid")
-        - advanced_search("privacy", author="Smith", date_from=2020)
-        - advanced_search("", title="Artificial Intelligence", search_mode="metadata")
-    """
-    # Check if ChromaDB is ready
-    if error_response := _check_chromadb_ready():
-        return error_response
-
-    try:
-        n_results = min(n_results, 100)
-
-        if search_mode not in ["hybrid", "semantic", "metadata"]:
-            return {
-                "error": f"Invalid search_mode: {search_mode}. Must be 'hybrid', 'semantic', or 'metadata'",
-                "results": [],
-            }
-
-        tool = get_search_tool()
-        coll = get_collection()
-
-        results = await _advanced_search(
-            search_tool=tool,
-            collection=coll,
-            query=query,
-            n_results=n_results,
-            search_mode=search_mode,
-            author=author,
-            title=title,
-            date_from=date_from,
-            date_to=date_to,
-            item_type=item_type,
-            fuzzy_threshold=fuzzy_threshold,
-            semantic_weight=semantic_weight,
-        )
-
-        formatted_results = [_format_search_result(r) for r in results]
-
-        return {
-            "query": query,
-            "search_mode": search_mode,
-            "filters": {
-                "author": author,
-                "title": title,
-                "date_from": date_from,
-                "date_to": date_to,
-                "item_type": item_type,
-            },
-            "total_results": len(formatted_results),
-            "results": formatted_results,
-        }
-
-    except Exception as e:
-        logger.error(f"Advanced search error: {e}", exc_info=True)
-        return {
-            "error": str(e),
-            "results": [],
-            "total_results": 0,
-        }
-
-
-@mcp.tool()
-async def search_by_fuzzy_author(
-    author_name: str,
-    n_results: int = 20,
-    fuzzy_threshold: int = 70,
-    date_from: Optional[int] = None,
-    date_to: Optional[int] = None,
-    item_type: Optional[str] = None,
-) -> dict:
-    """Search for items by author name with fuzzy matching (handles typos and variations).
-
-    This is an improved version of search_zotero_by_author with:
-    - Fuzzy matching to handle name variations and typos
-    - No 1000-item limit
-    - Relevance ranking by match quality
-    - Optional date and type filtering
-
-    Args:
-        author_name: Author name to search for (can be partial, e.g., "Smith")
-        n_results: Number of results to return (default: 20)
-        fuzzy_threshold: Minimum match score 0-100 (default: 70, higher = stricter)
-        date_from: Earliest publication year
-        date_to: Latest publication year
-        item_type: Filter by type (e.g., 'journalArticle')
-
-    Returns:
-        Dictionary with items by the specified author, ranked by match quality
-
-    Examples:
-        - search_by_fuzzy_author("Suzor")
-        - search_by_fuzzy_author("John Smith", date_from=2020)
-        - search_by_fuzzy_author("Doe", item_type="journalArticle")
-    """
-    # Check if ChromaDB is ready
-    if error_response := _check_chromadb_ready():
-        return error_response
-
-    try:
-        coll = get_collection()
-
-        results = await _fuzzy_author_search(
-            collection=coll,
-            author_name=author_name,
-            n_results=n_results,
-            fuzzy_threshold=fuzzy_threshold,
-            date_from=date_from,
-            date_to=date_to,
-            item_type=item_type,
-        )
-
-        formatted_results = [_format_search_result(r) for r in results]
-
-        return {
-            "author": author_name,
-            "total_results": len(formatted_results),
-            "items": formatted_results,
-        }
-
-    except Exception as e:
-        logger.error(f"Fuzzy author search error: {e}", exc_info=True)
-        return {
-            "error": str(e),
-            "items": [],
-            "total_results": 0,
-        }
+# Note: Enhanced search capabilities are now integrated into the main 'search' tool above
 
 
 @mcp.tool()
