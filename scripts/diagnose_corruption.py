@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from buttermilk import init_async
 from buttermilk.tools import ChromaDBSearchTool
-from text_quality import detect_text_corruption, is_document_corrupt
+from buttermilk.utils.text_quality import detect_text_corruption, is_document_corrupt
 
 # Pattern to detect PDF encoding artifacts like (cid:XX)
 CID_PATTERN = re.compile(r"\(cid:\d+\)")

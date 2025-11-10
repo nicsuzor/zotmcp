@@ -80,13 +80,13 @@ async def extract_fresh_text(pdf_path: str, document_id: str, output_path: str):
         print(f"✅ Saved fresh extraction to: {output_file}")
         print(f"   Document ID: {test_record['id']}")
         print(f"   Chunks: {len(chunks)}")
-        print(f"   Marked as corrupt: False")
+        print("   Marked as corrupt: False")
 
         # Run corruption detection to prove it's clean
-        from text_quality import is_document_corrupt
+        from buttermilk.utils.text_quality import is_document_corrupt
 
         result = is_document_corrupt(chunks, threshold=66.0)
-        print(f"\n📊 Corruption Analysis:")
+        print("\n📊 Corruption Analysis:")
         print(f"   Is corrupt: {result['is_corrupt']}")
         print(f"   Corruption rate: {result['corruption_rate']:.1f}%")
         print(

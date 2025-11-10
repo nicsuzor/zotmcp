@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from buttermilk import init_async
 from buttermilk.tools import ChromaDBSearchTool
-from text_quality import detect_text_corruption
+from buttermilk.utils.text_quality import detect_text_corruption
 
 
 async def show_random_chunks(document_id: str):

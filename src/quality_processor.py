@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from buttermilk import logger
 from buttermilk._core.types import Record
-from src.text_quality import is_document_corrupt
+from buttermilk.utils.text_quality import is_document_corrupt
 
 
 class QualityFilterProcessor(BaseModel):
