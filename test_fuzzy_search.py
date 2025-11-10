@@ -1,13 +1,13 @@
 """Quick test script to verify fuzzy matching functionality."""
 
 import sys
-sys.path.insert(0, 'src')
+
+sys.path.insert(0, "src")
 
 from search_utils import (
     fuzzy_match_author,
     fuzzy_match_title,
     normalize_author_name,
-    extract_author_names,
     parse_year_from_date,
     filter_by_date_range,
 )
@@ -27,7 +27,9 @@ def test_author_normalization():
     for input_name, expected in test_cases:
         result = normalize_author_name(input_name)
         status = "✓" if result == expected else "✗"
-        print(f"  {status} normalize_author_name('{input_name}') = '{result}' (expected: '{expected}')")
+        print(
+            f"  {status} normalize_author_name('{input_name}') = '{result}' (expected: '{expected}')"
+        )
 
 
 def test_fuzzy_author_matching():
@@ -85,7 +87,9 @@ def test_date_parsing():
     for date_str, expected in test_cases:
         result = parse_year_from_date(date_str)
         status = "✓" if result == expected else "✗"
-        print(f"  {status} parse_year_from_date('{date_str}') = {result} (expected: {expected})")
+        print(
+            f"  {status} parse_year_from_date('{date_str}') = {result} (expected: {expected})"
+        )
 
 
 def test_date_filtering():
@@ -109,7 +113,9 @@ def test_date_filtering():
         result = filter_by_date_range(meta, date_from, date_to)
         status = "✓" if result == expected else "✗"
         date_val = meta.get("date", "no date")
-        print(f"  {status} filter_by_date_range(date='{date_val}', {date_from}-{date_to}) = {result} (expected: {expected})")
+        print(
+            f"  {status} filter_by_date_range(date='{date_val}', {date_from}-{date_to}) = {result} (expected: {expected})"
+        )
 
 
 if __name__ == "__main__":

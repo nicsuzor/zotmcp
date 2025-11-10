@@ -467,9 +467,6 @@ from citation_search import (  # noqa: E402
 
 from enhanced_search import (  # noqa: E402
     advanced_search as _advanced_search,
-    fuzzy_author_search as _fuzzy_author_search,
-    fuzzy_metadata_search as _fuzzy_metadata_search,
-    hybrid_search as _hybrid_search,
     search_by_citation_key_async,
     search_by_doi_async,
 )
@@ -587,9 +584,7 @@ def _format_search_result(result: SearchResult) -> dict:
         extract_citation_metadata(result.metadata)
     )
 
-    zotero_link = (
-        f"zotero://select/library/items/{zotero_key}" if zotero_key else None
-    )
+    zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
 
     output = {
         "citation": citation,

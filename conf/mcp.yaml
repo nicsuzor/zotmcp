@@ -1,54 +1,13 @@
 # MCP Server Configuration
-# Minimal config for MCP server - no GCP infrastructure required
-# This allows the server to start quickly without BigQuery/GCP credentials
+# Inherits base zotero config including GCP infrastructure needed for embeddings
+# Fast startup is maintained via background ChromaDB initialization in main.py
 
 defaults:
-  - db: deploy  # Use deploy for Docker, override with db=dev for local
+  - zotero # Inherit base configuration including GCP infrastructure
+  - db: deploy # Use deploy for Docker, override with db=dev for local
   - _self_
 
+# MCP server specific configuration
+job: mcp_server
 project_name: zotmcp
 verbose: true
-job: mcp_server
-
-# Session configuration (required by buttermilk)
-session:
-  template_paths: []
-  sessions_dir: "data/sessions"
-  cache_dir: "~/.cache/buttermilk"
-  timeout_minutes: 60
-  cleanup_interval_minutes: 15
-  max_concurrent_sessions: 50
-
-# No GCP infrastructure - MCP server only needs ChromaDB access
-# This prevents buttermilk from trying to initialize BigQuery, Secret Manager, etc.
-
-# Storage configuration
-storage:
-  zotero_vectors:
-    type: chromadb
-    collection_name: prosocial_zot
-    read_only: true
-    embedding_model: gemini-embedding-001
-    dimensionality: 3072
-
-# Metadata fields to extract from Zotero items
-zotero_fields:
-  bibliographic:
-    - title
-    - creators
-    - date
-    - publicationTitle
-    - publisher
-    - DOI
-    - url
-    - itemType
-    - abstractNote
-    - pages
-    - volume
-    - issue
-
-  technical:
-    - item_key
-    - document_id
-    - chunk_index
-    - embedding_model

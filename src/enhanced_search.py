@@ -4,8 +4,7 @@ This module provides high-level search functions that combine semantic search
 with fuzzy metadata matching for improved discovery.
 """
 
-import asyncio
-from typing import Any, Optional
+from typing import Optional
 
 from buttermilk.tools import ChromaDBSearchTool
 
@@ -263,9 +262,7 @@ async def search_by_doi_async(collection, doi: str) -> Optional[dict]:
     return search_by_doi(doi, results["metadatas"])
 
 
-async def search_by_citation_key_async(
-    collection, citation_key: str
-) -> Optional[dict]:
+async def search_by_citation_key_async(collection, citation_key: str) -> Optional[dict]:
     """Search for an item by BetterBibTeX citation key.
 
     Args:

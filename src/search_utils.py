@@ -9,9 +9,9 @@ This module provides enhanced search capabilities including:
 
 import re
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
-from rapidfuzz import fuzz, process
+from rapidfuzz import fuzz
 
 
 @dataclass
@@ -75,7 +75,7 @@ def extract_author_names(creators_field: str) -> list[str]:
             # Try to group as pairs for "Last, First" format
             i = 0
             while i < len(parts) - 1:
-                full_name = f"{parts[i]}, {parts[i+1]}"
+                full_name = f"{parts[i]}, {parts[i + 1]}"
                 authors.append(normalize_author_name(full_name))
                 i += 2
             # Add remaining part if odd number
@@ -269,7 +269,9 @@ def search_by_doi(doi: str, all_metadata: list[dict]) -> Optional[dict]:
     doi_normalized = doi.lower().strip()
 
     # Remove common prefixes
-    doi_normalized = re.sub(r"^(doi:|https?://doi.org/|https?://dx.doi.org/)", "", doi_normalized)
+    doi_normalized = re.sub(
+        r"^(doi:|https?://doi.org/|https?://dx.doi.org/)", "", doi_normalized
+    )
 
     for metadata in all_metadata:
         item_doi = metadata.get("DOI", "")
@@ -285,7 +287,9 @@ def search_by_doi(doi: str, all_metadata: list[dict]) -> Optional[dict]:
     return None
 
 
-def search_by_citation_key(citation_key: str, all_metadata: list[dict]) -> Optional[dict]:
+def search_by_citation_key(
+    citation_key: str, all_metadata: list[dict]
+) -> Optional[dict]:
     """Search for an item by BetterBibTeX citation key (exact match).
 
     Args:
@@ -326,11 +330,15 @@ def combine_scores(
     semantic_normalized = (semantic_score or 0) * 100
     fuzzy_normalized = fuzzy_score or 0
 
-    combined = (semantic_normalized * semantic_weight) + (fuzzy_normalized * fuzzy_weight)
+    combined = (semantic_normalized * semantic_weight) + (
+        fuzzy_normalized * fuzzy_weight
+    )
     return round(combined, 2)
 
 
-def rank_results(results: list[SearchResult], sort_by: str = "combined") -> list[SearchResult]:
+def rank_results(
+    results: list[SearchResult], sort_by: str = "combined"
+) -> list[SearchResult]:
     """Rank search results by score.
 
     Args:
@@ -341,11 +349,17 @@ def rank_results(results: list[SearchResult], sort_by: str = "combined") -> list
         Sorted list of results (highest score first)
     """
     if sort_by == "semantic":
-        key_func = lambda r: r.similarity_score or 0
+
+        def key_func(r):
+            return r.similarity_score or 0
     elif sort_by == "fuzzy":
-        key_func = lambda r: r.fuzzy_score or 0
+
+        def key_func(r):
+            return r.fuzzy_score or 0
     else:  # combined
-        key_func = lambda r: r.combined_score or 0
+
+        def key_func(r):
+            return r.combined_score or 0
 
     return sorted(results, key=key_func, reverse=True)
 
