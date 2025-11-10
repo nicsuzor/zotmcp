@@ -436,8 +436,11 @@ def get_collection_info() -> dict:
 
 
 @mcp.tool()
-def search_zotero_by_author(author_name: str, n_results: int = 20) -> dict:
+async def search_zotero_by_author(author_name: str, n_results: int = 20) -> dict:
     """Search Zotero library for items by a specific author.
+
+    NOTE: This is the legacy tool kept for backward compatibility.
+    For better results with fuzzy matching, use search_by_fuzzy_author instead.
 
     Args:
         author_name: Author name to search for (can be partial)
@@ -446,47 +449,57 @@ def search_zotero_by_author(author_name: str, n_results: int = 20) -> dict:
     Returns:
         Dictionary with items by the specified author
     """
-    coll = get_collection()
+    # Check if ChromaDB is ready
+    if error_response := _check_chromadb_ready():
+        return error_response
 
-    # ChromaDB doesn't support full-text metadata search well,
-    # so we do a broader search and filter
-    results = coll.get(limit=1000, include=["metadatas", "documents"])
+    try:
+        coll = get_collection()
 
-    matching_items = {}
+        # Use the new fuzzy author search with a lower threshold for backward compatibility
+        results = await _fuzzy_author_search(
+            collection=coll,
+            author_name=author_name,
+            n_results=n_results,
+            fuzzy_threshold=50,  # Lower threshold for more lenient matching
+        )
 
-    for doc, meta in zip(results["documents"], results["metadatas"]):
-        creators = meta.get("creators", "")
-        if author_name.lower() in creators.lower():
-            item_key = meta.get("item_key")
-            if item_key and item_key not in matching_items:
-                citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
-                    extract_citation_metadata(meta)
-                )
-                zotero_link = (
-                    f"zotero://select/library/items/{zotero_key}"
-                    if zotero_key
-                    else None
-                )
+        # Format results in the original output format for compatibility
+        formatted_items = []
+        for result in results:
+            citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+                extract_citation_metadata(result.metadata)
+            )
+            zotero_link = (
+                f"zotero://select/library/items/{zotero_key}"
+                if zotero_key
+                else None
+            )
 
-                matching_items[item_key] = {
-                    "item_key": item_key,
-                    "citation": citation,
-                    "doi_or_url": doi_or_url,
-                    "uri": uri,
-                    "zotero_key": zotero_key,
-                    "citation_key": citation_key,
-                    "zotero_link": zotero_link,
-                    "zotero_web_link": zotero_web_link,
-                }
+            formatted_items.append({
+                "item_key": result.item_key,
+                "citation": citation,
+                "doi_or_url": doi_or_url,
+                "uri": uri,
+                "zotero_key": zotero_key,
+                "citation_key": citation_key,
+                "zotero_link": zotero_link,
+                "zotero_web_link": zotero_web_link,
+            })
 
-            if len(matching_items) >= n_results:
-                break
+        return {
+            "author": author_name,
+            "total_results": len(formatted_items),
+            "items": formatted_items,
+        }
 
-    return {
-        "author": author_name,
-        "total_results": len(matching_items),
-        "items": list(matching_items.values()),
-    }
+    except Exception as e:
+        logger.error(f"Author search error: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "items": [],
+            "total_results": 0,
+        }
 
 
 # ===== Citation Search Tools (OpenAlex API) =====
@@ -499,6 +512,19 @@ from citation_search import (  # noqa: E402
     search_by_author as _search_by_author,
     get_paper_details as _get_paper_details,
 )
+
+# ===== Enhanced Search Tools =====
+# Fuzzy matching and hybrid search capabilities
+
+from enhanced_search import (  # noqa: E402
+    advanced_search as _advanced_search,
+    fuzzy_author_search as _fuzzy_author_search,
+    fuzzy_metadata_search as _fuzzy_metadata_search,
+    hybrid_search as _hybrid_search,
+    search_by_citation_key_async,
+    search_by_doi_async,
+)
+from search_utils import SearchResult  # noqa: E402
 
 
 @mcp.tool()
@@ -597,6 +623,305 @@ async def get_paper_details(paper_id: str) -> dict:
     """
     result = await _get_paper_details(paper_id)
     return result if result else {"error": "Paper not found"}
+
+
+def _format_search_result(result: SearchResult) -> dict:
+    """Format a SearchResult object for MCP tool output.
+
+    Args:
+        result: SearchResult object
+
+    Returns:
+        Dictionary with formatted result
+    """
+    citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+        extract_citation_metadata(result.metadata)
+    )
+
+    zotero_link = (
+        f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+    )
+
+    output = {
+        "citation": citation,
+        "excerpt": result.document[:500] if result.document else None,
+        "doi_or_url": doi_or_url,
+        "uri": uri,
+        "zotero_key": zotero_key,
+        "citation_key": citation_key,
+        "zotero_link": zotero_link,
+        "zotero_web_link": zotero_web_link,
+    }
+
+    # Add scores if available
+    if result.similarity_score is not None:
+        output["semantic_score"] = round(result.similarity_score, 3)
+    if result.fuzzy_score is not None:
+        output["fuzzy_score"] = round(result.fuzzy_score, 1)
+    if result.combined_score is not None:
+        output["combined_score"] = round(result.combined_score, 1)
+    if result.match_field:
+        output["matched_field"] = result.match_field
+
+    return output
+
+
+# ===== Enhanced Search MCP Tools =====
+
+
+@mcp.tool()
+async def advanced_search(
+    query: str,
+    n_results: int = 20,
+    search_mode: str = "hybrid",
+    author: Optional[str] = None,
+    title: Optional[str] = None,
+    date_from: Optional[int] = None,
+    date_to: Optional[int] = None,
+    item_type: Optional[str] = None,
+    fuzzy_threshold: int = 60,
+    semantic_weight: float = 0.6,
+) -> dict:
+    """Advanced search with multiple modes and fuzzy matching.
+
+    This is the most powerful search tool, combining semantic search with
+    fuzzy metadata matching. It supports multiple search modes and filters.
+
+    Args:
+        query: Main search query
+        n_results: Number of results to return (default: 20, max: 100)
+        search_mode: Search strategy - "hybrid" (semantic + fuzzy, recommended),
+                     "semantic" (embeddings only), or "metadata" (fuzzy text only)
+        author: Filter by author name (fuzzy matching, handles typos)
+        title: Search by title (fuzzy matching)
+        date_from: Earliest publication year (e.g., 2020)
+        date_to: Latest publication year (e.g., 2024)
+        item_type: Filter by type (e.g., 'journalArticle', 'book', 'bookSection')
+        fuzzy_threshold: Minimum fuzzy match score 0-100 (default: 60)
+        semantic_weight: Weight for semantic vs fuzzy scores in hybrid mode (default: 0.6)
+
+    Returns:
+        Dictionary with ranked search results and metadata
+
+    Examples:
+        - advanced_search("machine learning ethics", search_mode="hybrid")
+        - advanced_search("privacy", author="Smith", date_from=2020)
+        - advanced_search("", title="Artificial Intelligence", search_mode="metadata")
+    """
+    # Check if ChromaDB is ready
+    if error_response := _check_chromadb_ready():
+        return error_response
+
+    try:
+        n_results = min(n_results, 100)
+
+        if search_mode not in ["hybrid", "semantic", "metadata"]:
+            return {
+                "error": f"Invalid search_mode: {search_mode}. Must be 'hybrid', 'semantic', or 'metadata'",
+                "results": [],
+            }
+
+        tool = get_search_tool()
+        coll = get_collection()
+
+        results = await _advanced_search(
+            search_tool=tool,
+            collection=coll,
+            query=query,
+            n_results=n_results,
+            search_mode=search_mode,
+            author=author,
+            title=title,
+            date_from=date_from,
+            date_to=date_to,
+            item_type=item_type,
+            fuzzy_threshold=fuzzy_threshold,
+            semantic_weight=semantic_weight,
+        )
+
+        formatted_results = [_format_search_result(r) for r in results]
+
+        return {
+            "query": query,
+            "search_mode": search_mode,
+            "filters": {
+                "author": author,
+                "title": title,
+                "date_from": date_from,
+                "date_to": date_to,
+                "item_type": item_type,
+            },
+            "total_results": len(formatted_results),
+            "results": formatted_results,
+        }
+
+    except Exception as e:
+        logger.error(f"Advanced search error: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "results": [],
+            "total_results": 0,
+        }
+
+
+@mcp.tool()
+async def search_by_fuzzy_author(
+    author_name: str,
+    n_results: int = 20,
+    fuzzy_threshold: int = 70,
+    date_from: Optional[int] = None,
+    date_to: Optional[int] = None,
+    item_type: Optional[str] = None,
+) -> dict:
+    """Search for items by author name with fuzzy matching (handles typos and variations).
+
+    This is an improved version of search_zotero_by_author with:
+    - Fuzzy matching to handle name variations and typos
+    - No 1000-item limit
+    - Relevance ranking by match quality
+    - Optional date and type filtering
+
+    Args:
+        author_name: Author name to search for (can be partial, e.g., "Smith")
+        n_results: Number of results to return (default: 20)
+        fuzzy_threshold: Minimum match score 0-100 (default: 70, higher = stricter)
+        date_from: Earliest publication year
+        date_to: Latest publication year
+        item_type: Filter by type (e.g., 'journalArticle')
+
+    Returns:
+        Dictionary with items by the specified author, ranked by match quality
+
+    Examples:
+        - search_by_fuzzy_author("Suzor")
+        - search_by_fuzzy_author("John Smith", date_from=2020)
+        - search_by_fuzzy_author("Doe", item_type="journalArticle")
+    """
+    # Check if ChromaDB is ready
+    if error_response := _check_chromadb_ready():
+        return error_response
+
+    try:
+        coll = get_collection()
+
+        results = await _fuzzy_author_search(
+            collection=coll,
+            author_name=author_name,
+            n_results=n_results,
+            fuzzy_threshold=fuzzy_threshold,
+            date_from=date_from,
+            date_to=date_to,
+            item_type=item_type,
+        )
+
+        formatted_results = [_format_search_result(r) for r in results]
+
+        return {
+            "author": author_name,
+            "total_results": len(formatted_results),
+            "items": formatted_results,
+        }
+
+    except Exception as e:
+        logger.error(f"Fuzzy author search error: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "items": [],
+            "total_results": 0,
+        }
+
+
+@mcp.tool()
+async def search_by_doi(doi: str) -> dict:
+    """Search for an item by DOI (exact match).
+
+    Args:
+        doi: DOI to search for (with or without doi: prefix or URL)
+
+    Returns:
+        Dictionary with item metadata if found
+
+    Examples:
+        - search_by_doi("10.1038/nature12373")
+        - search_by_doi("https://doi.org/10.1038/nature12373")
+    """
+    # Check if ChromaDB is ready
+    if error_response := _check_chromadb_ready():
+        return error_response
+
+    try:
+        coll = get_collection()
+        metadata = await search_by_doi_async(coll, doi)
+
+        if not metadata:
+            return {"error": f"No item found with DOI: {doi}"}
+
+        # Extract citation info
+        citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+            extract_citation_metadata(metadata)
+        )
+
+        zotero_link = (
+            f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+        )
+
+        return {
+            "citation": citation,
+            "doi": doi_or_url,
+            "uri": uri,
+            "zotero_key": zotero_key,
+            "citation_key": citation_key,
+            "zotero_link": zotero_link,
+            "zotero_web_link": zotero_web_link,
+        }
+
+    except Exception as e:
+        logger.error(f"DOI search error: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def search_by_citation_key(citation_key: str) -> dict:
+    """Search for an item by BetterBibTeX citation key (exact match).
+
+    Args:
+        citation_key: BetterBibTeX citation key (e.g., "smith2020machine")
+
+    Returns:
+        Dictionary with item metadata if found
+    """
+    # Check if ChromaDB is ready
+    if error_response := _check_chromadb_ready():
+        return error_response
+
+    try:
+        coll = get_collection()
+        metadata = await search_by_citation_key_async(coll, citation_key)
+
+        if not metadata:
+            return {"error": f"No item found with citation key: {citation_key}"}
+
+        citation, doi_or_url, uri, zotero_key, cit_key, zotero_web_link = (
+            extract_citation_metadata(metadata)
+        )
+
+        zotero_link = (
+            f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+        )
+
+        return {
+            "citation": citation,
+            "citation_key": cit_key,
+            "doi_or_url": doi_or_url,
+            "uri": uri,
+            "zotero_key": zotero_key,
+            "zotero_link": zotero_link,
+            "zotero_web_link": zotero_web_link,
+        }
+
+    except Exception as e:
+        logger.error(f"Citation key search error: {e}", exc_info=True)
+        return {"error": str(e)}
 
 
 @mcp.prompt()
