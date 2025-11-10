@@ -6,6 +6,7 @@
 session:
   template_paths: []
   project_name: zotmcp
+  job: zotero # Default job name for base config
   sessions_dir: "data/sessions"
   cache_dir: "~/.cache/buttermilk"
   timeout_minutes: 60
