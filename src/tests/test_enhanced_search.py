@@ -2,7 +2,7 @@
 
 These tests verify the enhanced search capabilities:
 1. search tool with multiple modes (hybrid, semantic, metadata)
-2. search_zotero_by_author with fuzzy matching (upgraded internally)
+2. Author filtering with fuzzy matching via search tool
 3. search_by_doi for exact DOI lookup
 4. search_by_citation_key for citation key lookup
 5. Date filtering across all search modes
@@ -245,48 +245,6 @@ class TestSearchWithAuthorFilter:
             assert "results" in result.data
 
 
-class TestLegacyAuthorSearch:
-    """Test that legacy search_zotero_by_author now uses fuzzy matching."""
-
-    async def test_legacy_author_search_upgraded(self, mcp_server):
-        """Verify legacy author search now uses fuzzy matching internally."""
-        async with Client(mcp_server) as client:
-            result = await client.call_tool(
-                "search_zotero_by_author",
-                {
-                    "author_name": "Smith",
-                    "n_results": 5,
-                },
-            )
-
-            # Should work without error
-            assert "error" not in result.data
-            assert "items" in result.data
-            assert "total_results" in result.data
-
-    async def test_legacy_author_search_result_format(self, mcp_server):
-        """Verify legacy author search returns proper format."""
-        async with Client(mcp_server) as client:
-            result = await client.call_tool(
-                "search_zotero_by_author",
-                {
-                    "author_name": "Smith",
-                    "n_results": 10,
-                },
-            )
-
-            # Should work
-            assert "error" not in result.data
-            assert "items" in result.data
-            assert "total_results" in result.data
-
-            # If we got results, verify format
-            if result.data["total_results"] > 0:
-                first_item = result.data["items"][0]
-                assert "citation" in first_item
-                assert "zotero_key" in first_item
-
-
 class TestDOISearch:
     """Test search_by_doi for exact DOI lookup."""
 
@@ -425,38 +383,34 @@ class TestToolAvailability:
     """Test that all new tools are registered and available."""
 
     async def test_all_enhanced_tools_available(self, mcp_server):
-        """Verify all new enhanced search tools are registered."""
+        """Verify all enhanced search tools are registered."""
         async with Client(mcp_server) as client:
             tools = await client.list_tools()
             tool_names = {tool.name for tool in tools}
 
-            expected_new_tools = {
-                "search",
-                "search_zotero_by_author",
-                "search_by_doi",
-                "search_by_citation_key",
+            expected_tools = {
+                "search",  # Main search tool with all features
+                "search_by_doi",  # Exact DOI lookup
+                "search_by_citation_key",  # Citation key lookup
             }
 
-            missing_tools = expected_new_tools - tool_names
+            missing_tools = expected_tools - tool_names
             assert len(missing_tools) == 0, f"Missing tools: {missing_tools}"
 
-    async def test_enhanced_tools_have_descriptions(self, mcp_server):
-        """Verify new tools have proper descriptions."""
+    async def test_search_tool_has_enhanced_description(self, mcp_server):
+        """Verify search tool has description mentioning enhanced features."""
         async with Client(mcp_server) as client:
             tools = await client.list_tools()
             tool_dict = {tool.name: tool for tool in tools}
 
-            # Check that new tools have descriptions
-            for tool_name in ["search", "search_zotero_by_author"]:
-                if tool_name in tool_dict:
-                    tool = tool_dict[tool_name]
-                    assert hasattr(tool, "description")
-                    assert len(tool.description) > 0
-                    # Description should mention key features
-                    if tool_name == "search":
-                        assert "fuzzy" in tool.description.lower() or "hybrid" in tool.description.lower()
-                    elif tool_name == "search_zotero_by_author":
-                        assert "fuzzy" in tool.description.lower()
+            # Check that search tool has description mentioning enhanced features
+            assert "search" in tool_dict
+            search_tool = tool_dict["search"]
+            assert hasattr(search_tool, "description")
+            assert len(search_tool.description) > 0
+            # Should mention hybrid or fuzzy or modes
+            description_lower = search_tool.description.lower()
+            assert "hybrid" in description_lower or "fuzzy" in description_lower or "mode" in description_lower
 
 
 class TestIntegrationScenarios:

@@ -11,70 +11,43 @@ The search system has been significantly enhanced with:
 - **Improved author search** with fuzzy name matching and no item limits
 - **Exact match tools** for DOI and citation key lookups
 
-## New MCP Tools
+## Enhanced MCP Tool
 
-### 1. `advanced_search` - Most Powerful Search Tool
+### `search` - The Unified Search Tool
 
-The primary search tool that combines all capabilities with flexible modes and filters.
+The main search tool has been enhanced with all advanced capabilities including flexible modes and filters.
 
 **Parameters:**
 - `query` (str): Main search query
-- `n_results` (int): Number of results (default: 20, max: 100)
-- `search_mode` (str): Search strategy - "hybrid" (recommended), "semantic", or "metadata"
+- `n_results` (int): Number of results (default: 10, max: 100)
+- `search_mode` (str): Search strategy - "hybrid" (default), "semantic", or "metadata"
+- `filter_type` (str, optional): Filter by item type (e.g., 'journalArticle', 'book')
 - `author` (str, optional): Filter by author name (fuzzy matching)
 - `title` (str, optional): Search by title (fuzzy matching)
 - `date_from` (int, optional): Earliest publication year
 - `date_to` (int, optional): Latest publication year
-- `item_type` (str, optional): Filter by type (e.g., 'journalArticle', 'book')
 - `fuzzy_threshold` (int): Minimum fuzzy match score 0-100 (default: 60)
 - `semantic_weight` (float): Weight for semantic vs fuzzy in hybrid mode (default: 0.6)
 
 **Examples:**
 ```python
-# Hybrid search with date filter
-advanced_search("machine learning ethics", date_from=2020, search_mode="hybrid")
+# Hybrid search (default)
+search("machine learning ethics")
 
-# Search by author with fuzzy matching
-advanced_search("privacy", author="Smith", date_from=2020)
+# Search with author filter and date range
+search("privacy", author="Smith", date_from=2020)
 
 # Pure metadata search for title
-advanced_search("", title="Artificial Intelligence", search_mode="metadata")
+search("Artificial Intelligence", search_mode="metadata")
+
+# Semantic-only search
+search("AI governance", search_mode="semantic")
 
 # Adjust scoring weights in hybrid mode
-advanced_search("AI governance", semantic_weight=0.7)  # Favor semantic over fuzzy
+search("research", semantic_weight=0.7)  # Favor semantic over fuzzy
 ```
 
-### 2. `search_by_fuzzy_author` - Improved Author Search
-
-Enhanced author search with fuzzy matching to handle name variations and typos.
-
-**Improvements over old `search_zotero_by_author`:**
-- Fuzzy matching handles typos ("Suzor" matches "Suzor, Nicolas")
-- No 1000-item limit
-- Relevance ranking by match quality
-- Optional date and type filtering
-
-**Parameters:**
-- `author_name` (str): Author name (can be partial)
-- `n_results` (int): Number of results (default: 20)
-- `fuzzy_threshold` (int): Minimum match score 0-100 (default: 70)
-- `date_from` (int, optional): Earliest publication year
-- `date_to` (int, optional): Latest publication year
-- `item_type` (str, optional): Filter by type
-
-**Examples:**
-```python
-# Find all papers by Suzor
-search_by_fuzzy_author("Suzor")
-
-# Find recent papers by John Smith
-search_by_fuzzy_author("John Smith", date_from=2020)
-
-# Find journal articles only
-search_by_fuzzy_author("Doe", item_type="journalArticle")
-```
-
-### 3. `search_by_doi` - DOI Lookup
+### `search_by_doi` - DOI Lookup
 
 Exact match search for papers by DOI.
 
@@ -87,7 +60,7 @@ search_by_doi("10.1038/nature12373")
 search_by_doi("https://doi.org/10.1038/nature12373")  # URL format works too
 ```
 
-### 4. `search_by_citation_key` - Citation Key Lookup
+### `search_by_citation_key` - Citation Key Lookup
 
 Exact match search for papers by BetterBibTeX citation key.
 
@@ -112,7 +85,7 @@ Uses vector embeddings to find conceptually similar papers regardless of exact w
 
 **Example:**
 ```python
-advanced_search("protecting user data online", search_mode="semantic")
+search("protecting user data online", search_mode="semantic")
 # Finds papers about privacy, data protection, security, etc.
 ```
 
@@ -127,7 +100,7 @@ Uses fuzzy string matching on metadata fields (title, author, abstract, etc.).
 
 **Example:**
 ```python
-advanced_search("Machine Learning", search_mode="metadata", fuzzy_threshold=80)
+search("Machine Learning", search_mode="metadata", fuzzy_threshold=80)
 # Finds papers with "Machine Learning" in title/abstract
 ```
 
@@ -142,7 +115,7 @@ Combines both semantic and fuzzy matching with weighted scoring.
 
 **Example:**
 ```python
-advanced_search("AI ethics", search_mode="hybrid", semantic_weight=0.6)
+search("AI ethics", search_mode="hybrid", semantic_weight=0.6)
 # Finds papers conceptually about AI ethics AND containing related keywords
 ```
 
@@ -189,13 +162,13 @@ Date filtering works across all search modes:
 **Examples:**
 ```python
 # Papers from 2020 onwards
-advanced_search("AI governance", date_from=2020)
+search("AI governance", date_from=2020)
 
 # Papers in specific range
-advanced_search("privacy law", date_from=2018, date_to=2023)
+search("privacy law", date_from=2018, date_to=2023)
 
 # Recent papers only
-advanced_search("machine learning", date_from=2023)
+search("machine learning", date_from=2023)
 ```
 
 ## Output Format Enhancements
@@ -219,36 +192,43 @@ Search results now include additional scoring information:
 
 ## Migration Guide
 
-### From `search_zotero_by_author`
+### Searching by Author
 
-Old code:
+Old approach (no longer available):
 ```python
 search_zotero_by_author("Smith")
 ```
 
-New recommended approach:
+New unified approach:
 ```python
-search_by_fuzzy_author("Smith", fuzzy_threshold=70)
+# Use search with author filter
+search("research", author="Smith")
+
+# Or search purely by author in metadata mode
+search("", author="Smith", search_mode="metadata")
+
+# With additional filters
+search("privacy", author="Smith", date_from=2020, filter_type="journalArticle")
 ```
 
-The old `search_zotero_by_author` still works but now uses fuzzy matching internally for better results.
+### Basic Search (No Changes Needed)
 
-### From basic `search`
-
-Old code:
+Existing search calls work as before, now with hybrid mode by default:
 ```python
+# This still works exactly as before
 search("machine learning ethics", n_results=10, filter_type="journalArticle")
 ```
 
-Enhanced version with more control:
+New capabilities available:
 ```python
-advanced_search(
-    "machine learning ethics",
-    n_results=10,
-    item_type="journalArticle",
-    search_mode="hybrid",
-    date_from=2020
-)
+# Adjust search mode
+search("AI ethics", search_mode="semantic")  # Pure semantic
+
+# Add date filtering
+search("privacy", date_from=2020, date_to=2024)
+
+# Combine author + date + type filtering
+search("research", author="Smith", date_from=2020, filter_type="journalArticle")
 ```
 
 ## Technical Implementation
@@ -265,7 +245,7 @@ advanced_search(
    - `fuzzy_metadata_search()`: Pure metadata search
    - `fuzzy_author_search()`: Enhanced author search
    - `hybrid_search()`: Combined semantic + fuzzy
-   - `advanced_search()`: Unified search with all options
+   - `advanced_search()`: Core search function with all modes (used internally by `search` MCP tool)
 
 ### Dependencies
 
@@ -318,7 +298,7 @@ Potential improvements:
 
 ```python
 # Recent AI ethics papers
-advanced_search(
+search(
     "artificial intelligence ethics",
     search_mode="hybrid",
     date_from=2020,
@@ -331,7 +311,7 @@ advanced_search(
 
 ```python
 # All papers by anyone named "Smith" from last 5 years
-search_by_fuzzy_author(
+search(
     "Smith",
     date_from=2019,
     n_results=50
@@ -342,7 +322,7 @@ search_by_fuzzy_author(
 
 ```python
 # Papers with "privacy" and "surveillance" in title
-advanced_search(
+search(
     "privacy surveillance",
     search_mode="metadata",
     fuzzy_threshold=70,
@@ -354,7 +334,7 @@ advanced_search(
 
 ```python
 # Recent journal articles by specific author on specific topic
-advanced_search(
+search(
     "platform regulation",
     author="Suzor",
     date_from=2020,
