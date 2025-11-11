@@ -1,13 +1,62 @@
 # MCP Server Configuration
-# Inherits base zotero config including GCP infrastructure needed for embeddings
-# Fast startup is maintained via background ChromaDB initialization in main.py
+# Minimal config for MCP server - no GCP infrastructure required
+# This allows the server to start quickly without BigQuery/GCP credentials
 
 defaults:
-  - zotero # Inherit base configuration including GCP infrastructure
   - db: deploy # Use deploy for Docker, override with db=dev for local
   - _self_
 
-# MCP server specific configuration
-job: mcp_server
 project_name: zotmcp
 verbose: true
+job: mcp_server
+
+# Minimal GCP infrastructure for Vertex AI embeddings only
+# No logging, pubsub, bigquery, or secret_manager to avoid slow blocking initialization
+infrastructure:
+  clouds:
+    - type: gcp
+      project_id: prosocial-443205
+      credentials_secret: dev__shared_credentials
+
+# Session configuration (required by buttermilk)
+session:
+  template_paths: []
+  sessions_dir: "data/sessions"
+  cache_dir: "~/.cache/buttermilk"
+  timeout_minutes: 60
+  cleanup_interval_minutes: 15
+  max_concurrent_sessions: 50
+
+# Minimal GCP infrastructure - only Vertex AI for embeddings
+# No BigQuery, PubSub, or Cloud Logging to keep startup fast
+
+# Storage configuration
+storage:
+  zotero_vectors:
+    type: chromadb
+    collection_name: prosocial_zot
+    read_only: true
+    embedding_model: gemini-embedding-001
+    dimensionality: 3072
+
+# Metadata fields to extract from Zotero items
+zotero_fields:
+  bibliographic:
+    - title
+    - creators
+    - date
+    - publicationTitle
+    - publisher
+    - DOI
+    - url
+    - itemType
+    - abstractNote
+    - pages
+    - volume
+    - issue
+
+  technical:
+    - item_key
+    - document_id
+    - chunk_index
+    - embedding_model

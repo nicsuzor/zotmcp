@@ -41,9 +41,37 @@ from omegaconf import DictConfig  # Hydra's configuration objects  # noqa: E402
 bm = None
 search_tool = None
 conf = None
+_gcp_ready = False
+_gcp_init_task = None
+_gcp_init_error = None
 _chromadb_ready = False
 _chromadb_init_task = None
 _chromadb_init_error = None
+
+
+async def _initialize_gcp_background():
+    """Initialize GCP (Vertex AI) in the background without blocking server startup.
+
+    This function runs asynchronously and sets _gcp_ready when complete.
+    If initialization fails, the error is stored in _gcp_init_error.
+    """
+    global _gcp_ready, _gcp_init_error, bm
+
+    # Force immediate yield to event loop so server becomes responsive
+    await asyncio.sleep(0)
+
+    try:
+        logger.info("🔄 Starting GCP initialization in background")
+        # Load MCP config - minimal config with only Vertex AI
+        # This allows fast startup without BigQuery/PubSub/Logging
+        # Use absolute path from project root
+        conf_dir = str(Path(__file__).parent.parent / "conf")
+        bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=[])
+        _gcp_ready = True
+        logger.info("✅ GCP initialization complete - Vertex AI is ready")
+    except Exception as e:
+        _gcp_init_error = str(e)
+        logger.error(f"❌ GCP initialization failed: {e}")
 
 
 async def _initialize_chromadb_background():
@@ -52,10 +80,20 @@ async def _initialize_chromadb_background():
     This function runs asynchronously and sets _chromadb_ready when complete.
     If initialization fails, the error is stored in _chromadb_init_error.
     """
-    global _chromadb_ready, _chromadb_init_error, search_tool
+    global _chromadb_ready, _chromadb_init_error, search_tool, _gcp_ready
 
     # Force immediate yield to event loop so server becomes responsive
     await asyncio.sleep(0)
+
+    # Wait for GCP to be ready (ChromaDB needs Vertex AI for embeddings)
+    while not _gcp_ready:
+        if _gcp_init_error:
+            logger.error(
+                f"❌ Cannot initialize ChromaDB: GCP init failed with {_gcp_init_error}"
+            )
+            _chromadb_init_error = f"GCP initialization failed: {_gcp_init_error}"
+            return
+        await asyncio.sleep(0.1)
 
     try:
         logger.info("🔄 Starting ChromaDB initialization in background")
@@ -70,27 +108,22 @@ async def _initialize_chromadb_background():
 
 @asynccontextmanager
 async def lifespan_manager(server: FastMCP):
-    """Initialize buttermilk with zotero config on startup.
+    """Initialize GCP and ChromaDB in background on startup.
 
-    This starts ChromaDB initialization in the background immediately,
-    allowing the MCP server to become responsive without waiting for
-    ChromaDB to be ready.
+    This starts both GCP and ChromaDB initialization as background tasks,
+    allowing the MCP server to become responsive immediately without waiting.
+    GCP initializes first (for Vertex AI), then ChromaDB waits for GCP to be ready.
     """
-    global bm, search_tool, conf, _chromadb_init_task
+    global bm, search_tool, conf, _gcp_init_task, _chromadb_init_task
 
-    # Initialize buttermilk config (needed by tools)
-    if bm is None:
-        if conf is None:
-            # Load MCP config - minimal config without GCP infrastructure
-            # This allows fast startup without BigQuery/GCP credentials
-            # Use absolute path from project root
-            conf_dir = str(Path(__file__).parent.parent / "conf")
-            bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=[])
-        else:
-            bm = await init_async(job="zotmcp_cli", config=conf)
+    # Start GCP initialization in background - don't await it!
+    # This allows the server to become responsive immediately while GCP initializes
+    if bm is None and (_gcp_init_task is None or _gcp_init_task.done()):
+        logger.info("🚀 Starting background GCP initialization")
+        _gcp_init_task = asyncio.create_task(_initialize_gcp_background())
 
     # Start ChromaDB initialization in background - don't await it!
-    # This allows the server to become responsive immediately while ChromaDB initializes
+    # ChromaDB will wait for GCP to be ready before initializing
     if _chromadb_init_task is None or _chromadb_init_task.done():
         logger.info("🚀 Starting background ChromaDB initialization")
         _chromadb_init_task = asyncio.create_task(_initialize_chromadb_background())
@@ -99,7 +132,14 @@ async def lifespan_manager(server: FastMCP):
     yield
     logger.info("🛑 Lifespan shutdown initiated")
 
-    # Clean up ChromaDB background task if it was started
+    # Clean up background tasks if they were started
+    if _gcp_init_task and not _gcp_init_task.done():
+        _gcp_init_task.cancel()
+        try:
+            await _gcp_init_task
+        except asyncio.CancelledError:
+            pass  # Expected when we cancel the task
+
     if _chromadb_init_task and not _chromadb_init_task.done():
         _chromadb_init_task.cancel()
         try:
