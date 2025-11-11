@@ -1,6 +1,13 @@
-# MCP Server Configuration
-# Minimal config for MCP server - no GCP infrastructure required
-# This allows the server to start quickly without BigQuery/GCP credentials
+# ⚠️ WARNING: This is a MINIMAL MCP server configuration
+# DO NOT inherit from zotero.yaml - that adds BigQuery/PubSub/Cloud Logging
+# which causes 30-60s blocking init (MCP clients timeout at 30s)
+#
+# This config includes ONLY:
+# - Minimal GCP (Vertex AI for embeddings)
+# - ChromaDB storage (async background init)
+# - Session management
+#
+# See commit f37e667 for details on async initialization pattern
 
 defaults:
   - db: deploy # Use deploy for Docker, override with db=dev for local

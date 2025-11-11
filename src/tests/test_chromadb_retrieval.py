@@ -165,6 +165,6 @@ async def test_search_returns_items_that_exist_in_chromadb(mcp_server_local):
             f"Search returned {item_key}: {num_chunks} chunks found via direct query"
         )
 
-        assert (
-            num_chunks > 0
-        ), f"Search returned item {item_key} but it has no chunks in ChromaDB"
+        assert num_chunks > 0, (
+            f"Search returned item {item_key} but it has no chunks in ChromaDB"
+        )

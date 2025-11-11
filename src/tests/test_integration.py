@@ -53,9 +53,9 @@ class TestServerStartup:
             "search_by_author",
         }
 
-        assert expected_tools.issubset(
-            tool_names
-        ), f"Missing tools: {expected_tools - tool_names}"
+        assert expected_tools.issubset(tool_names), (
+            f"Missing tools: {expected_tools - tool_names}"
+        )
 
 
 class TestCollectionInfo:
@@ -114,9 +114,9 @@ class TestCollectionInfo:
                 },
             )
             assert "total_chunks" in collection_result.data
-            assert (
-                collection_result.data["total_chunks"] > 0
-            ), "Database has no items - collection is empty. "
+            assert collection_result.data["total_chunks"] > 0, (
+                "Database has no items - collection is empty. "
+            )
             assert "total_results" in search_result.data
             assert search_result.data["total_results"] > 0, (
                 "Database has no items - search returned 0 results. "
@@ -362,9 +362,9 @@ class TestPrompts:
                 "literature_review",
             }
 
-            assert expected_prompts.issubset(
-                prompt_names
-            ), f"Missing prompts: {expected_prompts - prompt_names}"
+            assert expected_prompts.issubset(prompt_names), (
+                f"Missing prompts: {expected_prompts - prompt_names}"
+            )
 
     async def test_literature_review_prompt(self, mcp_server):
         """Verify literature_review prompt returns valid content."""

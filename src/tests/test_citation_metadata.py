@@ -71,9 +71,9 @@ async def test_citation_metadata_present_in_chromadb(mcp_server_local):
         citation_key = metadata.get("citation_key")
         if citation_key is not None:
             assert citation_key != "", f"Chunk {chunk_id} has empty citation_key"
-            assert (
-                len(citation_key) > 0
-            ), f"Chunk {chunk_id} has zero-length citation_key"
+            assert len(citation_key) > 0, (
+                f"Chunk {chunk_id} has zero-length citation_key"
+            )
 
         logger.info(
             f"  ✓ Chunk {idx + 1} has citation: {citation[:100]}... "

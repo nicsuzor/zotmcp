@@ -49,9 +49,9 @@ async def test_docker_server(mcp_server, conf_timeout_call):
         assert buttermilk_version != "not installed", "buttermilk should be installed"
         # Git installs often have version like "0.5.1+g2e70442" where g<commit> is the git hash
         # Just verify it's present and has some version info
-        assert (
-            len(buttermilk_version) > 0
-        ), f"buttermilk version should not be empty: {buttermilk_version}"
+        assert len(buttermilk_version) > 0, (
+            f"buttermilk version should not be empty: {buttermilk_version}"
+        )
 
         # Now test actual functionality
         try:
