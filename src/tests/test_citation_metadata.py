@@ -60,26 +60,20 @@ async def test_citation_metadata_present_in_chromadb(mcp_server_local):
             f"Available fields: {list(metadata.keys())}"
         )
 
-        # Verify 'citation_key' field exists
-        assert "citation_key" in metadata, (
-            f"Chunk {chunk_id} missing 'citation_key' field in metadata. "
-            f"Available fields: {list(metadata.keys())}"
-        )
-
         # Verify citation has non-None, non-empty value
         citation = metadata["citation"]
         assert citation is not None, f"Chunk {chunk_id} has None citation"
         assert citation != "", f"Chunk {chunk_id} has empty citation"
         assert len(citation) > 0, f"Chunk {chunk_id} has zero-length citation"
 
-        # Verify citation_key has non-None value (can be None if BetterBibTeX not used)
+        # Verify citation_key if present (field is optional - may not exist if BetterBibTeX not used)
         # But if present, should be non-empty
-        citation_key = metadata["citation_key"]
+        citation_key = metadata.get("citation_key")
         if citation_key is not None:
             assert citation_key != "", f"Chunk {chunk_id} has empty citation_key"
-            assert len(citation_key) > 0, (
-                f"Chunk {chunk_id} has zero-length citation_key"
-            )
+            assert (
+                len(citation_key) > 0
+            ), f"Chunk {chunk_id} has zero-length citation_key"
 
         logger.info(
             f"  ✓ Chunk {idx + 1} has citation: {citation[:100]}... "
