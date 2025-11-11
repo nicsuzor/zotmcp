@@ -26,6 +26,25 @@ logging.basicConfig(
     force=True,
 )
 
+# CRITICAL: Configure structlog to use stderr instead of stdout
+# MCP uses stdio transport, so stdout must contain ONLY JSON-RPC messages
+import structlog  # noqa: E402
+
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.StackInfoRenderer(),
+        structlog.dev.set_exc_info,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.dev.ConsoleRenderer(),
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
+    cache_logger_on_first_use=False,
+)
+
 from buttermilk import init_async, logger  # noqa: E402
 from buttermilk.tools import ChromaDBSearchTool  # noqa: E402
 from fastmcp import FastMCP  # noqa: E402

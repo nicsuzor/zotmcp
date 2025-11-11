@@ -5,7 +5,11 @@ on ChromaDB initialization, and that tools handle uninitialized state gracefully
 """
 
 import asyncio
+import json
+import select
+import subprocess
 import time
+from pathlib import Path
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -71,14 +75,14 @@ async def test_lifespan_manager_does_not_block_on_chromadb():
 
                 # The background task should have been started
                 # (even though it won't complete for 30s)
-                assert main._chromadb_init_task is not None, (
-                    "Background initialization task should have been created"
-                )
+                assert (
+                    main._chromadb_init_task is not None
+                ), "Background initialization task should have been created"
 
                 # ChromaDB should not yet be ready
-                assert not main._chromadb_ready, (
-                    "ChromaDB should not be ready yet (initialization takes 30s)"
-                )
+                assert (
+                    not main._chromadb_ready
+                ), "ChromaDB should not be ready yet (initialization takes 30s)"
 
 
 async def test_tools_return_error_when_chromadb_not_ready():
@@ -108,21 +112,21 @@ async def test_tools_return_error_when_chromadb_not_ready():
 
         # Verify error message is helpful
         error_msg = error_response["error"].lower()
-        assert "initializing" in error_msg or "not ready" in error_msg, (
-            f"Error message should mention initialization status: {error_response['error']}"
-        )
+        assert (
+            "initializing" in error_msg or "not ready" in error_msg
+        ), f"Error message should mention initialization status: {error_response['error']}"
 
         # Verify response suggests retry
-        assert "try again" in error_msg or "30 seconds" in error_msg, (
-            f"Error message should suggest retrying with timeframe: {error_response['error']}"
-        )
+        assert (
+            "try again" in error_msg or "30 seconds" in error_msg
+        ), f"Error message should suggest retrying with timeframe: {error_response['error']}"
 
         # Verify response structure
         assert "results" in error_response, "Error response should have 'results' field"
         assert error_response["results"] == [], "Results should be empty list"
-        assert "total_results" in error_response, (
-            "Error response should have 'total_results' field"
-        )
+        assert (
+            "total_results" in error_response
+        ), "Error response should have 'total_results' field"
         assert error_response["total_results"] == 0, "Total results should be 0"
 
     finally:
@@ -141,3 +145,137 @@ async def test_tools_work_after_initialization_completes():
     """
     # This test will use the real conftest fixtures
     # Testing if async init is working by running the test
+
+
+def test_stdout_clean_during_startup():
+    """Test that MCP server stdout contains only valid JSON-RPC messages during startup.
+
+    The MCP server uses stdio transport and MUST output only valid JSON-RPC messages
+    on stdout. Any progress bars, debug messages, or plain text fragments will break
+    the JSON-RPC protocol.
+
+    This test verifies:
+    1. All stdout lines are valid JSON
+    2. All stdout lines contain "jsonrpc": "2.0"
+    3. No progress bar fragments (like 'h\\n', 'd\\n') appear on stdout
+
+    Expected to FAIL initially because tokenizers library pollutes stdout with
+    progress bar fragments during model download/initialization.
+    """
+    # Find the main.py file to run
+    project_root = Path(__file__).parent.parent.parent
+    main_py = project_root / "src" / "main.py"
+
+    if not main_py.exists():
+        raise FileNotFoundError(f"Cannot find main.py at {main_py}")
+
+    # Start MCP server in stdio mode with subprocess
+    # Use 'uv run' as specified in project instructions
+    # Set bufsize=1 for line buffering and universal_newlines=True for text mode
+    process = subprocess.Popen(
+        ["uv", "run", "python", str(main_py)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        cwd=str(project_root),
+    )
+
+    invalid_lines = []
+    non_jsonrpc_lines = []
+    valid_messages = 0
+    all_stdout_lines = []
+
+    try:
+        # Send initialize request to get the server to respond
+        # This is a minimal valid JSON-RPC initialize request
+        init_request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "test-client", "version": "1.0"},
+            },
+        }
+        process.stdin.write(json.dumps(init_request) + "\n")
+        process.stdin.flush()
+
+        # Collect stdout for 10 seconds to capture startup period
+        start_time = time.time()
+        while time.time() - start_time < 10:
+            # Use select to avoid blocking if no data is available
+            # For Windows compatibility, just use a short timeout on readline
+            line = ""
+            try:
+                # This will block, but we'll terminate the process after 10 seconds
+                if process.poll() is not None:
+                    break
+
+                # Check if data is available (Unix-like systems only)
+                if hasattr(select, "select"):
+                    ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                    if not ready:
+                        continue
+                    line = process.stdout.readline()
+                else:
+                    # Windows fallback: just try to read
+                    line = process.stdout.readline()
+
+            except Exception:
+                # If we can't read, just continue
+                continue
+
+            if not line:
+                continue
+
+            line = line.strip()
+            if not line:
+                continue
+
+            all_stdout_lines.append(line)
+
+            # Try to parse as JSON
+            try:
+                data = json.loads(line)
+                valid_messages += 1
+
+                # Verify it's a JSON-RPC message
+                if "jsonrpc" not in data or data.get("jsonrpc") != "2.0":
+                    non_jsonrpc_lines.append(line)
+
+            except json.JSONDecodeError as e:
+                # This is the expected failure - progress bar fragments
+                invalid_lines.append((line, str(e)))
+
+    finally:
+        # Clean up process
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+    # Assertions that should pass
+    assert (
+        valid_messages > 0 or invalid_lines
+    ), f"Should have captured some output from server. Got {len(all_stdout_lines)} lines: {all_stdout_lines[:10]}"
+
+    # Assertion that should FAIL due to progress bar pollution
+    assert not invalid_lines, (
+        f"Found {len(invalid_lines)} non-JSON lines on stdout. "
+        f"MCP server stdout must contain ONLY valid JSON-RPC messages.\n"
+        f"Invalid lines:\n"
+        + "\n".join(
+            f"  - {line!r} (error: {error})" for line, error in invalid_lines[:5]
+        )
+    )
+
+    # Additional check for JSON-RPC format
+    assert not non_jsonrpc_lines, (
+        f"Found {len(non_jsonrpc_lines)} JSON lines without 'jsonrpc': '2.0'.\n"
+        f"Examples:\n" + "\n".join(f"  - {line}" for line in non_jsonrpc_lines[:5])
+    )
