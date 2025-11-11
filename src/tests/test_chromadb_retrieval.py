@@ -143,15 +143,16 @@ async def test_search_returns_items_that_exist_in_chromadb(mcp_server_local):
     collection = search_tool.collection
 
     # Do a simple search
-    search_results = search_tool.search(query="suzor", n_results=5)
+    search_results = await search_tool.search(query="suzor", n_results=5)
 
     assert len(search_results) > 0, "Search returned no results"
 
     # For each result, verify we can retrieve it directly
     for result in search_results:
-        item_key = result.get("zotero_key")
+        meta = result.metadata
+        item_key = meta.get("item_key") or meta.get("document_id")
         if not item_key:
-            logger.warning(f"Search result missing zotero_key: {result}")
+            logger.warning(f"Search result missing item_key or document_id: {result}")
             continue
 
         # Try to retrieve this item directly using document_id
@@ -164,6 +165,6 @@ async def test_search_returns_items_that_exist_in_chromadb(mcp_server_local):
             f"Search returned {item_key}: {num_chunks} chunks found via direct query"
         )
 
-        assert num_chunks > 0, (
-            f"Search returned item {item_key} but it has no chunks in ChromaDB"
-        )
+        assert (
+            num_chunks > 0
+        ), f"Search returned item {item_key} but it has no chunks in ChromaDB"
