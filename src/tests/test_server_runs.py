@@ -28,38 +28,42 @@ def conf_loglevel() -> str:
 
 # Test that our complete docker image runs and is accessible
 async def test_docker_server(mcp_server, conf_timeout_call):
+    """Verify Docker container runs and exposes functional MCP server.
+
+    Tests that the complete docker image starts successfully and provides
+    working MCP tools including version info and collection queries.
+    """
     # Use the session-scoped docker client (container already started)
-    client = Client(mcp_server)
+    async with Client(mcp_server) as client:
+        # Check version info first
+        try:
+            with anyio.fail_after(conf_timeout_call):
+                version_result = await client.call_tool("get_version_info")
+        except TimeoutError:
+            pytest.fail(
+                f"Timed out waiting for get_version_info tool after {conf_timeout_call}s. "
+            )
 
-    # Check version info first
-    try:
-        with anyio.fail_after(conf_timeout_call):
-            version_result = await client.call_tool("get_version_info")
-    except TimeoutError:
-        pytest.fail(
-            f"Timed out waiting for get_version_info tool after {conf_timeout_call}s. "
-        )
+        # Check buttermilk version (should be from git)
+        buttermilk_version = version_result.data["buttermilk"]
+        assert buttermilk_version != "not installed", "buttermilk should be installed"
+        # Git installs often have version like "0.5.1+g2e70442" where g<commit> is the git hash
+        # Just verify it's present and has some version info
+        assert (
+            len(buttermilk_version) > 0
+        ), f"buttermilk version should not be empty: {buttermilk_version}"
 
-    # Check buttermilk version (should be from git)
-    buttermilk_version = version_result.data.get("buttermilk", "")
-    assert buttermilk_version != "not installed", "buttermilk should be installed"
-    # Git installs often have version like "0.5.1+g2e70442" where g<commit> is the git hash
-    # Just verify it's present and has some version info
-    assert len(buttermilk_version) > 0, (
-        f"buttermilk version should not be empty: {buttermilk_version}"
-    )
+        # Now test actual functionality
+        try:
+            with anyio.fail_after(conf_timeout_call):
+                result = await client.call_tool("get_collection_info")
+        except TimeoutError:
+            pytest.fail(
+                f"Timed out waiting for get_collection_info tool after {conf_timeout_call}s. "
+            )
 
-    # Now test actual functionality
-    try:
-        with anyio.fail_after(conf_timeout_call):
-            result = await client.call_tool("get_collection_info")
-    except TimeoutError:
-        pytest.fail(
-            f"Timed out waiting for get_collection_info tool after {conf_timeout_call}s. "
-        )
-
-    assert "collection_name" in result.data
-    assert result.data["total_chunks"] > 0
+        assert "collection_name" in result.data
+        assert result.data["total_chunks"] > 0
 
 
 async def test_handshake_completes_within_20_seconds(mcp_server):
