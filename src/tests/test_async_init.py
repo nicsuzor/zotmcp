@@ -147,6 +147,173 @@ async def test_tools_work_after_initialization_completes():
     # Testing if async init is working by running the test
 
 
+async def test_tools_available_within_10_seconds():
+    """Test that ChromaDB tools become available within 10 seconds of server startup.
+
+    This test verifies that the async initialization optimization makes tools
+    available quickly (within 10 seconds), not after 30+ seconds of ChromaDB init.
+
+    The test:
+    1. Starts a fresh MCP server via subprocess (cold start)
+    2. Polls get_collection_info tool every 0.5 seconds via stdio transport
+    3. Asserts tool works within 10 seconds
+    4. Should FAIL initially because current implementation takes 30+ seconds
+
+    Why get_collection_info: This tool requires ChromaDB to be fully initialized
+    and ready, making it a good indicator of when the system is usable.
+    """
+    # Find the main.py file to run
+    project_root = Path(__file__).parent.parent.parent
+    main_py = project_root / "src" / "main.py"
+
+    if not main_py.exists():
+        raise FileNotFoundError(f"Cannot find main.py at {main_py}")
+
+    # Start MCP server in stdio mode with subprocess
+    process = subprocess.Popen(
+        ["uv", "run", "python", str(main_py)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        cwd=str(project_root),
+    )
+
+    request_id = 1
+    start_time = time.time()
+    max_wait = 10.0
+    poll_interval = 0.5
+    last_error = None
+    attempt = 0
+
+    try:
+        # First, send initialize request to establish session
+        init_request = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "test-client", "version": "1.0"},
+            },
+        }
+        process.stdin.write(json.dumps(init_request) + "\n")
+        process.stdin.flush()
+        request_id += 1
+
+        # Wait for initialize response (should be quick)
+        init_timeout = 5.0
+        init_start = time.time()
+        init_response = None
+        while time.time() - init_start < init_timeout:
+            if process.poll() is not None:
+                pytest.fail("Server process died during initialization")
+
+            line = process.stdout.readline().strip()
+            if not line:
+                await asyncio.sleep(0.1)
+                continue
+
+            try:
+                data = json.loads(line)
+                if data.get("id") == 1:  # Our initialize request
+                    init_response = data
+                    break
+            except json.JSONDecodeError:
+                continue
+
+        if not init_response:
+            pytest.fail("Failed to get initialize response from server")
+
+        # Now poll get_collection_info tool until it works or timeout
+        while time.time() - start_time < max_wait:
+            attempt += 1
+            elapsed = time.time() - start_time
+
+            # Send tool call request
+            tool_request = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "tools/call",
+                "params": {"name": "get_collection_info", "arguments": {}},
+            }
+            process.stdin.write(json.dumps(tool_request) + "\n")
+            process.stdin.flush()
+            current_request_id = request_id
+            request_id += 1
+
+            # Wait for response (with timeout)
+            response_timeout = 2.0
+            response_start = time.time()
+            tool_response = None
+
+            while time.time() - response_start < response_timeout:
+                if process.poll() is not None:
+                    pytest.fail(
+                        f"Server process died during tool call at {elapsed:.1f}s"
+                    )
+
+                line = process.stdout.readline().strip()
+                if not line:
+                    await asyncio.sleep(0.05)
+                    continue
+
+                try:
+                    data = json.loads(line)
+                    if data.get("id") == current_request_id:
+                        tool_response = data
+                        break
+                except json.JSONDecodeError:
+                    continue
+
+            if not tool_response:
+                last_error = f"No response after {response_timeout}s"
+                await asyncio.sleep(poll_interval)
+                continue
+
+            # Check if we got an error
+            if "error" in tool_response:
+                last_error = tool_response["error"].get(
+                    "message", str(tool_response["error"])
+                )
+                await asyncio.sleep(poll_interval)
+                continue
+
+            # Check if result indicates ChromaDB not ready
+            result = tool_response.get("result", {})
+            if isinstance(result, dict) and "error" in result:
+                last_error = result["error"]
+                await asyncio.sleep(poll_interval)
+                continue
+
+            # Success! Tool is ready and returned real data
+
+            # Assert it was within our 10 second target
+            assert (
+                elapsed < max_wait
+            ), f"Tool worked but took {elapsed:.1f}s (should be < {max_wait}s)"
+            return
+
+        # If we got here, we timed out
+        elapsed = time.time() - start_time
+        pytest.fail(
+            f"get_collection_info tool did not become available within {max_wait}s. "
+            f"Waited {elapsed:.1f}s. Last error: {last_error}\n"
+            f"This indicates ChromaDB initialization is still blocking or taking too long."
+        )
+
+    finally:
+        # Clean up process
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+
 def test_stdout_clean_during_startup():
     """Test that MCP server stdout contains only valid JSON-RPC messages during startup.
 
