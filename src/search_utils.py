@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+from buttermilk.utils.text_quality import detect_text_corruption
 from rapidfuzz import fuzz
 
 
@@ -382,3 +383,44 @@ def deduplicate_results(results: list[SearchResult]) -> list[SearchResult]:
             deduplicated.append(result)
 
     return deduplicated
+
+
+def filter_corrupted_results(results: list[SearchResult]) -> list[SearchResult]:
+    """Filter out search results with heavy CID corruption patterns.
+
+    Uses buttermilk's detect_text_corruption() to identify results with >=20
+    CID patterns (e.g., (cid:123)), which indicate poorly OCR'd PDFs that are
+    not usable for research purposes.
+
+    Args:
+        results: List of SearchResult objects to filter
+
+    Returns:
+        Filtered list containing only results without heavy corruption.
+        Results with None documents are kept (cannot detect corruption without text).
+        Empty input returns empty list.
+
+    Notes:
+        - Threshold is 20 CID patterns to ignore minor header artifacts
+        - Results with document=None are kept since corruption cannot be detected
+        - Follows fail-fast philosophy with explicit None checks
+    """
+    if not results:
+        return []
+
+    filtered = []
+    for result in results:
+        # Keep results with no document text (can't detect corruption)
+        if result.document is None:
+            filtered.append(result)
+            continue
+
+        # Check for corruption using buttermilk's detection
+        corruption_analysis = detect_text_corruption(result.document)
+        cid_count = corruption_analysis["cid_count"]
+
+        # Filter out results with heavy corruption (>=20 CID patterns)
+        if cid_count < 20:
+            filtered.append(result)
+
+    return filtered
