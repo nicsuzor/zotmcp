@@ -13,6 +13,7 @@ from search_utils import (
     combine_scores,
     deduplicate_results,
     filter_by_date_range,
+    filter_corrupted_results,
     fuzzy_match_author,
     fuzzy_match_metadata,
     rank_results,
@@ -243,8 +244,9 @@ async def hybrid_search(
     # Deduplicate and rank by combined score
     deduplicated = deduplicate_results(hybrid_results)
     ranked = rank_results(deduplicated, sort_by="combined")
+    filtered = filter_corrupted_results(ranked)
 
-    return ranked[:n_results]
+    return filtered[:n_results]
 
 
 async def search_by_doi_async(collection, doi: str) -> Optional[dict]:
