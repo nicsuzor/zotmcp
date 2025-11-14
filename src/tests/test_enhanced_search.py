@@ -699,3 +699,97 @@ class TestCorruptionFiltering:
             "This test FAILS because advanced_search() semantic mode does not yet "
             "call filter_corrupted_results()"
         )
+
+    async def test_exclude_corrupted_parameter_controls_filtering(self):
+        """Test exclude_corrupted parameter controls whether filtering happens.
+
+        The advanced_search() function should accept an exclude_corrupted parameter
+        that controls whether corruption filtering is applied:
+        - exclude_corrupted=True (default): corrupted results filtered out
+        - exclude_corrupted=False: corrupted results included in output
+
+        Arrange:
+            Mock semantic_search to return:
+            - 1 clean result with no CID patterns
+            - 1 result with heavy CID corruption (25 patterns)
+
+        Act:
+            1. Call advanced_search() with exclude_corrupted=True
+            2. Call advanced_search() with exclude_corrupted=False
+
+        Assert:
+            - With exclude_corrupted=True: corrupted result NOT in results
+            - With exclude_corrupted=False: corrupted result IS in results
+
+        This test FAILS because exclude_corrupted parameter doesn't exist yet.
+        Expected error: TypeError: advanced_search() got an unexpected keyword
+        argument 'exclude_corrupted'
+        """
+        from enhanced_search import advanced_search
+
+        # Arrange: Create mock ChromaDB search tool
+        mock_search_tool = AsyncMock()
+        mock_collection = MagicMock()
+
+        # Create clean result
+        clean_result = MagicMock()
+        clean_result.metadata = {
+            "item_key": "CLEAN_ITEM",
+            "title": "Clean Document",
+        }
+        clean_result.content = "This is clean text with no corruption patterns."
+        clean_result.score = 0.95
+
+        # Create heavy corruption result (25 CID patterns, above threshold)
+        heavy_cid_patterns = " ".join(f"(cid:{i})" for i in range(25))
+        heavy_corruption_result = MagicMock()
+        heavy_corruption_result.metadata = {
+            "item_key": "CORRUPT_ITEM",
+            "title": "Corrupted OCR Document",
+        }
+        heavy_corruption_result.content = (
+            f"Heavily corrupted with {heavy_cid_patterns} patterns."
+        )
+        heavy_corruption_result.score = 0.92
+
+        # Mock search_tool.search() to return both results
+        mock_search_tool.search.return_value = [
+            clean_result,
+            heavy_corruption_result,
+        ]
+
+        # Act & Assert 1: Test with exclude_corrupted=True (default behavior)
+        results_filtered = await advanced_search(
+            search_tool=mock_search_tool,
+            collection=mock_collection,
+            query="test query",
+            n_results=10,
+            search_mode="semantic",
+            exclude_corrupted=True,  # This parameter doesn't exist yet - will raise TypeError
+        )
+
+        result_keys_filtered = {r.item_key for r in results_filtered}
+
+        # With exclude_corrupted=True, corrupted result should be filtered
+        assert "CLEAN_ITEM" in result_keys_filtered
+        assert "CORRUPT_ITEM" not in result_keys_filtered, (
+            "With exclude_corrupted=True, corrupted results should be filtered out"
+        )
+
+        # Act & Assert 2: Test with exclude_corrupted=False (include corrupted)
+        results_unfiltered = await advanced_search(
+            search_tool=mock_search_tool,
+            collection=mock_collection,
+            query="test query",
+            n_results=10,
+            search_mode="semantic",
+            exclude_corrupted=False,  # This parameter doesn't exist yet - will raise TypeError
+        )
+
+        result_keys_unfiltered = {r.item_key for r in results_unfiltered}
+
+        # With exclude_corrupted=False, corrupted result should be included
+        assert "CLEAN_ITEM" in result_keys_unfiltered
+        assert "CORRUPT_ITEM" in result_keys_unfiltered, (
+            "With exclude_corrupted=False, corrupted results should be included in output"
+        )

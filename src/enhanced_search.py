@@ -180,6 +180,7 @@ async def hybrid_search(
     date_from: Optional[int] = None,
     date_to: Optional[int] = None,
     item_type: Optional[str] = None,
+    exclude_corrupted: bool = True,
 ) -> list[SearchResult]:
     """Hybrid search combining semantic similarity and fuzzy metadata matching.
 
@@ -244,9 +245,12 @@ async def hybrid_search(
     # Deduplicate and rank by combined score
     deduplicated = deduplicate_results(hybrid_results)
     ranked = rank_results(deduplicated, sort_by="combined")
-    filtered = filter_corrupted_results(ranked)
 
-    return filtered[:n_results]
+    if exclude_corrupted:
+        filtered = filter_corrupted_results(ranked)
+        return filtered[:n_results]
+    else:
+        return ranked[:n_results]
 
 
 async def search_by_doi_async(collection, doi: str) -> Optional[dict]:
@@ -291,6 +295,7 @@ async def advanced_search(
     item_type: Optional[str] = None,
     fuzzy_threshold: int = 60,
     semantic_weight: float = 0.6,
+    exclude_corrupted: bool = True,
 ) -> list[SearchResult]:
     """Advanced search with multiple modes and filters.
 
@@ -362,7 +367,10 @@ async def advanced_search(
         # Deduplicate and rank
         results = deduplicate_results(results)
         results = rank_results(results, sort_by="combined")
-        results = filter_corrupted_results(results)
+
+        if exclude_corrupted:
+            results = filter_corrupted_results(results)
+
         return results[:n_results]
 
     elif search_mode == "metadata":
@@ -402,4 +410,5 @@ async def advanced_search(
             date_from,
             date_to,
             item_type,
+            exclude_corrupted,
         )
