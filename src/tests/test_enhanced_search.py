@@ -595,3 +595,107 @@ class TestCorruptionFiltering:
             "Heavy corruption result (>= 20 CID patterns) should be filtered out. "
             "This test FAILS because hybrid_search() does not yet call filter_corrupted_results()"
         )
+
+    async def test_advanced_search_semantic_filters_corrupted(self):
+        """Test advanced_search() in semantic mode filters corrupted chunks.
+
+        The advanced_search() function when called with search_mode="semantic"
+        should use filter_corrupted_results() to remove corrupted chunks,
+        just like hybrid_search() does.
+
+        Arrange:
+            Mock semantic search to return:
+            - 1 clean result with no CID patterns
+            - 1 result with heavy CID corruption (25 patterns)
+            - 1 result with minor corruption (5 patterns, should keep)
+
+        Act:
+            Call advanced_search() with search_mode="semantic"
+
+        Assert:
+            - Clean result is in returned list
+            - Minor corruption result is in returned list
+            - Heavy corruption result is NOT in returned list (filtered out)
+
+        This test FAILS until advanced_search() semantic mode calls
+        filter_corrupted_results().
+        """
+        from enhanced_search import advanced_search
+
+        # Arrange: Create mock ChromaDB search tool
+        mock_search_tool = AsyncMock()
+        mock_collection = MagicMock()
+
+        # Create clean result
+        clean_result = MagicMock()
+        clean_result.metadata = {
+            "item_key": "CLEAN_SEMANTIC_ITEM",
+            "title": "Clean Document",
+        }
+        clean_result.content = "This is clean text with no corruption patterns."
+        clean_result.score = 0.95
+
+        # Create minor corruption result (5 CID patterns, below threshold)
+        minor_cid_patterns = " ".join(f"(cid:{i})" for i in range(5))
+        minor_corruption_result = MagicMock()
+        minor_corruption_result.metadata = {
+            "item_key": "MINOR_CID_SEMANTIC_ITEM",
+            "title": "Document with Header CIDs",
+        }
+        minor_corruption_result.content = (
+            f"Header with {minor_cid_patterns} but clean content."
+        )
+        minor_corruption_result.score = 0.88
+
+        # Create heavy corruption result (25 CID patterns, above threshold)
+        heavy_cid_patterns = " ".join(f"(cid:{i})" for i in range(25))
+        heavy_corruption_result = MagicMock()
+        heavy_corruption_result.metadata = {
+            "item_key": "CORRUPT_SEMANTIC_ITEM",
+            "title": "Corrupted OCR Document",
+        }
+        heavy_corruption_result.content = (
+            f"Heavily corrupted with {heavy_cid_patterns} patterns."
+        )
+        heavy_corruption_result.score = 0.92
+
+        # Mock search_tool.search() to return all three results
+        mock_search_tool.search.return_value = [
+            clean_result,
+            minor_corruption_result,
+            heavy_corruption_result,
+        ]
+
+        # Act: Call advanced_search with search_mode="semantic"
+        results = await advanced_search(
+            search_tool=mock_search_tool,
+            collection=mock_collection,
+            query="test query",
+            n_results=10,
+            search_mode="semantic",
+        )
+
+        # Assert: Verify filtering behavior
+        assert isinstance(results, list), "Should return a list"
+
+        # Extract item keys from results
+        result_keys = {r.item_key for r in results}
+
+        # Verify clean result is present
+        assert "CLEAN_SEMANTIC_ITEM" in result_keys, (
+            "Clean result should be in returned results"
+        )
+
+        # Verify minor corruption result is present
+        assert "MINOR_CID_SEMANTIC_ITEM" in result_keys, (
+            "Minor corruption result (< 20 CID patterns) should be retained"
+        )
+
+        # Verify heavy corruption result is filtered out
+        # THIS ASSERTION WILL FAIL until advanced_search() semantic mode
+        # calls filter_corrupted_results()
+        assert "CORRUPT_SEMANTIC_ITEM" not in result_keys, (
+            "Heavy corruption result (>= 20 CID patterns) should be filtered out. "
+            "This test FAILS because advanced_search() semantic mode does not yet "
+            "call filter_corrupted_results()"
+        )

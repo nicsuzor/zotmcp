@@ -362,6 +362,7 @@ async def advanced_search(
         # Deduplicate and rank
         results = deduplicate_results(results)
         results = rank_results(results, sort_by="combined")
+        results = filter_corrupted_results(results)
         return results[:n_results]
 
     elif search_mode == "metadata":
