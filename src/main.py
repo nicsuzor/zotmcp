@@ -285,6 +285,7 @@ async def search(
     date_to: Optional[int] = None,
     fuzzy_threshold: int = 60,
     semantic_weight: float = 0.6,
+    exclude_corrupted: bool = True,
 ) -> dict:
     """Search the Zotero library with semantic, fuzzy, or hybrid search.
 
@@ -304,6 +305,7 @@ async def search(
         date_to: Latest publication year (e.g., 2024)
         fuzzy_threshold: Minimum fuzzy match score 0-100 (default: 60)
         semantic_weight: Weight for semantic vs fuzzy in hybrid mode (default: 0.6)
+        exclude_corrupted: Filter out results with heavy CID corruption (>=20 patterns) (default: True)
 
     Returns:
         Dictionary with search results including citations, excerpts, and relevance scores
@@ -343,6 +345,7 @@ async def search(
             item_type=filter_type,
             fuzzy_threshold=fuzzy_threshold,
             semantic_weight=semantic_weight,
+            exclude_corrupted=exclude_corrupted,
         )
 
         formatted_results = [_format_search_result(r) for r in results]
