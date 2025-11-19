@@ -7,12 +7,59 @@ This module provides enhanced search capabilities including:
 - Hybrid semantic + metadata search
 """
 
+import json
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from buttermilk.utils.text_quality import detect_text_corruption
 from rapidfuzz import fuzz
+
+
+def get_metadata_field(metadata: dict, field: str) -> Any | None:
+    """Extract field from metadata, handling both flat and nested structures.
+
+    ChromaDB metadata can have two structures:
+    1. Flat: {"title": "...", "creators": "..."}
+    2. Nested: {"title": "...", "zotero_data": "{\"creators\": [...], ...}"}
+
+    This function checks flat structure first (faster, future-proof), then
+    falls back to parsing nested zotero_data JSON if needed.
+
+    Args:
+        metadata: ChromaDB metadata dict
+        field: Field name to extract (e.g., "creators", "itemType", "date")
+
+    Returns:
+        Field value if found, None otherwise
+
+    Examples:
+        >>> meta = {"title": "Test"}
+        >>> get_metadata_field(meta, "title")
+        "Test"
+
+        >>> meta = {"zotero_data": '{"itemType": "book"}'}
+        >>> get_metadata_field(meta, "itemType")
+        "book"
+
+        >>> get_metadata_field({}, "missing")
+        None
+    """
+    # Check flat structure first (fast path, backwards compatible)
+    if field in metadata:
+        return metadata[field]
+
+    # Fall back to nested zotero_data JSON
+    zotero_data_str = metadata.get("zotero_data")
+    if not zotero_data_str:
+        return None
+
+    try:
+        zotero_data = json.loads(zotero_data_str)
+        return zotero_data.get(field)
+    except (json.JSONDecodeError, AttributeError):
+        # Malformed JSON or wrong type - return None gracefully
+        return None
 
 
 @dataclass
@@ -187,13 +234,14 @@ def fuzzy_match_metadata(
     best_field = ""
 
     for field in fields:
-        value = metadata.get(field, "")
+        # Use helper to get field from flat or nested structure
+        value = get_metadata_field(metadata, field)
         if not value:
             continue
 
         # Special handling for creators field
         if field == "creators":
-            is_match, score, _ = fuzzy_match_author(query, value, threshold)
+            is_match, score, _ = fuzzy_match_author(query, str(value), threshold)
         else:
             is_match, score = fuzzy_match_title(query, str(value), threshold)
 
@@ -242,7 +290,8 @@ def filter_by_date_range(
     if date_from is None and date_to is None:
         return True
 
-    date_str = metadata.get("date", "")
+    # Use helper to get date from flat or nested structure
+    date_str = get_metadata_field(metadata, "date") or ""
     year = parse_year_from_date(date_str)
 
     if year is None:

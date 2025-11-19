@@ -16,6 +16,7 @@ from search_utils import (
     filter_corrupted_results,
     fuzzy_match_author,
     fuzzy_match_metadata,
+    get_metadata_field,
     rank_results,
     search_by_citation_key,
     search_by_doi,
@@ -68,7 +69,8 @@ async def fuzzy_metadata_search(
             continue
 
         # Apply filters
-        if item_type and meta.get("itemType") != item_type:
+        # Use helper to get itemType from flat or nested structure
+        if item_type and get_metadata_field(meta, "itemType") != item_type:
             continue
 
         if not filter_by_date_range(meta, date_from, date_to):
@@ -140,16 +142,18 @@ async def fuzzy_author_search(
             continue
 
         # Apply filters
-        if item_type and meta.get("itemType") != item_type:
+        # Use helper to get itemType from flat or nested structure
+        if item_type and get_metadata_field(meta, "itemType") != item_type:
             continue
 
         if not filter_by_date_range(meta, date_from, date_to):
             continue
 
         # Fuzzy match author name
-        creators = meta.get("creators", "")
+        # Use helper to get creators from flat or nested structure
+        creators = get_metadata_field(meta, "creators") or ""
         is_match, score, matched_name = fuzzy_match_author(
-            author_name, creators, fuzzy_threshold
+            author_name, str(creators), fuzzy_threshold
         )
 
         if is_match:
@@ -215,7 +219,8 @@ async def hybrid_search(
         item_key = meta.get("item_key") or meta.get("document_id")
 
         # Apply filters
-        if item_type and meta.get("itemType") != item_type:
+        # Use helper to get itemType from flat or nested structure
+        if item_type and get_metadata_field(meta, "itemType") != item_type:
             continue
 
         if not filter_by_date_range(meta, date_from, date_to):
