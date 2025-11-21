@@ -376,17 +376,50 @@ def get_item(item_key: str) -> dict:
     Returns:
         Dictionary with full item content and metadata
     """
+    from search_utils import get_metadata_field
+
     coll = get_collection()
 
     results = coll.get(
-        where={"item_key": {"$eq": item_key}}, include=["metadatas", "documents"]
+        where={"document_id": {"$eq": item_key}}, include=["metadatas", "documents"]
     )
 
     if not results["documents"]:
         return {"error": f"Item {item_key} not found"}
 
-    # TODO: just return the zotero link using the python zotero library
-    raise NotImplementedError("Integration with Zotero cloud sync is not yet built.")
+    # Get first result's metadata and document
+    metadata = results["metadatas"][0]
+    document = results["documents"][0] if results["documents"] else None
+
+    # Extract citation metadata using existing helper
+    citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
+        extract_citation_metadata(metadata)
+    )
+
+    # Extract additional metadata fields
+    title = get_metadata_field(metadata, "title")
+    item_type = get_metadata_field(metadata, "itemType")
+    abstract = get_metadata_field(metadata, "abstractNote")
+
+    # Build Zotero desktop link
+    zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+
+    # Create full text preview (first 500 chars)
+    full_text_preview = document[:500] if document else None
+
+    return {
+        "citation": citation,
+        "title": title,
+        "item_type": item_type,
+        "doi": doi_or_url,
+        "url": uri,
+        "abstract": abstract,
+        "zotero_link": zotero_link,
+        "zotero_key": zotero_key,
+        "citation_key": citation_key,
+        "zotero_web_link": zotero_web_link,
+        "full_text_preview": full_text_preview,
+    }
 
 
 @mcp.tool()
