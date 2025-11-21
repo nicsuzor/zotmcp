@@ -553,7 +553,7 @@ from citation_search import (  # noqa: E402
     search_papers as _search_papers,
     get_paper_citations as _get_paper_citations,
     get_referenced_works as _get_referenced_works,
-    search_by_author as _search_by_author,
+    search_openalex_author as _search_openalex_author,
     get_paper_details as _get_paper_details,
 )
 
@@ -632,24 +632,31 @@ async def get_referenced_works(paper_id: str, limit: int = 50) -> list:
 
 
 @mcp.tool()
-async def search_by_author(
+async def search_openalex_author(
     author_name: str,
     limit: int = 50,
     year_from: Optional[int] = None,
 ) -> list:
-    """Search for papers by author name.
+    """Search for papers by author using OpenAlex API - discovers NEW papers beyond your Zotero library.
 
-    Uses two-step lookup: finds author, then retrieves their papers.
+    This tool searches the OpenAlex database (240M+ papers) for works by a specific author.
+    It does NOT search your personal Zotero library. To search YOUR library, use the
+    main 'search' tool with the author parameter instead.
+
+    Uses two-step lookup: finds author in OpenAlex, then retrieves their papers.
 
     Args:
-        author_name: Author name to search for
+        author_name: Author name to search for (e.g., "Geoffrey Hinton")
         limit: Maximum number of papers to return (default: 50)
         year_from: Filter papers from this year onwards (optional)
 
     Returns:
-        List of paper dictionaries
+        List of paper dictionaries from OpenAlex with metadata and citations
+
+    Examples:
+        search_openalex_author("Yann LeCun", limit=25, year_from=2020)
     """
-    return await _search_by_author(author_name, limit, year_from)
+    return await _search_openalex_author(author_name, limit, year_from)
 
 
 @mcp.tool()

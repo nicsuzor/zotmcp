@@ -50,7 +50,7 @@ class TestServerStartup:
             "get_item",
             "get_similar_items",
             "get_collection_info",
-            "search_by_author",
+            "search_openalex_author",
         }
 
         assert expected_tools.issubset(tool_names), (
@@ -266,14 +266,14 @@ class TestSimilarItems:
 
 
 class TestAuthorSearch:
-    """Test author search functionality."""
+    """Test OpenAlex author search functionality."""
 
-    async def test_search_by_author(self, mcp_server):
-        """Verify author search works."""
+    async def test_search_openalex_author(self, mcp_server):
+        """Verify OpenAlex author search works."""
         async with Client(mcp_server) as client:
-            # Search for a common author name
+            # Search for a common author name in OpenAlex
             result = await client.call_tool(
-                "search_by_author",
+                "search_openalex_author",
                 {
                     "author_name": "Smith",
                     "limit": 5,

@@ -219,13 +219,13 @@ class TestSearchResults:
 
 
 class TestAuthorSearch:
-    """Show author search results."""
+    """Show OpenAlex author search results."""
 
-    async def test_show_author_search_results(self, mcp_server):
-        """Search by author name - show what it finds."""
+    async def test_show_openalex_author_search_results(self, mcp_server):
+        """Search by author name in OpenAlex - show what it finds."""
         async with Client(mcp_server) as client:
             result = await client.call_tool(
-                "search_by_author",
+                "search_openalex_author",
                 {
                     "author_name": "Suzor",
                     "limit": 10,
@@ -233,7 +233,7 @@ class TestAuthorSearch:
             )
 
             print("\n" + "=" * 80)
-            print("AUTHOR SEARCH: 'Suzor'")
+            print("OPENALEX AUTHOR SEARCH: 'Suzor'")
             print("=" * 80)
 
             papers = result.data if isinstance(result.data, list) else []

@@ -11,7 +11,7 @@ from citation_search import (
     search_papers,
     get_paper_citations,
     get_referenced_works,
-    search_by_author,
+    search_openalex_author,
     get_paper_details,
 )
 
@@ -328,8 +328,8 @@ async def test_get_referenced_works():
 
 @pytest.mark.anyio
 @respx.mock
-async def test_search_by_author():
-    """Test searching for papers by author name."""
+async def test_search_openalex_author():
+    """Test searching for papers by author name using OpenAlex."""
     # First call: find author
     author_response = {
         "results": [
@@ -376,7 +376,7 @@ async def test_search_by_author():
         return_value=Response(200, json=papers_response)
     )
 
-    result = await search_by_author(author_name="Jane Smith", limit=50)
+    result = await search_openalex_author(author_name="Jane Smith", limit=50)
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -569,13 +569,13 @@ async def test_get_referenced_works_live_api():
 
 @pytest.mark.slow
 @pytest.mark.anyio
-async def test_search_by_author_live_api():
-    """Integration test: author search against real API.
+async def test_search_openalex_author_live_api():
+    """Integration test: author search against real OpenAlex API.
 
     Uses a well-known academic who should have indexed works.
     """
     # Search for a well-known researcher with many publications
-    result = await search_by_author(author_name="Geoffrey Hinton", limit=10)
+    result = await search_openalex_author(author_name="Geoffrey Hinton", limit=10)
 
     assert isinstance(result, list)
     assert len(result) > 0, "Expected papers by well-known author"

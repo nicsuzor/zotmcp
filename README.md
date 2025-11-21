@@ -29,12 +29,17 @@ or
 
 ## Available Tools
 
-1. **`search`** - Semantic search across library (primary tool)
+### Zotero Library Search Tools
+1. **`search`** - Semantic search across YOUR Zotero library (primary tool)
 2. **`get_item`** - Retrieve full text and metadata by Zotero key
 3. **`get_similar_items`** - Find works similar to a given item
-4. **`search_by_author`** - Find all works by an author
-5. **`get_collection_info`** - Library statistics and metadata
-6. **`assisted_search`** - LLM-assisted literature review (experimental)
+4. **`get_collection_info`** - Library statistics and metadata
+
+### OpenAlex Discovery Tools
+5. **`search_openalex_author`** - Discover papers by author from OpenAlex (240M+ papers, NOT your library)
+6. **`search_papers`** - Search OpenAlex for new papers beyond your library
+7. **`get_paper_citations`** - Get forward citations for a paper from OpenAlex
+8. **`get_referenced_works`** - Get backward citations for a paper from OpenAlex
 
 ### Distribution
 

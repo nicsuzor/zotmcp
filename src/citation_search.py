@@ -330,7 +330,7 @@ class OpenAlexClient:
         logger.info(f"Found {len(results)} referenced works for {paper_id}")
         return [self._parse_work(work) for work in results]
 
-    async def search_by_author(
+    async def search_openalex_author(
         self,
         author_name: str,
         limit: int = 50,
@@ -338,7 +338,9 @@ class OpenAlexClient:
         sort: str = "cited_by_count:desc",
     ) -> List[Citation]:
         """
-        Search for papers by author name (two-step lookup).
+        Search for papers by author name using OpenAlex API (two-step lookup).
+
+        This searches the OpenAlex database, NOT the user's Zotero library.
 
         Args:
             author_name: Author name to search for
@@ -467,11 +469,13 @@ async def get_referenced_works(paper_id: str, limit: int = 50) -> List[Dict[str,
     return [r.model_dump() for r in results]
 
 
-async def search_by_author(
+async def search_openalex_author(
     author_name: str, limit: int = 50, year_from: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """
-    Search for papers by author name.
+    Search for papers by author name using OpenAlex API.
+
+    This searches the OpenAlex database (240M+ papers), NOT the user's Zotero library.
 
     Args:
         author_name: Author name to search for
@@ -481,7 +485,7 @@ async def search_by_author(
     Returns:
         List of paper dictionaries
     """
-    results = await _client.search_by_author(author_name, limit, year_from)
+    results = await _client.search_openalex_author(author_name, limit, year_from)
     return [r.model_dump() for r in results]
 
 
