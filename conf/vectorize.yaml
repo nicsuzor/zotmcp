@@ -60,7 +60,7 @@ pipeline:
 
     # 2. Generate citations using LLM
     - _target_: buttermilk.tools.citator.Citator
-      model: gemini25flash
+      model: gpt5mini
       template: citator
 
     # 3. Chunk text semantically
