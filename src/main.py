@@ -437,7 +437,7 @@ def get_similar_items(item_key: str, n_results: int = 5) -> dict:
 
     # First get the item
     item_results = coll.get(
-        where={"item_key": {"$eq": item_key}}, include=["documents"], limit=1
+        where={"document_id": {"$eq": item_key}}, include=["documents"], limit=1
     )
 
     if not item_results["documents"]:
@@ -458,7 +458,7 @@ def get_similar_items(item_key: str, n_results: int = 5) -> dict:
 
     # TODO: formalise the results in a pydantic object
     for meta, dist in zip(results["metadatas"][0], results["distances"][0]):
-        key = meta.get("item_key")
+        key = meta.get("document_id")
         if key and key != item_key and key not in seen_keys:
             citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
                 extract_citation_metadata(meta)
