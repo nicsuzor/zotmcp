@@ -415,6 +415,67 @@ class TestCollectionInfo:
             print()
 
 
+class TestLibraryAuthorSearch:
+    """Test searching Zotero library by author (not OpenAlex)."""
+
+    async def test_show_library_author_search(self, mcp_server):
+        """Search for papers by author in local Zotero library.
+
+        Tests that search_library_by_author() finds papers by author name
+        in the existing Zotero library collection (not OpenAlex).
+
+        Expected behavior:
+        - Call search_library_by_author with author_name="Suzor"
+        - Returns > 0 results from local library
+        - Results contain papers by Nic Suzor
+        - Can print citations showing what was found
+
+        Currently FAILS: search_library_by_author tool doesn't exist yet.
+        """
+        async with Client(mcp_server) as client:
+            # Act: Search library by author
+            result = await client.call_tool(
+                "search_library_by_author",
+                {
+                    "author_name": "Suzor",
+                },
+            )
+
+            # Print results for inspection
+            print("\n" + "=" * 80)
+            print("LIBRARY AUTHOR SEARCH: 'Suzor'")
+            print("=" * 80)
+
+            papers = result.data.get("results", []) if isinstance(result.data, dict) else result.data
+            total_results = result.data.get("total_results", len(papers)) if isinstance(result.data, dict) else len(papers)
+
+            print(f"Total papers found in library: {total_results}")
+            print()
+
+            # Assert: Should find papers by Suzor in library
+            assert total_results > 0, "Should find papers by Suzor in Zotero library"
+
+            # Display results
+            for i, paper in enumerate(papers[:10], 1):
+                citation = paper.get('citation', 'No citation')
+                print(f"{i}. {citation}")
+
+                # Check authors field to verify Suzor is in there
+                authors = paper.get('authors', '')
+                if authors:
+                    print(f"   Authors: {authors}")
+
+                # Verify at least one result contains "Suzor"
+                if i == 1:
+                    assert "Suzor" in authors or "Suzor" in citation, \
+                        f"First result should contain 'Suzor' in authors or citation, got: {citation[:100]}"
+
+                print()
+
+            print(f"\n✓ Found {total_results} papers by Suzor in Zotero library")
+            print()
+
+
 class TestDateDiagnostics:
     """Diagnostic tests for understanding data structure."""
 

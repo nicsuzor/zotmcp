@@ -562,6 +562,7 @@ from citation_search import (  # noqa: E402
 
 from enhanced_search import (  # noqa: E402
     advanced_search as _advanced_search,
+    fuzzy_author_search,
     search_by_citation_key_async,
     search_by_doi_async,
 )
@@ -657,6 +658,75 @@ async def search_openalex_author(
         search_openalex_author("Yann LeCun", limit=25, year_from=2020)
     """
     return await _search_openalex_author(author_name, limit, year_from)
+
+
+@mcp.tool()
+async def search_library_by_author(
+    author_name: str,
+    n_results: int = 20,
+    fuzzy_threshold: int = 70,
+) -> dict:
+    """Search for papers by author in YOUR Zotero library using fuzzy name matching.
+
+    This tool searches your personal Zotero library collection for papers by a specific
+    author. It uses fuzzy matching to handle name variations, typos, and different
+    name formats (e.g., "Smith, J." vs "John Smith").
+
+    This is NOT an OpenAlex search - it only searches papers you already have in your
+    library. To discover new papers by an author, use search_openalex_author instead.
+
+    Args:
+        author_name: Author name to search for (e.g., "Suzor", "Gillespie")
+        n_results: Maximum number of results to return (default: 20)
+        fuzzy_threshold: Minimum match score 0-100 (default: 70, higher = stricter)
+
+    Returns:
+        Dictionary with search results including papers by the specified author
+
+    Examples:
+        search_library_by_author("Suzor")
+        search_library_by_author("Gillespie", n_results=10, fuzzy_threshold=80)
+    """
+    # Check if ChromaDB is ready
+    if error_response := _check_chromadb_ready():
+        return error_response
+
+    try:
+        from search_utils import get_metadata_field
+
+        coll = get_collection()
+
+        # Use fuzzy author search from enhanced_search
+        results = await fuzzy_author_search(
+            collection=coll,
+            author_name=author_name,
+            n_results=n_results,
+            fuzzy_threshold=fuzzy_threshold,
+        )
+
+        # Format results with authors field included
+        formatted_results = []
+        for result in results:
+            formatted = _format_search_result(result)
+            # Add authors field from metadata
+            authors = get_metadata_field(result.metadata, "creators")
+            if authors:
+                formatted["authors"] = authors
+            formatted_results.append(formatted)
+
+        return {
+            "author_query": author_name,
+            "total_results": len(formatted_results),
+            "results": formatted_results,
+        }
+
+    except Exception as e:
+        logger.error(f"Library author search error: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "results": [],
+            "total_results": 0,
+        }
 
 
 @mcp.tool()
