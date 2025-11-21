@@ -160,6 +160,7 @@ async def test_lifespan_manager(server: FastMCP):
 
     main.search_tool = main.get_search_tool()
     await main.search_tool.ensure_cache_initialized()
+    await main.search_tool.initialize()
 
     logger.info("Buttermilk initialized for tests")
 
@@ -193,9 +194,14 @@ async def bm_dev():
 
 
 @pytest.fixture(scope="session")
-def mcp_server_local(bm_dev) -> FastMCP[Any]:
+async def mcp_server_local(bm_dev) -> FastMCP[Any]:
     main.bm = bm_dev
     main.conf = bm_dev.cfg
+    # Initialize search_tool for tests (mimics production lifespan initialization)
+    main.search_tool = main.get_search_tool()
+    await main.search_tool.ensure_cache_initialized()
+    await main.search_tool.initialize()
+    main._chromadb_ready = True
     # Use the main MCP instance but replace its lifespan manager for tests
     # This ensures all the tools/prompts from main.py are available
     return main.mcp
