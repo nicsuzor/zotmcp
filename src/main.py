@@ -760,7 +760,7 @@ def _format_search_result(result: SearchResult) -> dict:
 
     output = {
         "citation": citation,
-        "excerpt": result.document[:500] if result.document else None,
+        "excerpt": result.document if result.document else None,
         "doi_or_url": doi_or_url,
         "uri": uri,
         "zotero_key": zotero_key,
