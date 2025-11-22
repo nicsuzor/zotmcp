@@ -387,9 +387,19 @@ def get_item(item_key: str) -> dict:
     if not results["documents"]:
         return {"error": f"Item {item_key} not found"}
 
-    # Get first result's metadata and document
+    # Get all chunks and sort by chunk_index
+    chunk_count = len(results["documents"])
+    chunks_with_index = []
+    for i, (doc, meta) in enumerate(zip(results["documents"], results["metadatas"])):
+        chunk_index = meta["chunk_index"]  # Fail-fast: required field
+        chunks_with_index.append((chunk_index, doc))
+
+    # Sort by chunk_index and concatenate
+    chunks_with_index.sort(key=lambda x: x[0])
+    full_text = "\n\n".join(chunk[1] for chunk in chunks_with_index)
+
+    # Use first chunk's metadata for item-level fields
     metadata = results["metadatas"][0]
-    document = results["documents"][0] if results["documents"] else None
 
     # Extract citation metadata using existing helper
     citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
@@ -404,9 +414,6 @@ def get_item(item_key: str) -> dict:
     # Build Zotero desktop link
     zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
 
-    # Create full text preview (first 500 chars)
-    full_text_preview = document[:500] if document else None
-
     return {
         "citation": citation,
         "title": title,
@@ -418,7 +425,9 @@ def get_item(item_key: str) -> dict:
         "zotero_key": zotero_key,
         "citation_key": citation_key,
         "zotero_web_link": zotero_web_link,
-        "full_text_preview": full_text_preview,
+        "full_text": full_text,
+        "chunk_count": chunk_count,
+        "is_large_document": False,
     }
 
 
