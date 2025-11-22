@@ -12,9 +12,13 @@ import asyncio
 import logging
 import os
 import sys
+import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+
+# Size threshold for large documents (500KB)
+SIZE_THRESHOLD = 500 * 1024
 
 # CRITICAL: Set up temporary stderr logging BEFORE any other imports
 # This prevents stdout pollution during module import phase
@@ -414,7 +418,11 @@ def get_item(item_key: str) -> dict:
     # Build Zotero desktop link
     zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
 
-    return {
+    # Check document size for large document handling
+    full_text_bytes = len(full_text.encode("utf-8"))
+
+    # Base metadata common to both large and small documents
+    base_metadata = {
         "citation": citation,
         "title": title,
         "item_type": item_type,
@@ -425,10 +433,31 @@ def get_item(item_key: str) -> dict:
         "zotero_key": zotero_key,
         "citation_key": citation_key,
         "zotero_web_link": zotero_web_link,
-        "full_text": full_text,
-        "chunk_count": chunk_count,
-        "is_large_document": False,
     }
+
+    if full_text_bytes > SIZE_THRESHOLD:
+        # Large document - write to temp file
+        temp_dir = Path(tempfile.gettempdir()) / "zotmcp"
+        temp_dir.mkdir(exist_ok=True)
+        temp_file = temp_dir / f"{item_key}_full_text.txt"
+        temp_file.write_text(full_text, encoding="utf-8")
+
+        return {
+            **base_metadata,
+            "full_text_preview": full_text[:2000],
+            "full_text_file": str(temp_file),
+            "full_text_size_bytes": full_text_bytes,
+            "chunk_count": chunk_count,
+            "is_large_document": True,
+        }
+    else:
+        # Small document - return inline
+        return {
+            **base_metadata,
+            "full_text": full_text,
+            "chunk_count": chunk_count,
+            "is_large_document": False,
+        }
 
 
 @mcp.tool()
