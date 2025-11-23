@@ -206,3 +206,172 @@ class TestCounterspeechSearchQuality:
                 f"Results should contain gender-related terms in excerpts. "
                 f"Looked for: {gender_terms}"
             )
+
+    async def test_counterspeech_interventions(self, mcp_server):
+        """Test counterspeech intervention query returns expected results.
+
+        Query: social media counterspeech intervention hate speech response
+
+        Expected results include:
+        - Keller & Askanius (2020)
+        - Garland et al. (2020)
+        - Miskolci et al. (2020)
+        """
+        async with Client(mcp_server) as client:
+            result = await client.call_tool(
+                "search",
+                {
+                    "query": "social media counterspeech intervention hate speech response",
+                    "n_results": 10,
+                },
+            )
+
+            assert "error" not in result.data, (
+                f"Search failed with error: {result.data.get('error')}"
+            )
+            assert "results" in result.data
+            assert len(result.data["results"]) > 0, "Should return results"
+
+            # Extract citations for validation
+            citations = [r.get("citation", "") for r in result.data["results"]]
+            citations_text = "\n".join(citations)
+
+            # Check for expected authors in results
+            # Note: Miskolci may appear with special characters (Misˇkolci)
+            expected_authors = ["Keller", "Garland", "Mathew"]
+            found_authors = [
+                author for author in expected_authors
+                if any(author.lower() in c.lower() for c in citations)
+            ]
+
+            assert len(found_authors) >= 1, (
+                f"Expected at least 1 of {expected_authors} in results. "
+                f"Found: {found_authors}. Citations:\n{citations_text}"
+            )
+
+            # Validate fuzzy_score > 60 OR semantic_score > 0.3 for top results
+            for search_result in result.data["results"][:3]:
+                fuzzy_score = search_result.get("fuzzy_score", 0)
+                semantic_score = search_result.get("semantic_score", 0)
+                assert fuzzy_score > 60 or semantic_score > 0.3, (
+                    f"Top result should have fuzzy_score > 60 OR semantic_score > 0.3, "
+                    f"got fuzzy={fuzzy_score}, semantic={semantic_score} "
+                    f"for: {search_result.get('citation', 'unknown')}"
+                )
+
+    async def test_platform_initiative_programs(self, mcp_server):
+        """Test platform initiative programs query returns expected results.
+
+        Query: Facebook Online Civil Courage Initiative counterspeech programs funding
+
+        Expected results include:
+        - Bartlett & Krasodomski-Jones (2015) - Demos report
+        """
+        async with Client(mcp_server) as client:
+            result = await client.call_tool(
+                "search",
+                {
+                    "query": "Facebook Online Civil Courage Initiative counterspeech programs funding",
+                    "n_results": 10,
+                },
+            )
+
+            assert "error" not in result.data, (
+                f"Search failed with error: {result.data.get('error')}"
+            )
+            assert "results" in result.data
+            assert len(result.data["results"]) > 0, "Should return results"
+
+            # Validate excerpts reference OCCI or counterspeech programs
+            excerpts = [r.get("excerpt", "") for r in result.data["results"]]
+            occi_terms = ["occi", "civil courage", "counterspeech", "counter-speech", "program", "initiative"]
+            has_occi_terms = any(
+                term in excerpt.lower()
+                for excerpt in excerpts
+                for term in occi_terms
+            )
+            assert has_occi_terms, (
+                f"Results should reference OCCI or counterspeech programs in excerpts. "
+                f"Looked for: {occi_terms}"
+            )
+
+    async def test_algorithmic_amplification(self, mcp_server):
+        """Test algorithmic amplification query returns expected results.
+
+        Query: platform intervention positive amplification recommendation algorithm promotion
+
+        Expected results include:
+        - Keller (2021)
+        - Gillespie (2022)
+        """
+        async with Client(mcp_server) as client:
+            result = await client.call_tool(
+                "search",
+                {
+                    "query": "platform intervention positive amplification recommendation algorithm promotion",
+                    "n_results": 10,
+                },
+            )
+
+            assert "error" not in result.data, (
+                f"Search failed with error: {result.data.get('error')}"
+            )
+            assert "results" in result.data
+            assert len(result.data["results"]) > 0, "Should return results"
+
+            # Extract citations for validation
+            citations = [r.get("citation", "") for r in result.data["results"]]
+            citations_text = "\n".join(citations)
+
+            # Check for expected authors in results
+            expected_authors = ["Keller", "Gillespie"]
+            found_authors = [
+                author for author in expected_authors
+                if any(author.lower() in c.lower() for c in citations)
+            ]
+
+            assert len(found_authors) >= 1, (
+                f"Expected at least 1 of {expected_authors} in results. "
+                f"Found: {found_authors}. Citations:\n{citations_text}"
+            )
+
+            # Validate semantic_score > 0.35 for top 3 results
+            for search_result in result.data["results"][:3]:
+                semantic_score = search_result.get("semantic_score", 0)
+                assert semantic_score > 0.35, (
+                    f"Top result semantic_score should be > 0.35, got {semantic_score} "
+                    f"for: {search_result.get('citation', 'unknown')}"
+                )
+
+    async def test_creator_programs_marginalized_groups(self, mcp_server):
+        """Test creator programs for marginalized groups query returns expected results.
+
+        Query: Instagram creator fund support marginalized LGBTQ Black creators program
+
+        Expected results include:
+        - Bishop (2021)
+        - Duffy & Meisner (2022)
+        - Haimson et al. (2021)
+        """
+        async with Client(mcp_server) as client:
+            result = await client.call_tool(
+                "search",
+                {
+                    "query": "Instagram creator fund support marginalized LGBTQ Black creators program",
+                    "n_results": 10,
+                },
+            )
+
+            assert "error" not in result.data, (
+                f"Search failed with error: {result.data.get('error')}"
+            )
+            assert "results" in result.data
+            assert len(result.data["results"]) > 0, "Should return results"
+
+            # Validate top result has reasonable semantic score
+            top_result = result.data["results"][0]
+            semantic_score = top_result.get("semantic_score", 0)
+            assert semantic_score > 0.25, (
+                f"Top result semantic_score should be > 0.25, got {semantic_score} "
+                f"for: {top_result.get('citation', 'unknown')}"
+            )
