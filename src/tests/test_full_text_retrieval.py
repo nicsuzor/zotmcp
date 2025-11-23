@@ -329,3 +329,68 @@ class TestGetItemLargeDocument:
                 f"Temp file content should exceed threshold. "
                 f"Got {len(file_content.encode('utf-8'))} bytes"
             )
+
+
+class TestGetFullText:
+    """Tests for get_full_text tool that returns inline text."""
+
+    async def test_get_full_text_returns_inline_text(self, mcp_server):
+        """get_full_text returns full text inline regardless of size.
+
+        Unlike get_item (which returns file path), this tool returns
+        the actual text content so client can process directly.
+
+        Uses mcp_server (parametrized): Validates get_full_text through MCP
+        client interface in both local and Docker environments.
+
+        Expected failure: Tool 'get_full_text' doesn't exist yet.
+        """
+        async with Client(mcp_server) as client:
+            # First, search to find a document with content
+            search_result = await client.call_tool(
+                "search",
+                {
+                    "query": "content moderation",
+                    "n_results": 5,
+                },
+            )
+
+            assert "results" in search_result.data, (
+                f"Expected 'results' key in search response: {search_result.data}"
+            )
+            results = search_result.data["results"]
+            assert len(results) > 0, "Expected at least one search result"
+
+            # Get the zotero_key from the first result
+            first_result = results[0]
+            zotero_key = first_result.get("zotero_key")
+            assert zotero_key, f"Expected 'zotero_key' in search result: {first_result}"
+
+            # Call get_full_text with that key
+            # This should FAIL because tool doesn't exist yet
+            full_text_result = await client.call_tool(
+                "get_full_text",
+                {"item_key": zotero_key},
+            )
+
+            # Verify response structure for inline text retrieval
+            result_data = full_text_result.data
+
+            # Check that full_text field exists with actual content
+            assert "full_text" in result_data, (
+                f"Expected 'full_text' field in get_full_text response. "
+                f"Got keys: {list(result_data.keys())}"
+            )
+
+            # Verify full_text has actual content (not empty)
+            full_text = result_data["full_text"]
+            assert len(full_text) > 0, (
+                f"Expected 'full_text' to contain actual text content. "
+                f"Got empty string."
+            )
+
+            # Check that chunk_count field is present
+            assert "chunk_count" in result_data, (
+                f"Expected 'chunk_count' field in get_full_text response. "
+                f"Got keys: {list(result_data.keys())}"
+            )
