@@ -43,4 +43,10 @@ pythonpath = ["src"]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
-addopts = ["-v", "-rxX", "--capture=fd", "--tb=short", "--continue-on-collection-errors", "-m not slow"]
+# Run tests sequentially (no -n flag) due to session-scoped ChromaDB fixtures
+# --forked not used as it conflicts with session-scoped async fixtures
+addopts = ["-v", "-rxX", "--capture=fd", "--tb=short", "-m not slow"]
+filterwarnings = [
+  "ignore::DeprecationWarning:buttermilk.*:",
+  "ignore::pydantic.warnings.PydanticDeprecatedSince20:",
+]

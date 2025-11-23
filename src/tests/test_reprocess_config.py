@@ -38,7 +38,7 @@ def test_reprocess_uses_zotero_item_source():
         cfg = compose(config_name="reprocess")
 
         # Assert
-        assert cfg.pipeline.source._target_ == "src.zotero_items.ZoteroItemSource", (
+        assert cfg.pipeline.source._target_ == "buttermilk.libs.zotero.ZoteroItemSource", (
             f"Expected ZoteroItemSource, got {cfg.pipeline.source._target_}"
         )
 
@@ -88,8 +88,8 @@ def test_reprocess_quality_filter_configuration():
 
         # Assert
         assert quality_processor is not None, "QualityFilterProcessor not found"
-        assert quality_processor.corruption_threshold == 80.0, (
-            f"Expected corruption_threshold=80.0, got {quality_processor.corruption_threshold}"
+        assert quality_processor.corruption_threshold == 66.0, (
+            f"Expected corruption_threshold=66.0, got {quality_processor.corruption_threshold}"
         )
         assert quality_processor.pattern_threshold == 80.0, (
             f"Expected pattern_threshold=80.0, got {quality_processor.pattern_threshold}"

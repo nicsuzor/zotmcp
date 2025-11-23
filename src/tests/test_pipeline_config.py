@@ -40,7 +40,7 @@ def test_quality_filter_processor_in_pipeline():
         # Assert - find QualityFilterProcessor in processors
         processor_targets = [p._target_ for p in cfg.pipeline.processors]
 
-        assert "src.quality_processor.QualityFilterProcessor" in processor_targets, (
+        assert "buttermilk.processors.quality.QualityFilterProcessor" in processor_targets, (
             "QualityFilterProcessor not found in pipeline processors"
         )
 
