@@ -435,29 +435,19 @@ def get_item(item_key: str) -> dict:
         "zotero_web_link": zotero_web_link,
     }
 
-    if full_text_bytes > SIZE_THRESHOLD:
-        # Large document - write to temp file
-        temp_dir = Path(tempfile.gettempdir()) / "zotmcp"
-        temp_dir.mkdir(exist_ok=True)
-        temp_file = temp_dir / f"{item_key}_full_text.txt"
-        temp_file.write_text(full_text, encoding="utf-8")
+    # Always write full text to temp file for consistent behavior
+    temp_dir = Path(tempfile.gettempdir()) / "zotmcp"
+    temp_dir.mkdir(exist_ok=True)
+    temp_file = temp_dir / f"{item_key}_full_text.txt"
+    temp_file.write_text(full_text, encoding="utf-8")
 
-        return {
-            **base_metadata,
-            "full_text_preview": full_text[:2000],
-            "full_text_file": str(temp_file),
-            "full_text_size_bytes": full_text_bytes,
-            "chunk_count": chunk_count,
-            "is_large_document": True,
-        }
-    else:
-        # Small document - return inline
-        return {
-            **base_metadata,
-            "full_text": full_text,
-            "chunk_count": chunk_count,
-            "is_large_document": False,
-        }
+    return {
+        **base_metadata,
+        "full_text_preview": full_text[:2000],
+        "full_text_file": str(temp_file),
+        "full_text_size_bytes": full_text_bytes,
+        "chunk_count": chunk_count,
+    }
 
 
 @mcp.tool()

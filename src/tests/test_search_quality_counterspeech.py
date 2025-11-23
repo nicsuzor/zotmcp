@@ -115,14 +115,7 @@ class TestCounterspeechSearchQuality:
 
             item_data = item_result.data
 
-            # Validate this is flagged as a large document
-            assert item_data.get("is_large_document") is True, (
-                f"Bartolo thesis should have is_large_document=True. "
-                f"Got: {item_data.get('is_large_document')}. "
-                f"Keys: {list(item_data.keys())}"
-            )
-
-            # Validate full_text_file path exists
+            # Validate full_text_file path exists (all documents now return temp files)
             assert "full_text_file" in item_data, (
                 f"Large document should have 'full_text_file' with temp file path. "
                 f"Got keys: {list(item_data.keys())}"
