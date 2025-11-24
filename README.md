@@ -41,24 +41,84 @@ or
 7. **`get_paper_citations`** - Get forward citations for a paper from OpenAlex
 8. **`get_referenced_works`** - Get backward citations for a paper from OpenAlex
 
-### Distribution
+## Colleague Setup (Recommended: uvx method)
 
-The Docker image includes:
+### Prerequisites
 
-- ✅ All dependencies (FastMCP, ChromaDB, Pydantic)
-- ✅ ChromaDB vectors (baked in, ~3GB)
-- ✅ No local Python setup required
+1. **Python 3.10+** with [uv](https://docs.astral.sh/uv/) installed:
+   ```bash
+   # Install uv (cross-platform)
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
 
-Colleagues just need to:
+2. **Google Cloud CLI** authenticated:
+   ```bash
+   # Install gcloud: https://cloud.google.com/sdk/docs/install
+   gcloud auth application-default login
+   ```
 
-1. Install Docker Desktop
-2. Pull image: `docker pull us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest`
-3. Configure MCP client (see above)
-4. Restart client
+3. **GCP Access** - Contact Nic to be granted access to the project
 
-```sh
-claude mcp add-json zot '{"type":"stdio","command":"docker","args":["run","--rm","-v","/home/nic/.config/gcloud:/root/.config/gcloud:ro","-i","us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"]}'
+### Step 1: Download the Zotero vectors database
+
+```bash
+# One-time download (~3GB)
+uvx --from git+https://github.com/nicsuzor/zotmcp.git zotmcp-download
 ```
+
+Or manually:
+```bash
+mkdir -p ~/.cache/buttermilk/chromadb/gs_prosocial-dev_data_zotero-prosocial-fulltext_files
+gsutil -m rsync -r gs://prosocial-dev/data/zotero-prosocial-fulltext/files \
+    ~/.cache/buttermilk/chromadb/gs_prosocial-dev_data_zotero-prosocial-fulltext_files
+```
+
+### Step 2: Configure Claude Code
+
+Add to your MCP configuration (`.mcp.json` or via `claude mcp add`):
+
+```json
+{
+  "mcpServers": {
+    "zot": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/nicsuzor/zotmcp.git", "zotmcp"]
+    }
+  }
+}
+```
+
+Or via CLI:
+```bash
+claude mcp add-json zot '{"command":"uvx","args":["--from","git+https://github.com/nicsuzor/zotmcp.git","zotmcp"]}'
+```
+
+### Step 3: Restart Claude Code
+
+The `zot` MCP server will now be available with semantic search of the shared Zotero library.
+
+---
+
+## Alternative: Docker Method
+
+For users who prefer Docker (requires Docker Desktop):
+
+```json
+{
+  "mcpServers": {
+    "zot": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "-v", "~/.config/gcloud:/root/.config/gcloud:ro",
+        "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"
+      ]
+    }
+  }
+}
+```
+
+**Note**: Docker on Windows requires WSL2 and proper volume mount paths.
 
 ## Architecture
 

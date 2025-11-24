@@ -28,6 +28,10 @@ dev = [
 [tool.uv.sources]
 buttermilk = { git = "https://github.com/qut-dmrc/buttermilk.git", rev = "dev" }
 
+[project.scripts]
+zotmcp = "main:main"
+zotmcp-download = "download:main"
+
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
