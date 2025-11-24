@@ -95,17 +95,29 @@ def normalize_author_name(name: str) -> str:
     return normalized
 
 
-def extract_author_names(creators_field: str) -> list[str]:
+def extract_author_names(creators_field: str | list) -> list[str]:
     """Extract individual author names from a creators field.
 
     Args:
-        creators_field: Comma-separated list of authors or JSON string
+        creators_field: Comma-separated list of authors, JSON string, or Zotero list-of-dicts
 
     Returns:
         List of normalized author names
     """
     if not creators_field:
         return []
+
+    # Handle Zotero list-of-dicts format
+    if isinstance(creators_field, list):
+        names = []
+        for creator in creators_field:
+            if isinstance(creator, dict):
+                first = creator.get("firstName", "")
+                last = creator.get("lastName", "")
+                full = f"{first} {last}".strip()
+                if full:
+                    names.append(normalize_author_name(full))
+        return names
 
     # Handle various formats: "Smith, John; Doe, Jane" or "Smith, John, Doe, Jane"
     # Split by semicolon first (preferred format), then by comma pairs
@@ -136,13 +148,13 @@ def extract_author_names(creators_field: str) -> list[str]:
 
 
 def fuzzy_match_author(
-    query_name: str, creators_field: str, threshold: int = 70
+    query_name: str, creators_field: str | list, threshold: int = 70
 ) -> tuple[bool, float, str]:
     """Match author name against creators field using fuzzy matching.
 
     Args:
         query_name: Author name to search for
-        creators_field: Creators metadata field
+        creators_field: Creators metadata field (string or Zotero list-of-dicts)
         threshold: Minimum score to consider a match (0-100)
 
     Returns:
@@ -154,8 +166,8 @@ def fuzzy_match_author(
     query_normalized = normalize_author_name(query_name)
     author_names = extract_author_names(creators_field)
 
-    if not author_names:
-        # Fallback to direct comparison
+    if not author_names and isinstance(creators_field, str):
+        # Fallback to direct comparison (only for strings)
         author_names = [normalize_author_name(creators_field)]
 
     # Try different matching strategies
