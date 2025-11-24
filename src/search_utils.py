@@ -253,7 +253,7 @@ def fuzzy_match_metadata(
 
         # Special handling for creators field
         if field == "creators":
-            is_match, score, _ = fuzzy_match_author(query, str(value), threshold)
+            is_match, score, _ = fuzzy_match_author(query, value, threshold)
         else:
             is_match, score = fuzzy_match_title(query, str(value), threshold)
 
