@@ -793,3 +793,47 @@ class TestCorruptionFiltering:
         assert "CORRUPT_ITEM" in result_keys_unfiltered, (
             "With exclude_corrupted=False, corrupted results should be included in output"
         )
+
+
+async def test_fuzzy_author_search_with_list_creators():
+    """Test fuzzy_author_search handles list-of-dicts creators from metadata.
+
+    Regression test: str(creators) was converting list to garbage string like
+    "[{'creatorType': 'author', ...}]" instead of extracting author names.
+
+    The bug: fuzzy_author_search calls str(creators) which converts the list
+    to a Python repr string. This garbage string accidentally fuzzy-matches
+    with low scores, but the match_field shows garbage like "'lastname' 'gillespie'}]"
+    instead of the proper extracted name "Tarleton Gillespie".
+    """
+    from enhanced_search import fuzzy_author_search
+
+    # Mock collection that returns Zotero-format creators (list of dicts)
+    mock_collection = MagicMock()
+    mock_collection.get.return_value = {
+        "documents": ["Test document content about platform governance."],
+        "metadatas": [
+            {
+                "item_key": "TEST123",
+                "creators": [
+                    {"creatorType": "author", "firstName": "Tarleton", "lastName": "Gillespie"}
+                ],
+                "title": "Test Paper on Content Moderation"
+            }
+        ]
+    }
+
+    results = await fuzzy_author_search(
+        mock_collection, "Tarleton Gillespie", fuzzy_threshold=70
+    )
+
+    assert len(results) > 0, "Should find author 'Tarleton Gillespie' in list-of-dicts format"
+
+    # Verify the match quality - should have high score (>90) for exact name match
+    # The bug causes low scores (~72) due to matching against garbage string
+    result = results[0]
+    assert result.fuzzy_score >= 90, (
+        f"Expected high fuzzy score (>=90) for exact author name match, "
+        f"got {result.fuzzy_score}. This indicates str(creators) bug: "
+        f"list-of-dicts was converted to garbage string instead of extracting names."
+    )

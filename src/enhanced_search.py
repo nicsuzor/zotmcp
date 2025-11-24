@@ -153,7 +153,7 @@ async def fuzzy_author_search(
         # Use helper to get creators from flat or nested structure
         creators = get_metadata_field(meta, "creators") or ""
         is_match, score, matched_name = fuzzy_match_author(
-            author_name, str(creators), fuzzy_threshold
+            author_name, creators, fuzzy_threshold
         )
 
         if is_match:
