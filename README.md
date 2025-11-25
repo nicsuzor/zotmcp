@@ -28,13 +28,21 @@ MCP server for semantic search and literature review across a shared Zotero acad
 
 1. **Get access**: Contact Nic with your Google email
 2. **Install [uv](https://docs.astral.sh/uv/)**: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-3. **Add to Claude** (see below)
-4. **Restart Claude** - vectors download automatically on first run (~3GB)
+3. **Install ZotMCP**:
+   ```bash
+   uv tool install git+https://github.com/nicsuzor/zotmcp.git
+   ```
+4. **Download vectors** (~3GB):
+   ```bash
+   zotmcp-download
+   ```
+5. **Add to Claude** (see below)
+6. **Restart Claude**
 
 ### Claude Code
 
 ```bash
-claude mcp add-json zot '{"command":"uvx","args":["--from","git+https://github.com/nicsuzor/zotmcp.git","zotmcp"]}'
+claude mcp add-json zot '{"command":"zotmcp"}'
 ```
 
 ### Claude Desktop
@@ -45,8 +53,7 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "zot": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/nicsuzor/zotmcp.git", "zotmcp"]
+      "command": "zotmcp"
     }
   }
 }
