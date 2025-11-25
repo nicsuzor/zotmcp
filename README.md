@@ -32,7 +32,7 @@ MCP server for semantic search and literature review across a shared Zotero acad
    ```bash
    uv tool install git+https://github.com/nicsuzor/zotmcp.git
    ```
-4. **Download vectors** (~3GB):
+4. **Download vectors** (~8GB):
    ```bash
    zotmcp-download
    ```
