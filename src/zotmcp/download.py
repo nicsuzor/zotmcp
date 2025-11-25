@@ -3,11 +3,13 @@
 
 Downloads the Zotero vectors database from GCS to the local cache.
 Uses parallel sliced downloads for speed.
+Includes browser-based OAuth if no credentials are found.
 
 Usage:
     zotmcp-download
 """
 
+import json
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -20,6 +22,61 @@ VECTORS_DIR = CACHE_DIR / "gs_prosocial-dev_data_zotero-prosocial-fulltext_files
 MAX_WORKERS = 16  # Parallel download threads
 CHUNK_SIZE = 32 * 1024 * 1024  # 32MB chunks for sliced downloads
 SLICE_THRESHOLD = 100 * 1024 * 1024  # Slice files larger than 100MB
+
+# OAuth client ID for installed apps (public, not secret)
+# This is the same client ID used by gcloud CLI
+OAUTH_CLIENT_ID = "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
+OAUTH_CLIENT_SECRET = "d-FL95Q19q7MQmFpd7hHD0Ty"
+SCOPES = ["https://www.googleapis.com/auth/devstorage.read_only"]
+
+
+def get_adc_path() -> Path:
+    """Get the Application Default Credentials file path."""
+    if sys.platform == "win32":
+        return Path.home() / "AppData" / "Roaming" / "gcloud" / "application_default_credentials.json"
+    return Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
+
+
+def do_oauth_flow():
+    """Run browser-based OAuth and save as ADC."""
+    try:
+        from google_auth_oauthlib.flow import InstalledAppFlow
+    except ImportError:
+        print("ERROR: google-auth-oauthlib not installed")
+        print("Run: pip install google-auth-oauthlib")
+        return None
+
+    print("Opening browser for Google authentication...")
+    print("(Use the email address Nic added to the project)")
+    print()
+
+    client_config = {
+        "installed": {
+            "client_id": OAUTH_CLIENT_ID,
+            "client_secret": OAUTH_CLIENT_SECRET,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+        }
+    }
+
+    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+    credentials = flow.run_local_server(port=0)
+
+    # Save as ADC
+    adc_path = get_adc_path()
+    adc_path.parent.mkdir(parents=True, exist_ok=True)
+
+    adc_data = {
+        "client_id": OAUTH_CLIENT_ID,
+        "client_secret": OAUTH_CLIENT_SECRET,
+        "refresh_token": credentials.refresh_token,
+        "type": "authorized_user",
+    }
+    adc_path.write_text(json.dumps(adc_data, indent=2))
+    print(f"Credentials saved to {adc_path}")
+    print()
+
+    return credentials
 
 
 def main() -> int:
@@ -40,17 +97,15 @@ def main() -> int:
 
     # Check authentication
     print("Checking GCP authentication...")
+    credentials = None
     try:
         credentials, project = default()
     except DefaultCredentialsError:
+        print("  No existing credentials found.")
         print()
-        print("ERROR: Not authenticated with GCP.")
-        print()
-        print("Please authenticate using one of these methods:")
-        print("  1. gcloud auth application-default login")
-        print("  2. Set GOOGLE_APPLICATION_CREDENTIALS environment variable")
-        print()
-        return 1
+        credentials = do_oauth_flow()
+        if not credentials:
+            return 1
 
     print("  Authenticated!")
     print()
