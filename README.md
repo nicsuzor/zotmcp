@@ -27,10 +27,10 @@ MCP server for semantic search and literature review across a shared Zotero acad
 ## Setup
 
 1. **Get access**: Contact Nic with your Google email
-2. **Install [uv](https://docs.astral.sh/uv/)**: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+2. **Install [uv](https://docs.astral.sh/uv/)**: `brew install uv` (macOS) or `curl -LsSf https://astral.sh/uv/install.sh | sh`
 3. **Install ZotMCP**:
    ```bash
-   uv tool install git+https://github.com/nicsuzor/zotmcp.git
+   uv tool install --upgrade git+https://github.com/nicsuzor/zotmcp.git
    ```
 4. **Download vectors** (~8GB):
    ```bash
