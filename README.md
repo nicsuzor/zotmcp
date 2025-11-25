@@ -30,8 +30,33 @@ MCP server for semantic search and literature review across a shared Zotero acad
 2. **Get access**: Contact Nic with your Google email
 3. **Authenticate**: `gcloud auth application-default login`
 4. **Download vectors**: `uvx --from git+https://github.com/nicsuzor/zotmcp.git zotmcp-download`
-5. **Add to Claude Code**: `claude mcp add-json zot '{"command":"uvx","args":["--from","git+https://github.com/nicsuzor/zotmcp.git","zotmcp"]}'`
-6. **Restart Claude Code**
+5. **Add to Claude** (see below)
+6. **Restart Claude**
+
+### Claude Code
+
+```bash
+claude mcp add-json zot '{"command":"uvx","args":["--from","git+https://github.com/nicsuzor/zotmcp.git","zotmcp"]}'
+```
+
+### Claude Desktop
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "zot": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/nicsuzor/zotmcp.git", "zotmcp"]
+    }
+  }
+}
+```
+
+Config location:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ## Architecture
 
