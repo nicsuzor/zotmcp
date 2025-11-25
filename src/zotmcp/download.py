@@ -2,7 +2,7 @@
 """ZotMCP ChromaDB Download Script.
 
 Downloads the Zotero vectors database from GCS to the local cache.
-Uses parallel downloads for speed.
+Uses parallel sliced downloads for speed.
 
 Usage:
     zotmcp-download
@@ -17,11 +17,13 @@ GCS_BUCKET = "prosocial-dev"
 GCS_PREFIX = "data/zotero-prosocial-fulltext/files/"
 CACHE_DIR = Path.home() / ".cache" / "buttermilk" / "chromadb"
 VECTORS_DIR = CACHE_DIR / "gs_prosocial-dev_data_zotero-prosocial-fulltext_files"
-MAX_WORKERS = 8  # Parallel download threads
+MAX_WORKERS = 16  # Parallel download threads
+CHUNK_SIZE = 32 * 1024 * 1024  # 32MB chunks for sliced downloads
+SLICE_THRESHOLD = 100 * 1024 * 1024  # Slice files larger than 100MB
 
 
 def main() -> int:
-    """Download Zotero vectors from GCS with parallel transfers."""
+    """Download Zotero vectors from GCS with parallel sliced transfers."""
     try:
         from google.cloud import storage
         from google.auth import default
@@ -96,39 +98,53 @@ def main() -> int:
 
     download_size = sum(b.size for b in to_download)
     print(f"  Downloading {len(to_download)} files ({download_size / (1024**3):.2f} GB)")
-    print(f"  Using {MAX_WORKERS} parallel connections")
+    print(f"  Using {MAX_WORKERS} parallel connections with sliced downloads")
     print()
 
     # Progress tracking
     downloaded = [skipped_size]  # Use list for mutable closure
     lock = Lock()
 
-    def download_blob(blob):
-        """Download a single blob."""
+    def update_progress(added_bytes=0):
+        with lock:
+            downloaded[0] += added_bytes
+            pct = downloaded[0] / total_size * 100
+            bar_len = 40
+            filled = int(bar_len * downloaded[0] / total_size)
+            bar = "█" * filled + "░" * (bar_len - filled)
+            print(f"\r  [{bar}] {pct:5.1f}% ({downloaded[0] / (1024**3):.2f} GB)", end="", flush=True)
+
+    def download_blob_sliced(blob):
+        """Download a blob using sliced/chunked download for large files."""
         rel_path = blob.name[len(GCS_PREFIX):]
         local_path = VECTORS_DIR / rel_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
-        blob.download_to_filename(str(local_path))
-        with lock:
-            downloaded[0] += blob.size
-        return blob.size
 
-    def update_progress():
-        pct = downloaded[0] / total_size * 100
-        bar_len = 40
-        filled = int(bar_len * downloaded[0] / total_size)
-        bar = "█" * filled + "░" * (bar_len - filled)
-        print(f"\r  [{bar}] {pct:5.1f}% ({downloaded[0] / (1024**3):.2f} GB)", end="", flush=True)
+        if blob.size > SLICE_THRESHOLD:
+            # Sliced download for large files
+            with open(local_path, "wb") as f:
+                start = 0
+                while start < blob.size:
+                    end = min(start + CHUNK_SIZE, blob.size)
+                    chunk = blob.download_as_bytes(start=start, end=end - 1)
+                    f.write(chunk)
+                    update_progress(len(chunk))
+                    start = end
+        else:
+            # Regular download for small files
+            blob.download_to_filename(str(local_path))
+            update_progress(blob.size)
+
+        return blob.size
 
     # Parallel download
     print("Downloading vectors...")
     update_progress()
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(download_blob, blob): blob for blob in to_download}
+        futures = {executor.submit(download_blob_sliced, blob): blob for blob in to_download}
         for future in as_completed(futures):
             future.result()  # Raise any exceptions
-            update_progress()
 
     print()
     print()
