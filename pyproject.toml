@@ -27,7 +27,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-buttermilk = { git = "https://github.com/qut-dmrc/buttermilk.git", rev = "dev" }
+buttermilk = { git = "https://github.com/qut-dmrc/buttermilk.git", rev = "048529b87b28a32e5991519f56f81f779f244005" }
 
 [project.scripts]
 zotmcp = "zotmcp.main:main"
