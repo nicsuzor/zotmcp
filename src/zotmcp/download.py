@@ -216,7 +216,7 @@ def main() -> int:
 
     print()
     print("You can now use ZotMCP!")
-    print("  Run: zotmcp")
+    print("Add to your Claude config - see README.md for instructions")
 
     return 0
 
