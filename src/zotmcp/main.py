@@ -380,7 +380,7 @@ def get_item(item_key: str) -> dict:
     Returns:
         Dictionary with full item content and metadata
     """
-    from search_utils import get_metadata_field
+    from zotmcp.search_utils import get_metadata_field
 
     coll = get_collection()
 
@@ -465,7 +465,7 @@ def get_full_text(item_key: str) -> dict:
         Dictionary with full_text (complete content), chunk_count,
         full_text_size_bytes, and basic metadata (citation, title, zotero_key)
     """
-    from search_utils import get_metadata_field
+    from zotmcp.search_utils import get_metadata_field
 
     coll = get_collection()
 
@@ -636,7 +636,7 @@ def get_collection_info() -> dict:
 # ===== Citation Search Tools (OpenAlex API) =====
 # These tools enable discovery of new academic literature beyond the Zotero library
 
-from citation_search import (  # noqa: E402
+from zotmcp.citation_search import (  # noqa: E402
     search_papers as _search_papers,
     get_paper_citations as _get_paper_citations,
     get_referenced_works as _get_referenced_works,
@@ -647,13 +647,13 @@ from citation_search import (  # noqa: E402
 # ===== Enhanced Search Tools =====
 # Fuzzy matching and hybrid search capabilities
 
-from enhanced_search import (  # noqa: E402
+from zotmcp.enhanced_search import (  # noqa: E402
     advanced_search as _advanced_search,
     fuzzy_author_search,
     search_by_citation_key_async,
     search_by_doi_async,
 )
-from search_utils import SearchResult  # noqa: E402
+from zotmcp.search_utils import SearchResult  # noqa: E402
 
 
 @mcp.tool()
@@ -779,7 +779,7 @@ async def search_library_by_author(
         return error_response
 
     try:
-        from search_utils import get_metadata_field
+        from zotmcp.search_utils import get_metadata_field
 
         coll = get_collection()
 

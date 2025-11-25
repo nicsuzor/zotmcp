@@ -8,7 +8,7 @@ from typing import Optional
 
 from buttermilk.tools import ChromaDBSearchTool
 
-from search_utils import (
+from zotmcp.search_utils import (
     SearchResult,
     combine_scores,
     deduplicate_results,

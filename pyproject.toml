@@ -29,19 +29,18 @@ dev = [
 buttermilk = { git = "https://github.com/qut-dmrc/buttermilk.git", rev = "dev" }
 
 [project.scripts]
-zotmcp = "main:main"
-zotmcp-download = "download:main"
+zotmcp = "zotmcp.main:main"
+zotmcp-download = "zotmcp.download:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-py-modules = ["main", "download", "citation_search", "enhanced_search", "models", "quality_processor", "search_utils", "zotero_items"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["conf/**/*.yaml"]
+zotmcp = ["conf/*.yaml", "conf/**/*.yaml", "conf/__init__.py", "conf/db/__init__.py"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
