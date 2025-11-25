@@ -27,7 +27,10 @@ MCP server for semantic search and literature review across a shared Zotero acad
 ## Setup
 
 1. **Get access**: Contact Nic with your Google email
-2. **Install [uv](https://docs.astral.sh/uv/)**: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+2. **Install [uv](https://docs.astral.sh/uv/)**: 
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
 3. **Restart terminal** (required for PATH changes)
 4. **Install ZotMCP**:
    ```bash
@@ -39,25 +42,25 @@ MCP server for semantic search and literature review across a shared Zotero acad
    ```
 6. **Add to Claude**: 
 
-For Claude Code:
+    For Claude Code:
 
-```bash
-claude mcp add-json zot '{"command":"zotmcp"}'
-```
+    ```bash
+    claude mcp add-json zot '{"command":"zotmcp"}'
+    ```
 
-For  Claude Desktop
+    For  Claude Desktop
 
-Add to `claude_desktop_config.json`:
+    Add to `claude_desktop_config.json`:
 
-```json
-{
-  "mcpServers": {
-    "zot": {
-      "command": "zotmcp"
+    ```json
+    {
+      "mcpServers": {
+        "zot": {
+          "command": "zotmcp"
+        }
+      }
     }
-  }
-}
-```
+    ```
 
 Config location:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
