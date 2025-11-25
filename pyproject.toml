@@ -40,6 +40,9 @@ build-backend = "setuptools.build_meta"
 package-dir = {"" = "src"}
 py-modules = ["main", "download", "citation_search", "enhanced_search", "models", "quality_processor", "search_utils", "zotero_items"]
 
+[tool.setuptools.package-data]
+"*" = ["conf/**/*.yaml"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["src/tests"]

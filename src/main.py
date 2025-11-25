@@ -88,7 +88,7 @@ async def _initialize_gcp_background():
         # Load MCP config - minimal config with only Vertex AI
         # This allows fast startup without BigQuery/PubSub/Logging
         # Use absolute path from project root
-        conf_dir = str(Path(__file__).parent.parent / "conf")
+        conf_dir = str(Path(__file__).parent / "conf")
         bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=[])
         _gcp_ready = True
         logger.info("✅ GCP initialization complete - Vertex AI is ready")
@@ -1096,7 +1096,7 @@ Your response should be structured as a ResearchResult with:
 """
 
 
-@hydra.main(version_base="1.3", config_path="../conf", config_name="mcp")
+@hydra.main(version_base="1.3", config_path="conf", config_name="mcp")
 def main(cfg: DictConfig) -> None:
     """Entry point - loads config and runs async pipeline."""
     global conf
