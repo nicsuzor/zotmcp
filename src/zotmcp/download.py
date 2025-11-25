@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Lock
 
+GCS_PROJECT = "prosocial-dev"  # GCP project ID (required, no defaults)
 GCS_BUCKET = "prosocial-dev"
 GCS_PREFIX = "data/zotero-prosocial-fulltext/files/"
 CACHE_DIR = Path.home() / ".cache" / "buttermilk" / "chromadb"
@@ -99,7 +100,7 @@ def main() -> int:
     print("Checking GCP authentication...")
     credentials = None
     try:
-        credentials, project = default()
+        credentials, _ = default()  # Ignore project from ADC, use GCS_PROJECT constant
     except DefaultCredentialsError:
         print("  No existing credentials found.")
         print()
@@ -115,7 +116,14 @@ def main() -> int:
 
     # List blobs and calculate total size
     print("Fetching file list from GCS...")
-    client = storage.Client()
+    # Explicitly pass project, credentials, and quota_project (fail-fast, no environment defaults)
+    client = storage.Client(
+        project=GCS_PROJECT,
+        credentials=credentials,
+        # Set quota project for billing attribution
+        # This is typically the same as the project but can be different for billing
+        client_options={"quota_project_id": GCS_PROJECT}
+    )
     bucket = client.bucket(GCS_BUCKET)
     blobs = list(bucket.list_blobs(prefix=GCS_PREFIX))
 
