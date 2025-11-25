@@ -26,12 +26,10 @@ MCP server for semantic search and literature review across a shared Zotero acad
 
 ## Setup
 
-1. **Install prerequisites**: [uv](https://docs.astral.sh/uv/) and [gcloud CLI](https://cloud.google.com/sdk/docs/install)
-2. **Get access**: Contact Nic with your Google email
-3. **Authenticate**: `gcloud auth application-default login`
-4. **Download vectors**: `uvx --from git+https://github.com/nicsuzor/zotmcp.git zotmcp-download`
-5. **Add to Claude** (see below)
-6. **Restart Claude**
+1. **Get access**: Contact Nic with your Google email
+2. **Install [uv](https://docs.astral.sh/uv/)**: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+3. **Add to Claude** (see below)
+4. **Restart Claude** - vectors download automatically on first run (~3GB)
 
 ### Claude Code
 

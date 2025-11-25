@@ -10,7 +10,7 @@
 # See commit f37e667 for details on async initialization pattern
 
 defaults:
-  - db: deploy # Use deploy for Docker, override with db=dev for local
+  - db: upstream # Auto-downloads from GCS on first run
   - _self_
 
 project_name: zotmcp
