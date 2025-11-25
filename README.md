@@ -10,23 +10,6 @@ MCP server for semantic search and literature review across a shared Zotero acad
 - **Author Search** - Find all works by specific authors
 - **7 Specialized Tools** - Search, retrieve, and analyze academic literature
 
-## MCP Client Configuration
-
-```json
-{"type":"stdio","command":"podman","args":["run","--rm","-v","/home/nic/.config/gcloud:/root/.config/gcloud:ro","-i","us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"]}
-```
-or
-```json
-{
-  "mcpServers": {
-    "zotero": {
-      "command": "docker",
-      "args": ["run", "--rm", "-i", "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"]
-    }
-  }
-}
-```
-
 ## Available Tools
 
 ### Zotero Library Search Tools
@@ -41,84 +24,14 @@ or
 7. **`get_paper_citations`** - Get forward citations for a paper from OpenAlex
 8. **`get_referenced_works`** - Get backward citations for a paper from OpenAlex
 
-## Colleague Setup (Recommended: uvx method)
+## Setup
 
-### Prerequisites
-
-1. **Python 3.10+** with [uv](https://docs.astral.sh/uv/) installed:
-   ```bash
-   # Install uv (cross-platform)
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-
-2. **Google Cloud CLI** authenticated:
-   ```bash
-   # Install gcloud: https://cloud.google.com/sdk/docs/install
-   gcloud auth application-default login
-   ```
-
-3. **GCP Access** - Contact Nic to be granted access to the project
-
-### Step 1: Download the Zotero vectors database
-
-```bash
-# One-time download (~3GB)
-uvx --from git+https://github.com/nicsuzor/zotmcp.git zotmcp-download
-```
-
-Or manually:
-```bash
-mkdir -p ~/.cache/buttermilk/chromadb/gs_prosocial-dev_data_zotero-prosocial-fulltext_files
-gsutil -m rsync -r gs://prosocial-dev/data/zotero-prosocial-fulltext/files \
-    ~/.cache/buttermilk/chromadb/gs_prosocial-dev_data_zotero-prosocial-fulltext_files
-```
-
-### Step 2: Configure Claude Code
-
-Add to your MCP configuration (`.mcp.json` or via `claude mcp add`):
-
-```json
-{
-  "mcpServers": {
-    "zot": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/nicsuzor/zotmcp.git", "zotmcp"]
-    }
-  }
-}
-```
-
-Or via CLI:
-```bash
-claude mcp add-json zot '{"command":"uvx","args":["--from","git+https://github.com/nicsuzor/zotmcp.git","zotmcp"]}'
-```
-
-### Step 3: Restart Claude Code
-
-The `zot` MCP server will now be available with semantic search of the shared Zotero library.
-
----
-
-## Alternative: Docker Method
-
-For users who prefer Docker (requires Docker Desktop):
-
-```json
-{
-  "mcpServers": {
-    "zot": {
-      "command": "docker",
-      "args": [
-        "run", "--rm", "-i",
-        "-v", "~/.config/gcloud:/root/.config/gcloud:ro",
-        "us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"
-      ]
-    }
-  }
-}
-```
-
-**Note**: Docker on Windows requires WSL2 and proper volume mount paths.
+1. **Install prerequisites**: [uv](https://docs.astral.sh/uv/) and [gcloud CLI](https://cloud.google.com/sdk/docs/install)
+2. **Get access**: Contact Nic with your Google email
+3. **Authenticate**: `gcloud auth application-default login`
+4. **Download vectors**: `uvx --from git+https://github.com/nicsuzor/zotmcp.git zotmcp-download`
+5. **Add to Claude Code**: `claude mcp add-json zot '{"command":"uvx","args":["--from","git+https://github.com/nicsuzor/zotmcp.git","zotmcp"]}'`
+6. **Restart Claude Code**
 
 ## Architecture
 
