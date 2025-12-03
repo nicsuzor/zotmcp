@@ -24,18 +24,46 @@ MCP server for semantic search and literature review across a shared Zotero acad
 7. **`get_paper_citations`** - Get forward citations for a paper from OpenAlex
 8. **`get_referenced_works`** - Get backward citations for a paper from OpenAlex
 
-## Setup
+## Setup 
+
+### If you have docker AND gcloud installed already
 
 1. **Get access**: Contact Nic with your Google email
+
+2. Just add this to your list of MCP servers:
+  ```json
+      "zotmcp": {"type": "stdio","command": "docker","args": ["run","--rm","-v","/home/$USER/.config/gcloud:/root/.config/gcloud:ro","-i","us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"]}
+  ```
+
+### Normal setup 
+
+1. **Get access**: 
+
+    First, contact Nic with your Google email.
+
+    Then, login with your Google credentials:
+    ```bash
+    gcloud auth application-default login
+    ```
+    
 2. **Install [uv](https://docs.astral.sh/uv/)**:
+    Windows:
+    ```
+    winget install --id=astral-sh.uv -e
+    ```
+
+    Linux:
     ```bash
     curl -LsSf https://astral.sh/uv/install.sh | sh
     ```
+    
 3. **Restart terminal** (required for PATH changes)
+
 4. **Download vectors** (~8GB):
    ```bash
    uvx --from git+https://github.com/nicsuzor/zotmcp.git zotmcp-download
    ```
+
 5. **Add to Claude**:
 
     For Claude Code:

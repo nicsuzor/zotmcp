@@ -2,3 +2,4 @@
 - Build the docker image with 'bash scripts/build.sh --push'
 - Build the docker image with 'bash scripts/build.sh --push'
 - don't push docker images by default
+- you've got access to the zotmcp server through your tools -- use those instead next time

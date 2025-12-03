@@ -451,65 +451,6 @@ def get_item(item_key: str) -> dict:
 
 
 @mcp.tool()
-def get_full_text(item_key: str) -> dict:
-    """Retrieve full text content inline for a specific Zotero item.
-
-    Unlike get_item which writes large documents to temp files, this tool
-    returns the complete text content directly in the response. Use this
-    when you need the full text inline regardless of size.
-
-    Args:
-        item_key: Zotero item key
-
-    Returns:
-        Dictionary with full_text (complete content), chunk_count,
-        full_text_size_bytes, and basic metadata (citation, title, zotero_key)
-    """
-    from zotmcp.search_utils import get_metadata_field
-
-    coll = get_collection()
-
-    results = coll.get(
-        where={"document_id": {"$eq": item_key}}, include=["metadatas", "documents"]
-    )
-
-    if not results["documents"]:
-        return {"error": f"Item {item_key} not found"}
-
-    # Get all chunks and sort by chunk_index
-    chunk_count = len(results["documents"])
-    chunks_with_index = []
-    for i, (doc, meta) in enumerate(zip(results["documents"], results["metadatas"])):
-        chunk_index = meta["chunk_index"]  # Fail-fast: required field
-        chunks_with_index.append((chunk_index, doc))
-
-    # Sort by chunk_index and concatenate
-    chunks_with_index.sort(key=lambda x: x[0])
-    full_text = "\n\n".join(chunk[1] for chunk in chunks_with_index)
-
-    # Use first chunk's metadata for item-level fields
-    metadata = results["metadatas"][0]
-
-    # Extract citation metadata using existing helper
-    citation, _, _, zotero_key, _, _ = extract_citation_metadata(metadata)
-
-    # Extract title
-    title = get_metadata_field(metadata, "title")
-
-    # Calculate size
-    full_text_size_bytes = len(full_text.encode("utf-8"))
-
-    return {
-        "full_text": full_text,
-        "chunk_count": chunk_count,
-        "full_text_size_bytes": full_text_size_bytes,
-        "citation": citation,
-        "title": title,
-        "zotero_key": zotero_key,
-    }
-
-
-@mcp.tool()
 def get_similar_items(item_key: str, n_results: int = 5) -> dict:
     """Find items similar to a given Zotero item.
 
