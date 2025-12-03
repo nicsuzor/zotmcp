@@ -63,6 +63,12 @@ pipeline:
       model: gpt5mini
       template: citator
 
+    # 2b. Validate and clean LLM-generated citations
+    - _target_: zotmcp.citation_validator.CitationValidatorProcessor
+      reject_invalid: false  # Mark invalid but don't filter (re-process later)
+      attempt_cleanup: true  # Clean whitespace issues automatically
+      log_rejections: true
+
     # 3. Chunk text semantically
     - _target_: buttermilk.data.vector.SemanticSplitter
       chunk_size: 500

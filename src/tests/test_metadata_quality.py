@@ -251,3 +251,89 @@ async def test_title_metadata_coverage(mcp_server_local):
         f"Only {title_pct:.1f}% of items have titles. Expected at least 95%. "
         f"Missing titles: {len(missing_titles)}"
     )
+
+
+async def test_citation_field_not_corrupted(mcp_server_local):
+    """Test that citation fields don't contain excessive whitespace corruption.
+
+    Some PDFs cause citation fields to be filled with thousands of whitespace
+    characters (newlines, spaces, tabs). This test identifies corrupt citations by:
+    1. Checking for citations over 500 characters (reasonable max for a citation)
+    2. Checking for repeated whitespace patterns (e.g., 10+ consecutive newlines)
+
+    Relates to: Data quality issue with PDF extraction artifacts
+    """
+    import re
+
+    search_tool = main.get_search_tool()
+    await search_tool.ensure_cache_initialized()
+    collection = search_tool.collection
+
+    # Get ALL chunks to scan entire corpus
+    total_chunks = collection.count()
+    logger.info(f"Scanning entire collection: {total_chunks} chunks")
+
+    # Fetch in batches to handle large collections
+    BATCH_SIZE = 10000
+    items_by_key: dict[str, dict] = {}
+
+    for offset in range(0, total_chunks, BATCH_SIZE):
+        results = collection.get(
+            limit=BATCH_SIZE,
+            offset=offset,
+            include=["metadatas"],
+        )
+        for metadata in results["metadatas"]:
+            doc_id = metadata.get("document_id")
+            if doc_id and doc_id not in items_by_key:
+                items_by_key[doc_id] = metadata
+
+    total_items = len(items_by_key)
+    logger.info(f"Found {total_items} unique items in {total_chunks} chunks")
+
+    # Check for corruption patterns
+    MAX_CITATION_LENGTH = 500  # Reasonable max for a well-formed citation
+    WHITESPACE_PATTERN = re.compile(r"[\s\n\r\t]{10,}")  # 10+ consecutive whitespace
+
+    too_long = []
+    whitespace_corrupted = []
+
+    for doc_id, metadata in items_by_key.items():
+        citation = metadata.get("citation", "")
+        if not citation:
+            continue
+
+        # Check length
+        if len(citation) > MAX_CITATION_LENGTH:
+            too_long.append((doc_id, len(citation)))
+
+        # Check for repeated whitespace
+        if WHITESPACE_PATTERN.search(citation):
+            whitespace_corrupted.append(doc_id)
+
+    # Log results
+    logger.info(f"Citation corruption check for {total_items} items:")
+    logger.info(f"  Citations > {MAX_CITATION_LENGTH} chars: {len(too_long)}")
+    logger.info(f"  Whitespace corrupted: {len(whitespace_corrupted)}")
+
+    if too_long:
+        # Sort by length descending and show top 10
+        too_long.sort(key=lambda x: x[1], reverse=True)
+        logger.warning(f"Top items with overly long citations:")
+        for doc_id, length in too_long[:10]:
+            logger.warning(f"  {doc_id}: {length} chars")
+
+    if whitespace_corrupted:
+        logger.warning(
+            f"Items with whitespace-corrupted citations: {whitespace_corrupted[:10]}"
+        )
+
+    # Assert no corruption
+    assert len(too_long) == 0, (
+        f"Found {len(too_long)} items with citations > {MAX_CITATION_LENGTH} chars. "
+        f"Top offenders: {[f'{k}:{v}' for k, v in too_long[:5]]}"
+    )
+    assert len(whitespace_corrupted) == 0, (
+        f"Found {len(whitespace_corrupted)} items with whitespace-corrupted citations. "
+        f"Sample: {whitespace_corrupted[:5]}"
+    )
