@@ -116,13 +116,12 @@ def main() -> int:
 
     # List blobs and calculate total size
     print("Fetching file list from GCS...")
-    # Explicitly pass project, credentials, and quota_project (fail-fast, no environment defaults)
+    # Explicitly pass project and credentials (fail-fast, no environment defaults)
+    # Note: Do NOT set quota_project_id - it causes "User project specified in the request is invalid"
+    # errors for users who aren't project members. The bucket is not requester-pays.
     client = storage.Client(
         project=GCS_PROJECT,
         credentials=credentials,
-        # Set quota project for billing attribution
-        # This is typically the same as the project but can be different for billing
-        client_options={"quota_project_id": GCS_PROJECT}
     )
     bucket = client.bucket(GCS_BUCKET)
     blobs = list(bucket.list_blobs(prefix=GCS_PREFIX))
