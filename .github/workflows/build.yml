@@ -46,13 +46,13 @@ jobs:
       - name: Download ChromaDB from GCS
         run: |
           echo "📥 Syncing ChromaDB from GCS (incremental)..."
-          mkdir -p /chromadb
+          mkdir -p .cache/zotmcp
 
           # Use rsync for faster incremental downloads (only changed files)
-          gsutil -m rsync -r gs://prosocial-dev/data/zotero-prosocial-fulltext/files /chromadb
+          gsutil -m rsync -r gs://prosocial-dev/data/zotero-prosocial-fulltext/files .cache/zotmcp
 
           echo "✅ ChromaDB synced"
-          du -sh /chromadb
+          du -sh .cache/zotmcp
 
       - name: Set Docker tag
         id: docker_tag
