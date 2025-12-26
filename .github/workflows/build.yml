@@ -43,6 +43,15 @@ jobs:
       - name: Register gcloud as Docker credential helper
         run: gcloud auth configure-docker us-central1-docker.pkg.dev
 
+      - name: Free disk space
+        run: |
+          echo "Before cleanup:"
+          df -h
+          # Remove unnecessary tools to free space for ChromaDB
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          echo "After cleanup:"
+          df -h
+
       - name: Download ChromaDB from GCS
         run: |
           echo "📥 Syncing ChromaDB from GCS (incremental)..."
