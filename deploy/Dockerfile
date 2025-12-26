@@ -19,9 +19,6 @@ COPY src/ ./src/
 # Install dependencies (using the cache from the buttermilk image for biggest deps)
 RUN --mount=type=cache,target=/root/.cache/uv uv sync
 
-# Copy configuration
-COPY conf/ ./conf/
-
 # Update buttermilk finally (it changes frequently in development)
 RUN uv sync --no-cache --reinstall-package buttermilk
 
