@@ -1,7 +1,13 @@
 name: Build and Push ZotMCP Docker Image
 
 on:
-  workflow_dispatch: # Allows manual triggering
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -65,10 +71,10 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.event_name != 'pull_request' }}
           provenance: false
           sbom: false
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           file: ./deploy/Dockerfile
           build-args: |
             CACHE_DATE=${{ steps.docker_tag.outputs.cache_date }}
@@ -80,7 +86,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Image summary
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: |
           echo "✅ Docker image built and pushed!"
           echo ""
