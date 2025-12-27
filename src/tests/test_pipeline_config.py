@@ -11,7 +11,7 @@ from pathlib import Path
 def test_vectorize_config_loads_successfully():
     """Test that vectorize.yaml loads without errors."""
     # Arrange
-    config_dir = Path(__file__).parent.parent.parent / "conf"
+    config_dir = Path(__file__).parent.parent / "zotmcp" / "conf"
     assert config_dir.exists(), f"Config directory not found: {config_dir}"
 
     # Act & Assert - should not raise any exceptions
@@ -29,7 +29,7 @@ def test_vectorize_config_loads_successfully():
 def test_quality_filter_processor_in_pipeline():
     """Test that QualityFilterProcessor is configured in the pipeline."""
     # Arrange
-    config_dir = Path(__file__).parent.parent.parent / "conf"
+    config_dir = Path(__file__).parent.parent / "zotmcp" / "conf"
 
     # Act
     with initialize_config_dir(
@@ -48,7 +48,7 @@ def test_quality_filter_processor_in_pipeline():
 def test_quality_filter_processor_position():
     """Test that QualityFilterProcessor is positioned between chunking and embedding."""
     # Arrange
-    config_dir = Path(__file__).parent.parent.parent / "conf"
+    config_dir = Path(__file__).parent.parent / "zotmcp" / "conf"
 
     # Act
     with initialize_config_dir(
@@ -88,7 +88,7 @@ def test_quality_filter_processor_position():
 def test_quality_filter_processor_configuration():
     """Test that QualityFilterProcessor has correct threshold configuration."""
     # Arrange
-    config_dir = Path(__file__).parent.parent.parent / "conf"
+    config_dir = Path(__file__).parent.parent / "zotmcp" / "conf"
 
     # Act
     with initialize_config_dir(

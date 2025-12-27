@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
-import main
+import zotmcp.main as main
 
 
 pytestmark = pytest.mark.anyio
@@ -39,7 +39,7 @@ async def test_lifespan_manager_does_not_block_on_chromadb():
         await asyncio.sleep(30)  # Simulate slow GCS download + initialization
 
     # Patch the search tool's initialize method deeply within buttermilk
-    with patch("main.init_async", new_callable=AsyncMock) as mock_init:
+    with patch("zotmcp.main.init_async", new_callable=AsyncMock) as mock_init:
         # Mock buttermilk initialization (fast part)
         mock_bm = Mock()
         mock_bm.cfg = Mock()
@@ -164,7 +164,7 @@ async def test_tools_available_within_10_seconds():
     """
     # Find the main.py file to run
     project_root = Path(__file__).parent.parent.parent
-    main_py = project_root / "src" / "main.py"
+    main_py = project_root / "src" / "zotmcp" / "main.py"
 
     if not main_py.exists():
         raise FileNotFoundError(f"Cannot find main.py at {main_py}")
@@ -331,7 +331,7 @@ def test_stdout_clean_during_startup():
     """
     # Find the main.py file to run
     project_root = Path(__file__).parent.parent.parent
-    main_py = project_root / "src" / "main.py"
+    main_py = project_root / "src" / "zotmcp" / "main.py"
 
     if not main_py.exists():
         raise FileNotFoundError(f"Cannot find main.py at {main_py}")

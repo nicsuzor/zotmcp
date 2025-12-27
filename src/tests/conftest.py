@@ -156,7 +156,7 @@ def docker_http_server():
 async def test_lifespan_manager(server: FastMCP):
     """Test-specific lifespan that initializes buttermilk with db=dev."""
     # Load zotero config with dev database override for tests
-    str(Path(__file__).parent.parent.parent / "conf")
+    str(Path(__file__).parent.parent / "zotmcp" / "conf")
 
     main.search_tool = main.get_search_tool()
     await main.search_tool.ensure_cache_initialized()
@@ -173,7 +173,7 @@ async def test_lifespan_manager(server: FastMCP):
 async def bm_vectorize():
     """Get Zotero configuration."""
 
-    conf_dir = str(Path(__file__).parent.parent.parent / "conf")
+    conf_dir = str(Path(__file__).parent.parent / "zotmcp" / "conf")
     bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=[])
     yield bm
 
@@ -187,7 +187,7 @@ async def bm_dev():
     Uses mcp.yaml config which has minimal dependencies (no BigQuery)
     to allow tests to run without GCP credentials.
     """
-    conf_dir = str(Path(__file__).parent.parent.parent / "conf")
+    conf_dir = str(Path(__file__).parent.parent / "zotmcp" / "conf")
     bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=["db=dev"])
     yield bm
     await bm.graceful_shutdown()
