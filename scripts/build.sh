@@ -63,7 +63,7 @@ echo "   ChromaDB size: ${CHROMADB_SIZE}"
 echo ""
 
 # Build the image with cache date
-podman build \
+docker build \
     -f deploy/Dockerfile \
     -t "${IMAGE_NAME}:${TAG}" \
     --build-arg CACHE_DATE="${CACHE_DATE}" \
