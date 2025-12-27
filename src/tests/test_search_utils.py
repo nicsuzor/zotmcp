@@ -1,6 +1,6 @@
 """Tests for search_utils module."""
 
-from src.search_utils import extract_author_names
+from zotmcp.search_utils import extract_author_names
 
 
 def test_extract_author_names_zotero_list_format():
@@ -27,7 +27,7 @@ def test_fuzzy_match_metadata_with_list_creators():
     defeats the list handling in fuzzy_match_author. The fuzzy score for exact
     matches is ~72-76 instead of >=90.
     """
-    from src.search_utils import fuzzy_match_metadata
+    from zotmcp.search_utils import fuzzy_match_metadata
 
     # Zotero native format: creators as list of dicts
     metadata = {
