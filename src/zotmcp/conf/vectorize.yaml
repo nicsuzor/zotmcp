@@ -71,8 +71,12 @@ pipeline:
 
     # 3. Chunk text semantically
     - _target_: buttermilk.data.vector.SemanticSplitter
-      chunk_size: 500
-      chunk_overlap: 200
+      chunk_size: 400
+      chunk_overlap: 0
+
+    # 3b. Add document metadata prepend to chunks and extract abstract
+    - _target_: zotmcp.prepend_processor.PrependProcessor
+      min_chunk_size: 80
 
     # 4. Filter corrupt documents (document-level quality check)
     - _target_: buttermilk.processors.quality.QualityFilterProcessor
@@ -86,6 +90,9 @@ pipeline:
       embedding_batch_size: 100
       embedding_max_retries: 5
       embedding_cooldown_seconds: 0.1
+
+    # 5b. Restore original chunk text for storage
+    - _target_: zotmcp.prepend_processor.RestoreTextProcessor
 
     # 6. Store in ChromaDB
     - ${vectoriser}
