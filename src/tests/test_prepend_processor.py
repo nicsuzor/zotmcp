@@ -24,9 +24,9 @@ async def test_correct_prepend_full_metadata():
                 "date": "2023-05-01", 
                 "creators": [{"creatorType": "author", "firstName": "Jane", "lastName": "Doe"}]
             })
-        }
+        },
+        chunks=[MockChunk(chunk_text="Here is paragraph 1. It is very long and has lots of words so it passes the min_chunk_size.")]
     )
-    record.chunks = [MockChunk(chunk_text="Here is paragraph 1. It is very long and has lots of words so it passes the min_chunk_size.")]
     
     generator = processor.process(record)
     result = await generator.__anext__()
@@ -54,9 +54,9 @@ async def test_correct_prepend_missing_year():
                 "title": "No Year Title", 
                 "creators": [{"creatorType": "author", "lastName": "Smith"}]
             })
-        }
+        },
+        chunks=[MockChunk(chunk_text="Chunk text that is quite long enough to be preserved without abstract.")]
     )
-    record.chunks = [MockChunk(chunk_text="Chunk text that is quite long enough to be preserved without abstract.")]
     
     generator = processor.process(record)
     result = await generator.__anext__()
@@ -71,9 +71,9 @@ async def test_failure_missing_zotero_data():
     record = Record(
         record_id="doc3",
         content="Some content",
-        metadata={}
+        metadata={},
+        chunks=[MockChunk(chunk_text="Some text")]
     )
-    record.chunks = [MockChunk(chunk_text="Some text")]
     
     with pytest.raises(ValueError, match="missing zotero_data"):
         generator = processor.process(record)
@@ -83,15 +83,14 @@ async def test_failure_missing_zotero_data():
 async def test_restore_text_processor():
     processor = RestoreTextProcessor()
     
-    record = Record(
-        record_id="doc4",
-        content="",
-        metadata={}
-    )
-    
     chunk = MockChunk(chunk_text="Prepended Text\n\nRaw text")
     chunk.metadata = {"raw_text": "Raw text", "other": "value"}
-    record.chunks = [chunk]
+    record = Record(
+        record_id="doc4",
+        content="Non-empty content so validation passes.",
+        metadata={},
+        chunks=[chunk]
+    )
     
     generator = processor.process(record)
     result = await generator.__anext__()
