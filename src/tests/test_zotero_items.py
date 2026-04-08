@@ -13,7 +13,7 @@ from buttermilk._core.types import BaseRecord
 async def test_zotero_item_source_reads_keys_from_file():
     """Test ZoteroItemSource reads item keys from text file."""
     # Arrange
-    from src.zotero_items import ZoteroItemSource
+    from zotmcp.zotero_items import ZoteroItemSource
 
     # Create test file with sample keys
     test_file = Path(__file__).parent / "fixtures" / "test_item_keys.txt"
@@ -32,7 +32,7 @@ async def test_zotero_item_source_reads_keys_from_file():
 async def test_zotero_item_source_fetches_items_by_key(bm_vectorize):
     """Test ZoteroItemSource fetches specific items from Zotero API."""
     # Arrange
-    from src.zotero_items import ZoteroItemSource
+    from zotmcp.zotero_items import ZoteroItemSource
 
     # Use the first 2 keys from documents_to_remove_ids.txt
     test_file = Path(__file__).parent.parent.parent / "documents_to_remove_ids.txt"

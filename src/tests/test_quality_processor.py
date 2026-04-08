@@ -14,7 +14,7 @@ from buttermilk.data.vector import ChunkedDocument
 async def test_quality_filter_passes_clean_document():
     """Test QualityFilterProcessor yields clean documents unchanged."""
     # Arrange
-    from src.quality_processor import QualityFilterProcessor
+    from zotmcp.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
         corruption_threshold=95.0, pattern_threshold=80.0
@@ -55,7 +55,7 @@ async def test_quality_filter_passes_clean_document():
 async def test_quality_filter_blocks_95_percent_corrupt_document():
     """Test QualityFilterProcessor filters out 95%+ corrupt documents."""
     # Arrange
-    from src.quality_processor import QualityFilterProcessor
+    from zotmcp.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
         corruption_threshold=95.0, pattern_threshold=80.0
@@ -108,7 +108,7 @@ async def test_quality_filter_blocks_95_percent_corrupt_document():
 async def test_quality_filter_passes_94_percent_corrupt_document():
     """Test QualityFilterProcessor passes 94% corrupt document (below threshold)."""
     # Arrange
-    from src.quality_processor import QualityFilterProcessor
+    from zotmcp.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
         corruption_threshold=95.0, pattern_threshold=80.0
@@ -162,7 +162,7 @@ async def test_quality_filter_passes_94_percent_corrupt_document():
 async def test_quality_filter_with_custom_thresholds():
     """Test QualityFilterProcessor respects custom threshold configuration."""
     # Arrange - use stricter 80% threshold
-    from src.quality_processor import QualityFilterProcessor
+    from zotmcp.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
         corruption_threshold=80.0,  # Stricter threshold
@@ -218,7 +218,7 @@ async def test_quality_filter_with_custom_thresholds():
 async def test_quality_filter_logs_filtered_documents(caplog):
     """Test QualityFilterProcessor logs when filtering documents."""
     # Arrange
-    from src.quality_processor import QualityFilterProcessor
+    from zotmcp.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
         corruption_threshold=95.0, pattern_threshold=80.0
@@ -271,7 +271,7 @@ async def test_quality_filter_uses_is_document_corrupt_with_threshold():
     - 65% corruption with 66.0 threshold -> PASS (corruption_rate < threshold)
     """
     # Arrange
-    from src.quality_processor import QualityFilterProcessor
+    from zotmcp.quality_processor import QualityFilterProcessor
 
     processor = QualityFilterProcessor(
         corruption_threshold=66.0,

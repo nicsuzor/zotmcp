@@ -11,7 +11,7 @@ from pathlib import Path
 def test_reprocess_config_loads_successfully():
     """Test that reprocess.yaml loads without errors."""
     # Arrange
-    config_dir = Path(__file__).parent.parent.parent / "conf"
+    config_dir = Path(__file__).parent.parent / "zotmcp" / "conf"
     assert config_dir.exists(), f"Config directory not found: {config_dir}"
 
     # Act & Assert - should not raise any exceptions
@@ -29,7 +29,7 @@ def test_reprocess_config_loads_successfully():
 def test_reprocess_uses_zotero_item_source():
     """Test that reprocess.yaml uses ZoteroItemSource."""
     # Arrange
-    config_dir = Path(__file__).parent.parent.parent / "conf"
+    config_dir = Path(__file__).parent.parent / "zotmcp" / "conf"
 
     # Act
     with initialize_config_dir(
@@ -50,7 +50,7 @@ def test_reprocess_uses_zotero_item_source():
 def test_reprocess_has_same_processors_as_vectorize():
     """Test that reprocess.yaml has identical processors to vectorize.yaml."""
     # Arrange
-    config_dir = Path(__file__).parent.parent.parent / "conf"
+    config_dir = Path(__file__).parent.parent / "zotmcp" / "conf"
 
     # Act
     with initialize_config_dir(
@@ -71,7 +71,7 @@ def test_reprocess_has_same_processors_as_vectorize():
 def test_reprocess_quality_filter_configuration():
     """Test that reprocess.yaml has correct QualityFilterProcessor threshold."""
     # Arrange
-    config_dir = Path(__file__).parent.parent.parent / "conf"
+    config_dir = Path(__file__).parent.parent / "zotmcp" / "conf"
 
     # Act
     with initialize_config_dir(

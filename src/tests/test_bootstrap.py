@@ -1,6 +1,7 @@
 """Test simplified bootstrap with ZotMCP."""
 
-import asyncio
+from pathlib import Path
+
 from buttermilk import init_async
 import pytest
 
@@ -9,7 +10,8 @@ import pytest
 async def test_bootstrap():
     """Test bootstrap."""
     print("Testing simplified bootstrap with ZotMCP config...")
-    bm = await init_async(config_dir="conf", config_name="zotero")
+    conf_dir = str(Path(__file__).parent.parent / "zotmcp" / "conf")
+    bm = await init_async(config_dir=conf_dir, config_name="zotero")
     print(f"✅ Bootstrap successful!")
     print(f"   Project: {bm.session_info.project_name}")
     print(f"   Job: {bm.session_info.job}")

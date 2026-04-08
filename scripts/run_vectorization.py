@@ -52,7 +52,7 @@ async def run_pipeline(cfg: DictConfig) -> None:
         await bm.graceful_shutdown()
 
 
-@hydra.main(version_base="1.3", config_path="../conf", config_name="vectorize")
+@hydra.main(version_base="1.3", config_path="../src/zotmcp/conf", config_name="vectorize")
 def main(cfg: DictConfig) -> None:
     """Entry point - loads config and runs async pipeline."""
     asyncio.run(run_pipeline(cfg))
