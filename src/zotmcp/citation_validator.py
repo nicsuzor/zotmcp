@@ -14,6 +14,7 @@ from typing import AsyncGenerator
 from pydantic import BaseModel, Field
 
 from buttermilk import logger
+from buttermilk._core.processing_context import ProcessingContext
 from buttermilk._core.types import Record
 
 
@@ -139,19 +140,18 @@ class CitationValidatorProcessor(BaseModel):
         description="If True, log details when citations fail validation.",
     )
 
-    async def process(
-        self, record: Record, *, processor_stage: str = "citation_validation", **kwargs
-    ) -> AsyncGenerator[Record, None]:
+    async def process(self, context: ProcessingContext) -> AsyncGenerator[Record, None]:
         """Process a record by validating its citation metadata.
 
         Args:
-            record: Record with citation in metadata
-            processor_stage: Stage name for metadata tracking
-            **kwargs: Additional keyword arguments (ignored)
+            context: Unified processing context
 
         Yields:
             Record with validated/cleaned citation, or nothing if rejected
         """
+        record = context.record
+        processor_stage = context.session_id
+        
         metadata = record.metadata.copy() if record.metadata else {}
         citation = metadata.get("citation")
 
@@ -160,42 +160,24 @@ class CitationValidatorProcessor(BaseModel):
             yield record
             return
 
-        # Validate the citation
+        # Attempt cleanup if enabled
+        if self.attempt_cleanup:
+            citation = clean_citation(citation)
+            metadata["citation"] = citation
+
+        # Validate citation
         result = validate_citation(citation)
 
         if result.is_valid:
-            # Citation is valid, pass through unchanged
-            yield record
+            # Citation is clean - yield updated record
+            yield record.model_copy(update={"metadata": metadata})
             return
 
-        # Citation has issues - attempt cleanup if enabled
-        if self.attempt_cleanup:
-            cleaned = clean_citation(citation)
-            if cleaned != citation:
-                # Re-validate cleaned citation
-                cleaned_result = validate_citation(cleaned)
-                if cleaned_result.is_valid:
-                    # Cleanup fixed the issues
-                    metadata["citation"] = cleaned
-                    metadata["citation_cleaned"] = True
-                    logger.debug(
-                        f"✅ Citation cleaned for {record.record_id}",
-                        original_length=len(citation),
-                        cleaned_length=len(cleaned),
-                        processor_stage=processor_stage,
-                    )
-                    yield record.model_copy(update={"metadata": metadata})
-                    return
-                else:
-                    # Cleanup didn't fully fix it
-                    result = cleaned_result
-
-        # Citation is invalid and couldn't be cleaned
-        title = metadata.get("title", record.record_id)[:80] if metadata else record.record_id
-
+        # Citation is invalid - log if enabled
         if self.log_rejections:
+            title = getattr(record, "title", "Unknown")
             logger.warning(
-                f"❌ Invalid citation for: {title}",
+                f"⚠️ Invalid citation for: {title}",
                 record_id=record.record_id,
                 issues=result.issues,
                 citation_preview=citation[:100] if citation else None,

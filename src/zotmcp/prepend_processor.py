@@ -7,6 +7,7 @@ from typing import AsyncGenerator, Dict, Any
 
 from pydantic import BaseModel, Field
 from buttermilk import logger
+from buttermilk._core.processing_context import ProcessingContext
 from buttermilk._core.types import Record
 
 def _count_tokens(text: str) -> int:
@@ -18,9 +19,9 @@ class PrependProcessor(BaseModel):
     
     min_chunk_size: int = Field(default=80)
     
-    async def process(
-        self, record: Record, *, processor_stage: str = "prepend", **kwargs
-    ) -> AsyncGenerator[Record, None]:
+    async def process(self, context: ProcessingContext) -> AsyncGenerator[Record, None]:
+        """Adds document metadata prepend to chunks and extracts abstract."""
+        record = context.record
         if not hasattr(record, "chunks") or not record.chunks:
             yield record
             return
@@ -176,9 +177,9 @@ class PrependProcessor(BaseModel):
 class RestoreTextProcessor(BaseModel):
     """Restores the original chunk text from metadata after embedding."""
     
-    async def process(
-        self, record: Record, *, processor_stage: str = "restore_text", **kwargs
-    ) -> AsyncGenerator[Record, None]:
+    async def process(self, context: ProcessingContext) -> AsyncGenerator[Record, None]:
+        """Restores the original chunk text from metadata after embedding."""
+        record = context.record
         if not hasattr(record, "chunks") or not record.chunks:
             yield record
             return

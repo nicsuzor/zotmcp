@@ -58,19 +58,11 @@ class QualityFilterProcessor(BaseModel):
         "Currently used by verification logic, reserved for future use.",
     )
 
-    async def process(
-        self, record: Record, *, processor_stage: str, **kwargs
-    ) -> AsyncGenerator[Record, None]:
+    async def process(self, context: ProcessingContext) -> AsyncGenerator[Record, None]:
         """Process a record by analyzing document quality and filtering if corrupt.
 
-        This processor expects the record to have a `chunks` attribute from a prior
-        chunking stage (e.g., SemanticSplitter). It analyzes all chunks to calculate
-        document-level corruption rate and filters documents exceeding the threshold.
-
         Args:
-            record: Record with chunks attached
-            processor_stage: Stage name for metadata tracking
-            **kwargs: Additional keyword arguments (ignored)
+            context: Unified processing context
 
         Yields:
             Record if document passes quality check (corruption < threshold)
@@ -79,6 +71,9 @@ class QualityFilterProcessor(BaseModel):
         Raises:
             ValueError: If record has no chunks attribute (fail-fast)
         """
+        record = context.record
+        processor_stage = context.session_id
+        
         # Fail-fast: Require chunks attribute from prior stage
         if not hasattr(record, "chunks") or record.chunks is None:
             raise ValueError(
@@ -133,6 +128,19 @@ class QualityFilterProcessor(BaseModel):
                 processor_stage=processor_stage,
             )
             return  # Do not yield - document is filtered
+
+        # Document passes quality check
+        logger.debug(
+            f"✅ Document passed quality check: {title[:100]}",
+            record_id=record.record_id,
+            corruption_rate=f"{corruption_rate:.1f}%",
+            corrupted_chunks=corrupted_chunks,
+            total_chunks=total_chunks,
+            processor_stage=processor_stage,
+        )
+
+        yield record
+ filtered
 
         # Document passes quality check
         logger.debug(

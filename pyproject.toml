@@ -12,11 +12,11 @@ dependencies = [
   "langdetect>=1.0.9",
   "rapidfuzz>=3.0.0",
   "google-auth-oauthlib>=1.0.0",
-  "buttermilk>=0.6.1",
+  "buttermilk @ file:///home/nic/src/buttermilk",
 ]
 
 [tool.uv.sources]
-buttermilk = { git = "https://github.com/qut-dmrc/buttermilk.git", rev = "dev" }
+buttermilk = { path = "/home/nic/src/buttermilk" }
 
 [dependency-groups]
 dev = [
