@@ -9,18 +9,18 @@ ARG PROJECT_NAME=zotmcp
 ARG CACHE_DATE
 WORKDIR /app/${PROJECT_NAME}
 
-# Copy Zotero ChromaDB cache from local build context
-COPY .cache/zotmcp /chromadb
+# Copy Zotero ChromaDB cache from named build context (--build-context cache=...)
+COPY --from=cache . /chromadb
+
+# Copy buttermilk source (local path dep) from named build context
+COPY --from=buttermilk_src . /home/nic/src/buttermilk
 
 # Copy dependency files and source code (needed by uv sync)
 COPY pyproject.toml ./
 COPY src/ ./src/
 
-# Install dependencies (using the cache from the buttermilk image for biggest deps)
+# Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv uv sync
-
-# Update buttermilk finally (it changes frequently in development)
-RUN uv sync --no-cache --reinstall-package buttermilk
 
 # Set Python paths
 ENV PYTHONPATH="/app/${PROJECT_NAME}/src:${PYTHONPATH}"

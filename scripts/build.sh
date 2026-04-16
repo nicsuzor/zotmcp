@@ -62,14 +62,22 @@ CHROMADB_SIZE=$(du -sh "$CACHE_DIR" | cut -f1)
 echo "   ChromaDB size: ${CHROMADB_SIZE}"
 echo ""
 
+BUTTERMILK_SRC="${BUTTERMILK_SRC:-${HOME}/src/buttermilk}"
+if [ ! -d "$BUTTERMILK_SRC" ]; then
+    echo "❌ Error: buttermilk source not found at ${BUTTERMILK_SRC}"
+    echo "Set BUTTERMILK_SRC env var to override."
+    exit 1
+fi
+
 # Build the image with cache date
 docker build \
     -f deploy/Dockerfile \
     -t "${IMAGE_NAME}:${TAG}" \
     --build-arg CACHE_DATE="${CACHE_DATE}" \
     --build-context cache="${CACHE_DIR}" \
+    --build-context buttermilk_src="${BUTTERMILK_SRC}" \
     --progress=plain \
-    . 
+    .
 
 
 echo ""

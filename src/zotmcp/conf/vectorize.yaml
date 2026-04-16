@@ -60,7 +60,7 @@ pipeline:
 
     # 2. Generate citations using LLM
     - _target_: buttermilk.tools.citator.Citator
-      model: gpt5mini
+      model: gemini-flash
       template: citator
 
     # 2b. Validate and clean LLM-generated citations
