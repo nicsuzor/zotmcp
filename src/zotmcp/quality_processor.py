@@ -14,6 +14,7 @@ from typing import AsyncGenerator
 from pydantic import BaseModel, Field
 
 from buttermilk import logger
+from buttermilk._core.processing_context import ProcessingContext
 from buttermilk._core.types import Record
 from buttermilk.utils.text_quality import is_document_corrupt
 
@@ -128,19 +129,6 @@ class QualityFilterProcessor(BaseModel):
                 processor_stage=processor_stage,
             )
             return  # Do not yield - document is filtered
-
-        # Document passes quality check
-        logger.debug(
-            f"✅ Document passed quality check: {title[:100]}",
-            record_id=record.record_id,
-            corruption_rate=f"{corruption_rate:.1f}%",
-            corrupted_chunks=corrupted_chunks,
-            total_chunks=total_chunks,
-            processor_stage=processor_stage,
-        )
-
-        yield record
- filtered
 
         # Document passes quality check
         logger.debug(

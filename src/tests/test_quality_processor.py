@@ -6,8 +6,13 @@ and embedding steps to prevent corrupt documents from being vectorized.
 """
 
 import pytest
+from buttermilk._core.processing_context import ProcessingContext
 from buttermilk._core.types import Record
 from buttermilk.data.vector import ChunkedDocument
+
+
+def make_context(record: Record) -> ProcessingContext:
+    return ProcessingContext(session_id="test", record=record)
 
 
 @pytest.mark.asyncio
@@ -42,7 +47,7 @@ async def test_quality_filter_passes_clean_document():
 
     # Act
     results = []
-    async for result in processor.process(record, processor_stage="quality_filter"):
+    async for result in processor.process(make_context(record)):
         results.append(result)
 
     # Assert
@@ -97,7 +102,7 @@ async def test_quality_filter_blocks_95_percent_corrupt_document():
 
     # Act
     results = []
-    async for result in processor.process(record, processor_stage="quality_filter"):
+    async for result in processor.process(make_context(record)):
         results.append(result)
 
     # Assert
@@ -150,7 +155,7 @@ async def test_quality_filter_passes_94_percent_corrupt_document():
 
     # Act
     results = []
-    async for result in processor.process(record, processor_stage="quality_filter"):
+    async for result in processor.process(make_context(record)):
         results.append(result)
 
     # Assert
@@ -205,7 +210,7 @@ async def test_quality_filter_with_custom_thresholds():
 
     # Act
     results = []
-    async for result in processor.process(record, processor_stage="quality_filter"):
+    async for result in processor.process(make_context(record)):
         results.append(result)
 
     # Assert
@@ -248,7 +253,7 @@ async def test_quality_filter_logs_filtered_documents(caplog):
 
     # Act
     results = []
-    async for result in processor.process(record, processor_stage="quality_filter"):
+    async for result in processor.process(make_context(record)):
         results.append(result)
 
     # Assert
@@ -314,7 +319,7 @@ async def test_quality_filter_uses_is_document_corrupt_with_threshold():
 
     # Act
     results_66 = []
-    async for result in processor.process(record_66, processor_stage="quality_filter"):
+    async for result in processor.process(make_context(record_66)):
         results_66.append(result)
 
     # Assert - 66% corruption with 66.0 threshold should be FILTERED
@@ -356,7 +361,7 @@ async def test_quality_filter_uses_is_document_corrupt_with_threshold():
 
     # Act
     results_65 = []
-    async for result in processor.process(record_65, processor_stage="quality_filter"):
+    async for result in processor.process(make_context(record_65)):
         results_65.append(result)
 
     # Assert - 65% corruption with 66.0 threshold should PASS

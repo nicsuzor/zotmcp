@@ -1,8 +1,13 @@
 import pytest
 import json
 from pydantic import BaseModel, ConfigDict
+from buttermilk._core.processing_context import ProcessingContext
 from buttermilk._core.types import Record
 from zotmcp.prepend_processor import PrependProcessor, RestoreTextProcessor
+
+
+def make_context(record: Record) -> ProcessingContext:
+    return ProcessingContext(session_id="test", record=record)
 
 class MockChunk(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -28,7 +33,7 @@ async def test_correct_prepend_full_metadata():
         chunks=[MockChunk(chunk_text="Here is paragraph 1. It is very long and has lots of words so it passes the min_chunk_size.")]
     )
     
-    generator = processor.process(record)
+    generator = processor.process(make_context(record))
     result = await generator.__anext__()
     
     # Abstract chunk and regular chunk
@@ -58,7 +63,7 @@ async def test_correct_prepend_missing_year():
         chunks=[MockChunk(chunk_text="Chunk text that is quite long enough to be preserved without abstract.")]
     )
     
-    generator = processor.process(record)
+    generator = processor.process(make_context(record))
     result = await generator.__anext__()
     
     assert len(result.chunks) == 1
@@ -76,7 +81,7 @@ async def test_failure_missing_zotero_data():
     )
     
     with pytest.raises(ValueError, match="missing zotero_data"):
-        generator = processor.process(record)
+        generator = processor.process(make_context(record))
         await generator.__anext__()
 
 @pytest.mark.asyncio
@@ -92,7 +97,7 @@ async def test_restore_text_processor():
         chunks=[chunk]
     )
     
-    generator = processor.process(record)
+    generator = processor.process(make_context(record))
     result = await generator.__anext__()
     
     restored_chunk = result.chunks[0]

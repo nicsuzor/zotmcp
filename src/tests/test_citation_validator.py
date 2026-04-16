@@ -9,6 +9,7 @@ These tests verify that:
 """
 
 import pytest
+from buttermilk._core.processing_context import ProcessingContext
 from zotmcp.citation_validator import (
     CitationValidationResult,
     CitationValidatorProcessor,
@@ -160,7 +161,7 @@ class TestCitationValidatorProcessor:
         processor = CitationValidatorProcessor()
         record = mock_record(citation="Smith (2023). Title. Journal, 1(2).")
 
-        results = [r async for r in processor.process(record, processor_stage="test")]
+        results = [r async for r in processor.process(ProcessingContext(session_id="test", record=record))]
 
         assert len(results) == 1
         assert results[0].metadata["citation"] == "Smith (2023). Title. Journal, 1(2)."
@@ -172,7 +173,7 @@ class TestCitationValidatorProcessor:
         processor = CitationValidatorProcessor()
         record = mock_record(citation=None)
 
-        results = [r async for r in processor.process(record, processor_stage="test")]
+        results = [r async for r in processor.process(ProcessingContext(session_id="test", record=record))]
 
         assert len(results) == 1
 
@@ -183,7 +184,7 @@ class TestCitationValidatorProcessor:
         dirty_citation = "Smith (2023).\n\n\n\n\n\n\n\n\n\n\nTitle."
         record = mock_record(citation=dirty_citation)
 
-        results = [r async for r in processor.process(record, processor_stage="test")]
+        results = [r async for r in processor.process(ProcessingContext(session_id="test", record=record))]
 
         assert len(results) == 1
         assert results[0].metadata["citation"] == "Smith (2023). Title."
@@ -197,7 +198,7 @@ class TestCitationValidatorProcessor:
         bad_citation = "A" * 1000
         record = mock_record(citation=bad_citation)
 
-        results = [r async for r in processor.process(record, processor_stage="test")]
+        results = [r async for r in processor.process(ProcessingContext(session_id="test", record=record))]
 
         assert len(results) == 1
         assert results[0].metadata.get("citation_invalid") is True
@@ -210,7 +211,7 @@ class TestCitationValidatorProcessor:
         bad_citation = "A" * 1000
         record = mock_record(citation=bad_citation)
 
-        results = [r async for r in processor.process(record, processor_stage="test")]
+        results = [r async for r in processor.process(ProcessingContext(session_id="test", record=record))]
 
         assert len(results) == 0  # Record was filtered
 
