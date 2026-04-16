@@ -240,6 +240,7 @@ def get_search_tool():
         persist_directory=storage_config.persist_directory,
         embedding_model=storage_config.embedding_model,
         dimensionality=storage_config.dimensionality,
+        read_only=getattr(storage_config, "read_only", True),
     )
 
     return search_tool
