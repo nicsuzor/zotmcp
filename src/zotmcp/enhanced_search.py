@@ -32,12 +32,14 @@ async def fuzzy_metadata_search(
     date_from: Optional[int] = None,
     date_to: Optional[int] = None,
     item_type: Optional[str] = None,
-    max_items_to_scan: int = 5000,
+    max_items_to_scan: int = 20000,
 ) -> list[SearchResult]:
     """Search metadata fields using fuzzy string matching.
 
     This performs a pure metadata search without semantic embeddings.
     Useful for finding items by partial titles, author names with typos, etc.
+
+    Fetches one chunk per item (chunk_index=0) so coverage is per-item, not per-chunk.
 
     Args:
         collection: ChromaDB collection
@@ -48,17 +50,22 @@ async def fuzzy_metadata_search(
         date_from: Earliest year filter
         date_to: Latest year filter
         item_type: Filter by itemType (e.g., 'journalArticle')
-        max_items_to_scan: Maximum items to scan (prevents excessive memory use)
+        max_items_to_scan: Fallback cap if chunk_index filter is unavailable
 
     Returns:
         List of SearchResult objects ranked by fuzzy score
     """
-    # Fetch items from ChromaDB
-    # Note: This is a limitation of ChromaDB - no full-text search on metadata
-    # so we have to fetch items and filter in Python
-    results = collection.get(
-        limit=max_items_to_scan, include=["metadatas", "documents"]
-    )
+    # One chunk per item — ensures every unique item in the library is evaluated,
+    # not just the first N chunks (which may cover only a small fraction of items
+    # when documents have many chunks each).
+    try:
+        results = collection.get(
+            where={"chunk_index": 0}, include=["metadatas", "documents"]
+        )
+    except Exception:
+        results = collection.get(
+            limit=max_items_to_scan, include=["metadatas", "documents"]
+        )
 
     matched_results = []
     seen_items = set()
@@ -92,10 +99,6 @@ async def fuzzy_metadata_search(
             matched_results.append(result)
             seen_items.add(item_key)
 
-            # Stop if we have enough results
-            if len(matched_results) >= n_results * 2:  # Get extra for ranking
-                break
-
     # Rank by fuzzy score and limit
     ranked = rank_results(matched_results, sort_by="fuzzy")
     return ranked[:n_results]
@@ -109,7 +112,7 @@ async def fuzzy_author_search(
     date_from: Optional[int] = None,
     date_to: Optional[int] = None,
     item_type: Optional[str] = None,
-    max_items_to_scan: int = 5000,
+    max_items_to_scan: int = 20000,
 ) -> list[SearchResult]:
     """Search for items by author name with fuzzy matching.
 
@@ -124,14 +127,19 @@ async def fuzzy_author_search(
         date_from: Earliest year filter
         date_to: Latest year filter
         item_type: Filter by itemType
-        max_items_to_scan: Maximum items to scan
+        max_items_to_scan: Fallback cap if chunk_index filter is unavailable
 
     Returns:
         List of SearchResult objects ranked by fuzzy score
     """
-    results = collection.get(
-        limit=max_items_to_scan, include=["metadatas", "documents"]
-    )
+    try:
+        results = collection.get(
+            where={"chunk_index": 0}, include=["metadatas", "documents"]
+        )
+    except Exception:
+        results = collection.get(
+            limit=max_items_to_scan, include=["metadatas", "documents"]
+        )
 
     matched_results = []
     seen_items = set()
@@ -261,6 +269,11 @@ async def hybrid_search(
 async def search_by_doi_async(collection, doi: str) -> Optional[dict]:
     """Search for an item by DOI (exact match).
 
+    Tries a fast server-side `where` filter on the stored `doi_or_url` field first
+    (covers the common case where the DOI is stored verbatim), then falls back to
+    a normalised scan restricted to one chunk per item, so items with prefixed /
+    whitespace-padded DOIs still match.
+
     Args:
         collection: ChromaDB collection
         doi: DOI to search for
@@ -268,8 +281,30 @@ async def search_by_doi_async(collection, doi: str) -> Optional[dict]:
     Returns:
         Metadata dict if found, None otherwise
     """
-    # Fetch all metadata (or use a reasonable limit)
-    results = collection.get(limit=10000, include=["metadatas"])
+    from zotmcp.search_utils import normalize_doi
+
+    normalized = normalize_doi(doi)
+    if not normalized:
+        return None
+
+    # Fast path: exact server-side match on the bare-DOI form we store in `doi_or_url`.
+    try:
+        exact = collection.get(
+            where={"doi_or_url": normalized}, limit=1, include=["metadatas"]
+        )
+        if exact["metadatas"]:
+            return exact["metadatas"][0]
+    except Exception:
+        # `where` can fail on malformed indexes; fall through to scan.
+        pass
+
+    # Fallback: scan unique items (one chunk per item) so we don't pay for all chunks.
+    try:
+        results = collection.get(
+            where={"chunk_index": 0}, include=["metadatas"]
+        )
+    except Exception:
+        results = collection.get(limit=20000, include=["metadatas"])
     return search_by_doi(doi, results["metadatas"])
 
 

@@ -291,6 +291,7 @@ async def search(
     fuzzy_threshold: int = 60,
     semantic_weight: float = 0.6,
     exclude_corrupted: bool = True,
+    include_excerpt: bool = False,
 ) -> dict:
     """Search the Zotero library with semantic, fuzzy, or hybrid search.
 
@@ -311,6 +312,10 @@ async def search(
         fuzzy_threshold: Minimum fuzzy match score 0-100 (default: 60)
         semantic_weight: Weight for semantic vs fuzzy in hybrid mode (default: 0.6)
         exclude_corrupted: Filter out results with heavy CID corruption (>=20 patterns) (default: True)
+        include_excerpt: Include document text excerpt per result (default: False).
+            Off by default — excerpts are ~2-4 KB each and most callers (dedupe,
+            library lookup) only need identifiers + scores. Use get_item() to fetch
+            full text for a specific result.
 
     Returns:
         Dictionary with search results including citations, excerpts, and relevance scores
@@ -353,7 +358,9 @@ async def search(
             exclude_corrupted=exclude_corrupted,
         )
 
-        formatted_results = [_format_search_result(r) for r in results]
+        formatted_results = [
+            _format_search_result(r, include_excerpt=include_excerpt) for r in results
+        ]
 
         return {
             "query": query,
@@ -772,24 +779,30 @@ async def get_paper_details(paper_id: str) -> dict:
     return result if result else {"error": "Paper not found"}
 
 
-def _format_search_result(result: SearchResult) -> dict:
+def _format_search_result(result: SearchResult, include_excerpt: bool = False) -> dict:
     """Format a SearchResult object for MCP tool output.
 
     Args:
         result: SearchResult object
+        include_excerpt: Include the PDF/document text excerpt (default: False).
+            Off by default because excerpts are typically 2-4 KB each; callers doing
+            dedupe / library lookup only need identifiers + scores.
 
     Returns:
         Dictionary with formatted result
     """
+    from zotmcp.search_utils import get_metadata_field
+
     citation, doi_or_url, uri, zotero_key, citation_key, zotero_web_link = (
         extract_citation_metadata(result.metadata)
     )
 
     zotero_link = f"zotero://select/library/items/{zotero_key}" if zotero_key else None
+    title = get_metadata_field(result.metadata, "title")
 
     output = {
+        "title": title,
         "citation": citation,
-        "excerpt": result.document if result.document else None,
         "doi_or_url": doi_or_url,
         "uri": uri,
         "zotero_key": zotero_key,
@@ -797,6 +810,9 @@ def _format_search_result(result: SearchResult) -> dict:
         "zotero_link": zotero_link,
         "zotero_web_link": zotero_web_link,
     }
+
+    if include_excerpt:
+        output["excerpt"] = result.document if result.document else None
 
     # Add scores if available
     if result.similarity_score is not None:

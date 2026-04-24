@@ -200,6 +200,11 @@ def fuzzy_match_title(
 ) -> tuple[bool, float]:
     """Match query against title using fuzzy matching.
 
+    Uses the max of token_set_ratio (handles word order / supersets) and
+    partial_ratio (handles substring / truncated queries). This keeps short
+    title queries finding the right item when the query is a substring of the
+    stored title.
+
     Args:
         query: Search query
         title: Title to match against
@@ -211,9 +216,23 @@ def fuzzy_match_title(
     if not title:
         return False, 0.0
 
-    # Use token set ratio to handle word order and partial matches
-    score = fuzz.token_set_ratio(query.lower(), title.lower())
+    q = query.lower()
+    t = title.lower()
+    score = max(fuzz.token_set_ratio(q, t), fuzz.partial_ratio(q, t))
     return score >= threshold, score
+
+
+# Per-field weights for fuzzy metadata ranking. Title fields dominate because
+# they are short and precise; abstractNote is long and token_set_ratio against
+# it gives spurious high scores to any paper whose abstract overlaps query
+# tokens, drowning out the real title match.
+_FIELD_WEIGHTS = {
+    "title": 1.0,
+    "publicationTitle": 0.95,
+    "publisher": 0.85,
+    "abstractNote": 0.7,
+    "creators": 1.0,
+}
 
 
 def fuzzy_match_metadata(
@@ -224,11 +243,15 @@ def fuzzy_match_metadata(
 ) -> tuple[bool, float, str]:
     """Match query against multiple metadata fields.
 
+    Returns the weighted-best field score, so a near-exact title match beats
+    a loose abstract match even when the raw abstract score is higher.
+
     Args:
         query: Search query
         metadata: Metadata dictionary
         fields: List of field names to search (default: common fields)
-        threshold: Minimum score to consider a match
+        threshold: Minimum score to consider a match (compared against the
+            raw field score, not the weighted ranking score)
 
     Returns:
         Tuple of (is_match, best_score, matched_field)
@@ -253,12 +276,13 @@ def fuzzy_match_metadata(
 
         # Special handling for creators field
         if field == "creators":
-            is_match, score, _ = fuzzy_match_author(query, value, threshold)
+            _, raw_score, _ = fuzzy_match_author(query, value, threshold)
         else:
-            is_match, score = fuzzy_match_title(query, str(value), threshold)
+            _, raw_score = fuzzy_match_title(query, str(value), threshold)
 
-        if score > best_score:
-            best_score = score
+        weighted = raw_score * _FIELD_WEIGHTS.get(field, 1.0)
+        if weighted > best_score:
+            best_score = weighted
             best_field = field
 
     return best_score >= threshold, best_score, best_field
@@ -318,8 +342,19 @@ def filter_by_date_range(
     return True
 
 
+def normalize_doi(doi: str) -> str:
+    """Normalize a DOI for comparison: lowercase, trim, strip common prefixes."""
+    normalized = (doi or "").lower().strip()
+    return re.sub(
+        r"^(doi:|https?://(?:dx\.)?doi\.org/)", "", normalized
+    )
+
+
 def search_by_doi(doi: str, all_metadata: list[dict]) -> Optional[dict]:
     """Search for an item by DOI (exact match).
+
+    Reads from the `doi_or_url` field (the canonical ChromaDB storage slot).
+    Comparison is case-insensitive and tolerant of `doi:` / `https://doi.org/` prefixes.
 
     Args:
         doi: DOI to search for
@@ -328,23 +363,15 @@ def search_by_doi(doi: str, all_metadata: list[dict]) -> Optional[dict]:
     Returns:
         Matching metadata dict, or None if not found
     """
-    doi_normalized = doi.lower().strip()
-
-    # Remove common prefixes
-    doi_normalized = re.sub(
-        r"^(doi:|https?://doi.org/|https?://dx.doi.org/)", "", doi_normalized
-    )
+    doi_normalized = normalize_doi(doi)
+    if not doi_normalized:
+        return None
 
     for metadata in all_metadata:
-        item_doi = metadata.get("DOI", "")
-        if item_doi:
-            item_doi_normalized = re.sub(
-                r"^(doi:|https?://doi.org/|https?://dx.doi.org/)",
-                "",
-                item_doi.lower().strip(),
-            )
-            if doi_normalized == item_doi_normalized:
-                return metadata
+        # Primary storage field; fall back to legacy "DOI" if present.
+        item_doi = metadata.get("doi_or_url") or metadata.get("DOI") or ""
+        if item_doi and normalize_doi(item_doi) == doi_normalized:
+            return metadata
 
     return None
 
