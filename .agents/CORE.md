@@ -1,5 +1,18 @@
 # ZotMCP — Developer & Agent Reference
 
+## Path Discovery (CRITICAL)
+
+To discover project locations, read `.agents/context-map.json` in the relevant repo. If the map is missing or stale, HALT.
+
+## Fail-Fast / Halt Rule (ENFORCED)
+
+If you cannot do what was asked, **STOP and report** — do NOT search broadly, do NOT invent workarounds.
+
+- **Missing Paths**: If a documented path does not exist, HALT.
+- **No Broad Grep**: Never grep `$HOME` or `/` to find source repos or documents. Use `context-map.json` for discovery.
+- **Tool Failures**: If a tool doesn't work as documented, report the failure — do not invent alternatives.
+- **Ambiguity**: If instructions conflict or are ambiguous, ask for clarification.
+
 ## Overview
 ZotMCP is an MCP (Model Context Protocol) server providing semantic search and literature review capabilities for a shared Zotero academic library ("prosocial" group library) combined with discovery features through the OpenAlex API (240M+ papers).
 
