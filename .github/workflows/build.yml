@@ -70,7 +70,10 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           provenance: false
           sbom: false
-          platforms: linux/amd64,linux/arm64
+          # arm64 is intentionally not built: the buttermilk:dev base image
+          # only ships a linux/amd64 manifest. Re-add arm64 once buttermilk
+          # publishes a multi-arch base.
+          platforms: linux/amd64
           file: ./deploy/Dockerfile
           # Dockerfile expects a `buttermilk_src` named build context.
           # ChromaDB is mounted at runtime — no build context needed for it.
