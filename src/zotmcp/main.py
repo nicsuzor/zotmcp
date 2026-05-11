@@ -89,7 +89,12 @@ async def _initialize_gcp_background():
         # This allows fast startup without BigQuery/PubSub/Logging
         # Use absolute path from project root
         conf_dir = str(Path(__file__).parent / "conf")
-        bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=[])
+        # Forward Hydra-style overrides from argv (e.g. `db=deploy`) so
+        # `python main.py db=deploy` actually switches the config group.
+        # Without this, the entrypoint's HYDRA_OVERRIDES env var is silently
+        # dropped and the default `db: upstream` is used in all environments.
+        overrides = [a for a in sys.argv[1:] if "=" in a or a.startswith(("+", "~"))]
+        bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=overrides)
         _gcp_ready = True
         logger.info("✅ GCP initialization complete - Vertex AI is ready")
     except Exception as e:
