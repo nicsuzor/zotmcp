@@ -245,7 +245,12 @@ def get_search_tool():
         persist_directory=storage_config.persist_directory,
         embedding_model=storage_config.embedding_model,
         dimensionality=storage_config.dimensionality,
-        read_only=getattr(storage_config, "read_only", True),
+        # NOTE: do NOT forward read_only=True. In buttermilk, read_only mode
+        # skips initializing the Gemini embedding function, which makes
+        # ChromaDB fall back to its default 384-dim sentence-transformer for
+        # query_texts=[…] — causing a dimension mismatch against the 3072-dim
+        # Gemini collection. The MCP only ever queries, never writes, so the
+        # write/sync paths gated by read_only are inert here.
     )
 
     return search_tool
