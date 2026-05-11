@@ -63,6 +63,13 @@ jobs:
           echo "✅ ChromaDB synced"
           du -sh .cache/zotmcp
 
+      - name: Checkout buttermilk source (build context)
+        uses: actions/checkout@v4
+        with:
+          repository: qut-dmrc/buttermilk
+          path: .cache/buttermilk
+          fetch-depth: 1
+
       - name: Set Docker tag
         id: docker_tag
         run: |
@@ -85,6 +92,12 @@ jobs:
           sbom: false
           platforms: linux/amd64,linux/arm64
           file: ./deploy/Dockerfile
+          # Dockerfile expects `cache` (ChromaDB) and `buttermilk_src` named
+          # build contexts. Without these, the build resolves `buttermilk_src`
+          # to docker.io/library/buttermilk_src:latest and fails with 404.
+          build-contexts: |
+            cache=.cache/zotmcp
+            buttermilk_src=.cache/buttermilk
           build-args: |
             CACHE_DATE=${{ steps.docker_tag.outputs.cache_date }}
           tags: |
