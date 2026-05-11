@@ -18,12 +18,16 @@ WORKDIR /app/${PROJECT_NAME}
 # synced from GCS by /usr/local/bin/sync-chromadb.sh.
 COPY --from=buttermilk_src . /home/nic/src/buttermilk
 
-# Copy dependency files and source code (needed by uv sync)
-COPY pyproject.toml ./
+# Copy dependency files and source code (needed by uv sync).
+# uv.lock MUST be copied so `uv sync --locked` installs the exact resolved
+# versions. Without it, uv resolves from scratch every build and can pull
+# major version bumps (e.g. fastmcp 2.x → 3.x has a breaking lifespan API
+# change that hangs uvicorn startup).
+COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 
-# Install dependencies
-RUN --mount=type=cache,target=/root/.cache/uv uv sync
+# Install dependencies from the lock — fail the build if it's stale.
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked
 
 # Set Python paths
 ENV PYTHONPATH="/app/${PROJECT_NAME}/src:${PYTHONPATH}"
