@@ -43,25 +43,10 @@ jobs:
       - name: Register gcloud as Docker credential helper
         run: gcloud auth configure-docker us-central1-docker.pkg.dev
 
-      - name: Free disk space
-        run: |
-          echo "Before cleanup:"
-          df -h
-          # Remove unnecessary tools to free space for ChromaDB
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          echo "After cleanup:"
-          df -h
-
-      - name: Download ChromaDB from GCS
-        run: |
-          echo "📥 Syncing ChromaDB from GCS (incremental)..."
-          mkdir -p .cache/zotmcp
-
-          # Use rsync for faster incremental downloads (only changed files)
-          gsutil -m rsync -r gs://prosocial-dev/data/zotero-prosocial-fulltext/files .cache/zotmcp
-
-          echo "✅ ChromaDB synced"
-          du -sh .cache/zotmcp
+      # ChromaDB is no longer baked into the image — it is rsynced from GCS
+      # into a named volume by deploy/sync-chromadb.sh on container start.
+      # That removed the need for the previous "free disk space" hack and the
+      # multi-GB download step in CI.
 
       - name: Checkout buttermilk source (build context)
         uses: actions/checkout@v4
@@ -73,15 +58,10 @@ jobs:
       - name: Set Docker tag
         id: docker_tag
         run: |
-          # Use current month for CACHE_DATE (monthly refresh)
-          CACHE_DATE=$(date +%Y-%m)
-          echo "cache_date=$CACHE_DATE" >> $GITHUB_OUTPUT
-
-          # Get branch name and make it Docker tag friendly
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
           SAFE_BRANCH=$(echo $BRANCH_NAME | sed 's/\//-/g')
           echo "branch_tag=$SAFE_BRANCH" >> $GITHUB_OUTPUT
-          echo "Building for branch: $BRANCH_NAME (tag: $SAFE_BRANCH, cache: $CACHE_DATE)"
+          echo "Building for branch: $BRANCH_NAME (tag: $SAFE_BRANCH)"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -92,14 +72,10 @@ jobs:
           sbom: false
           platforms: linux/amd64,linux/arm64
           file: ./deploy/Dockerfile
-          # Dockerfile expects `cache` (ChromaDB) and `buttermilk_src` named
-          # build contexts. Without these, the build resolves `buttermilk_src`
-          # to docker.io/library/buttermilk_src:latest and fails with 404.
+          # Dockerfile expects a `buttermilk_src` named build context.
+          # ChromaDB is mounted at runtime — no build context needed for it.
           build-contexts: |
-            cache=.cache/zotmcp
             buttermilk_src=.cache/buttermilk
-          build-args: |
-            CACHE_DATE=${{ steps.docker_tag.outputs.cache_date }}
           tags: |
             us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:${{ steps.docker_tag.outputs.branch_tag }}
             us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest
@@ -117,4 +93,6 @@ jobs:
           echo "  - us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:latest"
           echo "  - us-central1-docker.pkg.dev/prosocial-443205/reg/zotmcp:${{ steps.docker_tag.outputs.branch_tag }}-${{ github.sha }}"
           echo ""
-          echo "🔄 ChromaDB cache date: ${{ steps.docker_tag.outputs.cache_date }}"
+          echo "ℹ️  ChromaDB is no longer bundled — runtime hosts must mount a"
+          echo "    named volume at /chromadb. Sync from GCS happens automatically"
+          echo "    on container start (override with ZOTMCP_SKIP_SYNC=1)."
