@@ -34,7 +34,8 @@ env/
 .DS_Store
 Thumbs.db
 outputs/
-uv.lock
+# uv.lock is intentionally tracked: zotmcp is a deployable service, so we
+# pin transitive deps via the lock to keep Docker builds reproducible.
 */*.local.*
 
 # academicOps managed files - DO NOT COMMIT
