@@ -14,9 +14,11 @@ ARG PROJECT_NAME=zotmcp
 WORKDIR /app/${PROJECT_NAME}
 
 # Copy buttermilk source (local path dep) from named build context.
-# The ChromaDB is intentionally NOT copied — it is mounted at runtime and
-# synced from GCS by /usr/local/bin/sync-chromadb.sh.
-COPY --from=buttermilk_src . /home/nic/src/buttermilk
+# Path must match [tool.uv.sources] in pyproject.toml: `../buttermilk` —
+# i.e. one level above WORKDIR=/app/zotmcp. The ChromaDB is intentionally
+# NOT copied; it is mounted at runtime and synced from GCS by
+# /usr/local/bin/sync-chromadb.sh.
+COPY --from=buttermilk_src . /app/buttermilk
 
 # Copy dependency files and source code (needed by uv sync).
 # uv.lock MUST be copied so `uv sync --locked` installs the exact resolved

@@ -12,11 +12,14 @@ dependencies = [
   "langdetect>=1.0.9",
   "rapidfuzz>=3.0.0",
   "google-auth-oauthlib>=1.0.0",
-  "buttermilk @ file:///home/nic/src/buttermilk",
+  "buttermilk",
 ]
 
 [tool.uv.sources]
-buttermilk = { path = "/home/nic/src/buttermilk" }
+# Relative so the lock matches in both local dev (../buttermilk sibling
+# checkout) and the Docker build (buttermilk source copied to /app/buttermilk
+# alongside the /app/zotmcp WORKDIR — see deploy/Dockerfile).
+buttermilk = { path = "../buttermilk" }
 
 [dependency-groups]
 dev = [
