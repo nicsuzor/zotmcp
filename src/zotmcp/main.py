@@ -1076,10 +1076,16 @@ def main(cfg: DictConfig) -> None:
     if transport == "stdio":
         mcp.run()
     else:
+        # stateless_http=True: each request gets a fresh transport, avoiding
+        # session accumulation in StreamableHTTPSessionManager._server_instances.
+        # Terminated sessions are never removed from that dict in stateful mode
+        # (mcp library bug), causing a slow memory creep over days of operation.
+        # These servers have no cross-request session state so stateless is safe.
         mcp.run(
             transport="streamable-http",
             host=os.getenv("MCP_HTTP_HOST", "0.0.0.0"),
             port=int(os.getenv("MCP_HTTP_PORT", "8024")),
+            stateless_http=True,
         )
     logger.info("🏁 FastMCP run() completed")
 
