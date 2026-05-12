@@ -57,6 +57,9 @@ class OpenAlexClient:
         """
         self.email = email
         self.max_retries = max_retries
+        # Persistent client: reusing a single AsyncClient avoids creating a new
+        # SSL context and connection pool on every API call / retry attempt.
+        self._http_client = httpx.AsyncClient(timeout=30.0)
 
     async def _make_request(
         self, endpoint: str, params: Dict[str, Any]
@@ -80,8 +83,7 @@ class OpenAlexClient:
         for attempt in range(self.max_retries):
             try:
                 logger.debug(f"OpenAlex request: {url} with params {params}")
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(url, params=params, timeout=30.0)
+                response = await self._http_client.get(url, params=params)
 
                 if response.status_code == 200:
                     return response.json()
