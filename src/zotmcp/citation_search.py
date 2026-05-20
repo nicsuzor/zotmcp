@@ -25,6 +25,11 @@ class Author(BaseModel):
     orcid: Optional[str] = None
 
 
+ALLOWED_SUMMARY_FIELDS = frozenset(
+    {"abstract", "referenced_works", "topics", "primary_location", "open_access"}
+)
+
+
 class Citation(BaseModel):
     """Citation/Paper information from OpenAlex."""
 
@@ -40,6 +45,82 @@ class Citation(BaseModel):
     topics: List[Dict[str, Any]] = Field(default_factory=list)
     cited_by_api_url: Optional[str] = None
     referenced_works: List[str] = Field(default_factory=list)
+
+    def to_summary(
+        self,
+        fields: Optional[List[str]] = None,
+        snippet_chars: int = 300,
+    ) -> Dict[str, Any]:
+        """Lean projection for list-returning MCP tools.
+
+        Drops heavy fields (full abstract, referenced_works, full topics,
+        full primary_location/open_access) so a list of ~50 citations fits
+        comfortably under MCP's tool-result token cap. Callers may opt back
+        into specific heavy fields via ``fields``.
+
+        Args:
+            fields: Names of heavy fields to additionally include. Accepted:
+                "abstract", "referenced_works", "topics", "primary_location",
+                "open_access". Raises ValueError on unknown names.
+            snippet_chars: Max length of abstract_snippet (default 300).
+        """
+        if fields:
+            unknown = set(fields) - ALLOWED_SUMMARY_FIELDS
+            if unknown:
+                raise ValueError(
+                    f"Unknown field(s) {sorted(unknown)}. "
+                    f"Accepted: {sorted(ALLOWED_SUMMARY_FIELDS)}"
+                )
+        opted_in = set(fields or ())
+
+        venue = None
+        if self.primary_location:
+            source = self.primary_location.get("source") or {}
+            venue = source.get("display_name")
+
+        is_oa = None
+        has_oa_pdf = False
+        if self.open_access:
+            is_oa = self.open_access.get("is_oa")
+            has_oa_pdf = bool(self.open_access.get("oa_url"))
+
+        abstract_snippet = None
+        if self.abstract and "abstract" not in opted_in:
+            if len(self.abstract) > snippet_chars:
+                abstract_snippet = self.abstract[:snippet_chars] + "…"
+            else:
+                abstract_snippet = self.abstract
+
+        result: Dict[str, Any] = {
+            "id": self.id,
+            "doi": self.doi,
+            "title": self.title,
+            "publication_year": self.publication_year,
+            "cited_by_count": self.cited_by_count,
+            "authors": [a.display_name for a in self.authors if a.display_name],
+            "venue": venue,
+            "is_oa": is_oa,
+            "has_oa_pdf": has_oa_pdf,
+            "topics": [
+                t.get("display_name") for t in self.topics[:3] if t.get("display_name")
+            ],
+            "n_referenced_works": len(self.referenced_works),
+            "abstract_snippet": abstract_snippet,
+        }
+
+        if "abstract" in opted_in:
+            result["abstract"] = self.abstract
+            result.pop("abstract_snippet", None)
+        if "referenced_works" in opted_in:
+            result["referenced_works"] = self.referenced_works
+        if "topics" in opted_in:
+            result["topics"] = self.topics
+        if "primary_location" in opted_in:
+            result["primary_location"] = self.primary_location
+        if "open_access" in opted_in:
+            result["open_access"] = self.open_access
+
+        return result
 
 
 class OpenAlexClient:
@@ -418,77 +499,64 @@ async def search_papers(
     year_to: Optional[int] = None,
     open_access_only: bool = False,
     limit: int = 25,
+    fields: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Search for academic papers using OpenAlex.
 
-    Args:
-        query: Search query (searches title, abstract, full text)
-        year_from: Filter by publication year (from)
-        year_to: Filter by publication year (to)
-        open_access_only: Only return open access papers
-        limit: Maximum number of results (max 200)
-
-    Returns:
-        List of paper dictionaries
+    Returns lean projections (see Citation.to_summary). Pass ``fields`` to
+    opt into heavy fields per result. search_papers uses a 500-char
+    abstract snippet by default since relevance is judged from the abstract.
     """
     results = await _client.search_papers(
         query, year_from, year_to, open_access_only, limit
     )
-    return [r.model_dump() for r in results]
+    return [r.to_summary(fields=fields, snippet_chars=500) for r in results]
 
 
 async def get_paper_citations(
-    paper_id: str, limit: int = 50, year_from: Optional[int] = None
+    paper_id: str,
+    limit: int = 50,
+    year_from: Optional[int] = None,
+    fields: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Get papers that cite a given paper (forward citations).
 
-    Args:
-        paper_id: OpenAlex ID (e.g., 'W2741809807') or DOI
-        limit: Maximum number of results
-        year_from: Filter citations from this year onwards
-
-    Returns:
-        List of citing paper dictionaries
+    Returns lean projections. Pass ``fields`` to opt into heavy fields.
     """
     results = await _client.get_paper_citations(paper_id, limit, year_from)
-    return [r.model_dump() for r in results]
+    return [r.to_summary(fields=fields) for r in results]
 
 
-async def get_referenced_works(paper_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+async def get_referenced_works(
+    paper_id: str,
+    limit: int = 50,
+    fields: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
     """
     Get papers referenced by a given paper (backward citations).
 
-    Args:
-        paper_id: OpenAlex ID or DOI
-        limit: Maximum number of results
-
-    Returns:
-        List of referenced paper dictionaries
+    Returns lean projections. Pass ``fields`` to opt into heavy fields.
     """
     results = await _client.get_referenced_works(paper_id, limit)
-    return [r.model_dump() for r in results]
+    return [r.to_summary(fields=fields) for r in results]
 
 
 async def search_openalex_author(
-    author_name: str, limit: int = 50, year_from: Optional[int] = None
+    author_name: str,
+    limit: int = 50,
+    year_from: Optional[int] = None,
+    fields: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Search for papers by author name using OpenAlex API.
 
     This searches the OpenAlex database (240M+ papers), NOT the user's Zotero library.
-
-    Args:
-        author_name: Author name to search for
-        limit: Maximum number of papers to return
-        year_from: Filter papers from this year onwards
-
-    Returns:
-        List of paper dictionaries
+    Returns lean projections. Pass ``fields`` to opt into heavy fields.
     """
     results = await _client.search_openalex_author(author_name, limit, year_from)
-    return [r.model_dump() for r in results]
+    return [r.to_summary(fields=fields) for r in results]
 
 
 async def get_paper_details(paper_id: str) -> Optional[Dict[str, Any]]:

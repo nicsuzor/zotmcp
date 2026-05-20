@@ -622,11 +622,17 @@ async def search_papers(
     year_to: Optional[int] = None,
     open_access_only: bool = False,
     limit: int = 25,
+    fields: Optional[list] = None,
 ) -> list:
     """Search for academic papers using OpenAlex API.
 
     Discover new literature beyond your Zotero library. OpenAlex provides free
     access to 240M+ academic works with good humanities coverage.
+
+    Returns lean per-result projections (id, doi, title, year, cited_by_count,
+    author names, venue, is_oa, has_oa_pdf, top 3 topics, n_referenced_works,
+    500-char abstract_snippet). For the full record on a specific paper, call
+    get_paper_details(paper_id).
 
     Args:
         query: Search query (searches title, abstract, full text)
@@ -634,11 +640,16 @@ async def search_papers(
         year_to: Latest publication year (optional)
         open_access_only: Only return open access papers (default: False)
         limit: Max results (1-200, default 25)
-
-    Returns:
-        List of paper dictionaries with metadata
+        fields: Optional list of heavy fields to additionally include per
+            result. Accepted: 'abstract' (full text instead of snippet),
+            'referenced_works' (full ID list), 'topics' (full topic dicts),
+            'primary_location', 'open_access'. Opting into 'referenced_works'
+            or 'abstract' on large result sets may exceed the MCP token
+            cap — request only what you need.
     """
-    return await _search_papers(query, year_from, year_to, open_access_only, limit)
+    return await _search_papers(
+        query, year_from, year_to, open_access_only, limit, fields=fields
+    )
 
 
 @mcp.tool()
@@ -646,36 +657,56 @@ async def get_paper_citations(
     paper_id: str,
     limit: int = 50,
     year_from: Optional[int] = None,
+    fields: Optional[list] = None,
 ) -> list:
     """Get papers that CITE a specific paper (forward citations).
 
     Explore citation networks to discover recent work building on foundational papers.
 
+    Returns lean per-result projections (id, doi, title, year, cited_by_count,
+    author names, venue, is_oa, has_oa_pdf, top 3 topics, n_referenced_works,
+    300-char abstract_snippet). For the full reference list of a specific
+    paper, call get_referenced_works(paper_id). For the full record, call
+    get_paper_details(paper_id).
+
     Args:
         paper_id: OpenAlex ID (e.g., 'W2741809807') or DOI
         limit: Maximum number of results (default: 50)
         year_from: Only include citations from this year onwards (optional)
-
-    Returns:
-        List of citing paper dictionaries
+        fields: Optional list of heavy fields to additionally include per
+            result. Accepted: 'abstract' (full text instead of snippet),
+            'referenced_works' (full ID list), 'topics' (full topic dicts),
+            'primary_location', 'open_access'. Opting into 'referenced_works'
+            or 'abstract' on large result sets may exceed the MCP token
+            cap — request only what you need.
     """
-    return await _get_paper_citations(paper_id, limit, year_from)
+    return await _get_paper_citations(paper_id, limit, year_from, fields=fields)
 
 
 @mcp.tool()
-async def get_referenced_works(paper_id: str, limit: int = 50) -> list:
+async def get_referenced_works(
+    paper_id: str,
+    limit: int = 50,
+    fields: Optional[list] = None,
+) -> list:
     """Get papers referenced by a given paper (backward citations).
 
     Useful for understanding foundational work and context.
 
+    Returns lean per-result projections (see get_paper_citations). For the
+    full record on a specific reference, call get_paper_details(paper_id).
+
     Args:
         paper_id: OpenAlex ID or DOI
         limit: Maximum number of results (default: 50)
-
-    Returns:
-        List of referenced paper dictionaries
+        fields: Optional list of heavy fields to additionally include per
+            result. Accepted: 'abstract' (full text instead of snippet),
+            'referenced_works' (full ID list), 'topics' (full topic dicts),
+            'primary_location', 'open_access'. Opting into 'referenced_works'
+            or 'abstract' on large result sets may exceed the MCP token
+            cap — request only what you need.
     """
-    return await _get_referenced_works(paper_id, limit)
+    return await _get_referenced_works(paper_id, limit, fields=fields)
 
 
 @mcp.tool()
@@ -683,6 +714,7 @@ async def search_openalex_author(
     author_name: str,
     limit: int = 50,
     year_from: Optional[int] = None,
+    fields: Optional[list] = None,
 ) -> list:
     """Search for papers by author using OpenAlex API - discovers NEW papers beyond your Zotero library.
 
@@ -691,19 +723,24 @@ async def search_openalex_author(
     main 'search' tool with the author parameter instead.
 
     Uses two-step lookup: finds author in OpenAlex, then retrieves their papers.
+    Returns lean per-result projections (see get_paper_citations). For the
+    full record on a specific paper, call get_paper_details(paper_id).
 
     Args:
         author_name: Author name to search for (e.g., "Geoffrey Hinton")
         limit: Maximum number of papers to return (default: 50)
         year_from: Filter papers from this year onwards (optional)
-
-    Returns:
-        List of paper dictionaries from OpenAlex with metadata and citations
+        fields: Optional list of heavy fields to additionally include per
+            result. Accepted: 'abstract' (full text instead of snippet),
+            'referenced_works' (full ID list), 'topics' (full topic dicts),
+            'primary_location', 'open_access'. Opting into 'referenced_works'
+            or 'abstract' on large result sets may exceed the MCP token
+            cap — request only what you need.
 
     Examples:
         search_openalex_author("Yann LeCun", limit=25, year_from=2020)
     """
-    return await _search_openalex_author(author_name, limit, year_from)
+    return await _search_openalex_author(author_name, limit, year_from, fields=fields)
 
 
 @mcp.tool()
