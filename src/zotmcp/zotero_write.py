@@ -70,7 +70,9 @@ class ZoteroWriter:
                 # pyzotero raises httpx.HTTPStatusError or custom errors;
                 # detect 429 by checking the string representation
                 if "429" in str(e):
-                    wait = RATE_LIMIT_BACKOFF_BASE**attempt
+                    # attempt starts at 0; +1 makes the first backoff equal
+                    # RATE_LIMIT_BACKOFF_BASE seconds (the documented base).
+                    wait = RATE_LIMIT_BACKOFF_BASE ** (attempt + 1)
                     logger.warning(
                         f"Rate limited (429), retry {attempt + 1}/{RATE_LIMIT_RETRIES} in {wait}s"
                     )
@@ -226,7 +228,22 @@ class ZoteroWriter:
             return {"ok": True, "new_version": new_version}
         except Exception as e:
             if "412" in str(e) or "Precondition Failed" in str(e):
-                return {"ok": False, "error": "version_conflict", "new_version": None}
+                # Match the other conflict path's contract: return an int version.
+                # Fetch the latest server version, falling back to current_version.
+                latest_version = current_version
+                try:
+                    refreshed = self._retry_on_rate_limit(
+                        self._zot.items, itemKey=item_key
+                    )
+                    if refreshed:
+                        latest_version = refreshed[0]["version"]
+                except Exception:
+                    pass
+                return {
+                    "ok": False,
+                    "error": "version_conflict",
+                    "new_version": latest_version,
+                }
             raise
 
     def add_tags(self, item_key: str, tags: list[str]) -> dict:

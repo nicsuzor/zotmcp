@@ -11,9 +11,10 @@ Uses httpx for all HTTP calls (already a project dependency).
 from __future__ import annotations
 
 import logging
+import os
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import httpx
@@ -28,7 +29,9 @@ ARXIV_PATTERN = re.compile(
     r"^(?:arxiv:)?(\d{4}\.\d{4,5}(?:v\d+)?)$", re.IGNORECASE
 )
 
-DEFAULT_EMAIL = "nic.suzor@gmail.com"
+# Contact email for the CrossRef/Unpaywall polite pools. Override via the
+# ZOTMCP_CONTACT_EMAIL env var; defaults to a non-personal project placeholder.
+DEFAULT_EMAIL = os.environ.get("ZOTMCP_CONTACT_EMAIL", "zotmcp@example.com")
 
 
 @dataclass
@@ -50,6 +53,7 @@ class PaperInfo:
 async def resolve_paper(
     identifier: str,
     email: str = DEFAULT_EMAIL,
+    client: Optional[httpx.AsyncClient] = None,
 ) -> PaperInfo:
     """Resolve a paper identifier to metadata + best available PDF URL.
 
@@ -57,6 +61,9 @@ async def resolve_paper(
         identifier: DOI (bare or with URL prefix), arXiv ID (e.g. "2605.29800"),
                     or "arxiv:2605.29800".
         email: Contact email for Unpaywall and CrossRef polite pool.
+        client: Optional shared httpx.AsyncClient. When provided it is reused
+                (and left open) for connection pooling; when omitted a client is
+                created and closed locally.
 
     Returns:
         PaperInfo with metadata and best available pdf_url.
@@ -67,7 +74,7 @@ async def resolve_paper(
     m = ARXIV_PATTERN.match(identifier)
     if m:
         arxiv_id = m.group(1)
-        return await _resolve_arxiv(arxiv_id)
+        return await _resolve_arxiv(arxiv_id, client=client)
 
     # Treat as DOI — strip URL prefix if present
     doi = identifier
@@ -76,23 +83,31 @@ async def resolve_paper(
             doi = doi[len(prefix):]
             break
 
-    return await _resolve_doi(doi, email=email)
+    return await _resolve_doi(doi, email=email, client=client)
 
 
-async def _resolve_arxiv(arxiv_id: str) -> PaperInfo:
+async def _resolve_arxiv(
+    arxiv_id: str, client: Optional[httpx.AsyncClient] = None
+) -> PaperInfo:
     """Resolve an arXiv ID to metadata. PDF is always available at arxiv.org."""
     url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+    owns_client = client is None
+    if owns_client:
+        client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+    try:
         resp = await client.get(url)
         resp.raise_for_status()
+    finally:
+        if owns_client:
+            await client.aclose()
 
     # Parse Atom XML response
     ns = {
         "atom": "http://www.w3.org/2005/Atom",
         "arxiv": "http://arxiv.org/schemas/atom",
     }
-    root = ET.fromstring(resp.text)
+    root = ET.fromstring(resp.content)
     entry = root.find("atom:entry", ns)
 
     if entry is None:
@@ -142,12 +157,19 @@ async def _resolve_arxiv(arxiv_id: str) -> PaperInfo:
     )
 
 
-async def _resolve_doi(doi: str, email: str = DEFAULT_EMAIL) -> PaperInfo:
+async def _resolve_doi(
+    doi: str,
+    email: str = DEFAULT_EMAIL,
+    client: Optional[httpx.AsyncClient] = None,
+) -> PaperInfo:
     """Resolve a DOI via CrossRef + Unpaywall + Semantic Scholar fallback.
 
     CrossRef provides bibliographic metadata.
     Unpaywall provides the best OA PDF URL.
     Semantic Scholar fills in gaps if both previous sources miss.
+
+    A shared ``client`` may be passed for connection pooling; it is left open
+    for the caller to close. When omitted a client is created and closed here.
     """
     title: str = doi  # fallback if CrossRef fails
     authors: list[str] = []
@@ -155,7 +177,13 @@ async def _resolve_doi(doi: str, email: str = DEFAULT_EMAIL) -> PaperInfo:
     abstract: Optional[str] = None
     item_type: str = "journalArticle"
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+    pdf_url: Optional[str] = None
+    pdf_source: Optional[str] = None
+
+    owns_client = client is None
+    if owns_client:
+        client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+    try:
         # ── CrossRef metadata ──────────────────────────────────────────────
         crossref_url = f"https://api.crossref.org/works/{doi}"
         try:
@@ -164,12 +192,15 @@ async def _resolve_doi(doi: str, email: str = DEFAULT_EMAIL) -> PaperInfo:
                 headers={"User-Agent": f"zotmcp/1.0 (mailto:{email})"},
             )
             if resp.status_code == 200:
-                work = resp.json().get("message", {})
-                title_list = work.get("title", [])
+                resp_json = resp.json()
+                work = (resp_json.get("message") or {}) if isinstance(resp_json, dict) else {}
+                title_list = work.get("title") or []
                 if title_list:
                     title = title_list[0]
 
-                for a in work.get("author", []):
+                for a in (work.get("author") or []):
+                    if not isinstance(a, dict):
+                        continue
                     given = a.get("given", "")
                     family = a.get("family", "")
                     if given or family:
@@ -194,15 +225,12 @@ async def _resolve_doi(doi: str, email: str = DEFAULT_EMAIL) -> PaperInfo:
             logger.warning(f"CrossRef lookup failed for DOI {doi}: {e}")
 
         # ── Unpaywall OA PDF ───────────────────────────────────────────────
-        pdf_url: Optional[str] = None
-        pdf_source: Optional[str] = None
-
         unpaywall_url = f"https://api.unpaywall.org/v2/{doi}?email={email}"
         try:
             resp = await client.get(unpaywall_url)
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get("is_oa"):
+                if isinstance(data, dict) and data.get("is_oa"):
                     best = data.get("best_oa_location") or {}
                     candidate = best.get("url_for_pdf")
                     if candidate:
@@ -221,24 +249,30 @@ async def _resolve_doi(doi: str, email: str = DEFAULT_EMAIL) -> PaperInfo:
                 resp = await client.get(s2_url)
                 if resp.status_code == 200:
                     s2data = resp.json()
-                    oa_pdf = s2data.get("openAccessPdf") or {}
-                    candidate = oa_pdf.get("url")
-                    if candidate:
-                        pdf_url = candidate
-                        pdf_source = "semantic_scholar"
-                    # Fill in metadata gaps from S2
-                    if not title or title == doi:
-                        title = s2data.get("title") or title
-                    if not authors:
-                        authors = [
-                            a.get("name", "") for a in s2data.get("authors", [])
-                        ]
-                    if year is None:
-                        year = s2data.get("year")
-                    if not abstract:
-                        abstract = s2data.get("abstract")
+                    if isinstance(s2data, dict):
+                        oa_pdf = s2data.get("openAccessPdf") or {}
+                        candidate = oa_pdf.get("url")
+                        if candidate:
+                            pdf_url = candidate
+                            pdf_source = "semantic_scholar"
+                        # Fill in metadata gaps from S2
+                        if not title or title == doi:
+                            title = s2data.get("title") or title
+                        if not authors:
+                            authors = [
+                                a.get("name", "")
+                                for a in (s2data.get("authors") or [])
+                                if isinstance(a, dict)
+                            ]
+                        if year is None:
+                            year = s2data.get("year")
+                        if not abstract:
+                            abstract = s2data.get("abstract")
             except Exception as e:
                 logger.warning(f"Semantic Scholar lookup failed for DOI {doi}: {e}")
+    finally:
+        if owns_client:
+            await client.aclose()
 
     return PaperInfo(
         title=title,

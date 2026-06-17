@@ -1101,11 +1101,12 @@ async def add_note(item_key: str, note_content: str) -> dict:
     except ValueError as e:
         return {"error": str(e)}
 
-    # Convert plain text to minimal HTML
+    # Convert plain text to minimal HTML, preserving newlines as line breaks
     note_html = (
         note_content.replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
+        .replace("\n", "<br />")
     )
     note_html = f"<p>{note_html}</p>"
 

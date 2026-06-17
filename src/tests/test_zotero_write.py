@@ -409,7 +409,7 @@ UNPAYWALL_MISS = {
 async def test_resolve_doi_with_unpaywall_hit():
     """CrossRef + Unpaywall return metadata + OA PDF URL."""
     doi = "10.1234/testdoi"
-    email = "nic.suzor@gmail.com"
+    email = "zotmcp@example.com"
 
     with respx.mock:
         respx.get(f"https://api.crossref.org/works/{doi}").mock(
@@ -421,7 +421,7 @@ async def test_resolve_doi_with_unpaywall_hit():
 
         from zotmcp.source_resolver import resolve_paper
 
-        result = await resolve_paper(doi)
+        result = await resolve_paper(doi, email=email)
 
     assert result.title == "Test Journal Article"
     assert result.doi == doi
@@ -435,7 +435,7 @@ async def test_resolve_doi_with_unpaywall_hit():
 async def test_resolve_doi_no_free_pdf():
     """Unpaywall miss + Semantic Scholar miss → pdf_url is None."""
     doi = "10.9999/closed"
-    email = "nic.suzor@gmail.com"
+    email = "zotmcp@example.com"
 
     with respx.mock:
         respx.get(f"https://api.crossref.org/works/{doi}").mock(
@@ -451,7 +451,7 @@ async def test_resolve_doi_no_free_pdf():
 
         from zotmcp.source_resolver import resolve_paper
 
-        result = await resolve_paper(doi)
+        result = await resolve_paper(doi, email=email)
 
     assert result.pdf_url is None
     assert result.pdf_source is None
@@ -460,7 +460,7 @@ async def test_resolve_doi_no_free_pdf():
 async def test_resolve_doi_semantic_scholar_fallback():
     """Unpaywall miss → Semantic Scholar provides the PDF URL."""
     doi = "10.5555/s2fallback"
-    email = "nic.suzor@gmail.com"
+    email = "zotmcp@example.com"
 
     s2_response = {
         "openAccessPdf": {"url": "https://s2.example.com/paper.pdf"},
@@ -484,7 +484,7 @@ async def test_resolve_doi_semantic_scholar_fallback():
 
         from zotmcp.source_resolver import resolve_paper
 
-        result = await resolve_paper(doi)
+        result = await resolve_paper(doi, email=email)
 
     assert result.pdf_url == "https://s2.example.com/paper.pdf"
     assert result.pdf_source == "semantic_scholar"
