@@ -971,6 +971,286 @@ async def search_by_citation_key(citation_key: str) -> dict:
         return {"error": str(e)}
 
 
+# ── Write tools (Zotero write API) ────────────────────────────────────────────
+# These tools require ZOTERO_API_KEY and ZOTERO_LIBRARY_ID env vars.
+# If env vars are missing the tools return a structured error — no crash.
+
+
+def _get_writer():
+    """Instantiate ZoteroWriter from env vars, or raise ValueError if missing."""
+    from zotmcp.zotero_write import ZoteroWriter
+
+    return ZoteroWriter()
+
+
+@mcp.tool()
+async def create_item(
+    item_type: str,
+    title: str,
+    creators: list[dict],
+    year: Optional[str] = None,
+    doi: Optional[str] = None,
+    url: Optional[str] = None,
+    abstract: Optional[str] = None,
+    publication_title: Optional[str] = None,
+    extra: Optional[str] = None,
+    collection_key: Optional[str] = None,
+    incoming_tag: Optional[str] = None,
+    dedupe: bool = True,
+) -> dict:
+    """Create a new item in the Zotero library.
+
+    If dedupe=True and doi is provided, checks for existing item first and
+    returns it without creating a duplicate.
+    incoming_tag marks agent-added items for reversible batch deletion.
+
+    Args:
+        item_type: Zotero item type (e.g. "journalArticle", "preprint", "book").
+        title: Item title.
+        creators: List of creator dicts:
+            [{"firstName": "...", "lastName": "...", "creatorType": "author"}]
+        year: Publication year or date string.
+        doi: DOI (bare or with URL prefix).
+        url: Resource URL.
+        abstract: Abstract text.
+        publication_title: Journal or book title.
+        extra: Extra field content (e.g. "arXiv:2605.29800").
+        collection_key: Zotero collection key to add the item to.
+        incoming_tag: Tag to mark this as agent-ingested (e.g. "incoming/tja-2026-06").
+        dedupe: If True and doi is provided, checks for existing item first.
+
+    Returns:
+        {"item_key": str, "created": bool, "existing_key": str | None}
+
+    Requires ZOTERO_API_KEY and ZOTERO_LIBRARY_ID env vars.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        writer = await loop.run_in_executor(None, _get_writer)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    metadata: dict = {"title": title, "creators": creators}
+    if year:
+        metadata["date"] = year
+    if doi:
+        metadata["doi"] = doi
+    if url:
+        metadata["url"] = url
+    if abstract:
+        metadata["abstractNote"] = abstract
+    if publication_title:
+        metadata["publicationTitle"] = publication_title
+    if extra:
+        metadata["extra"] = extra
+
+    dedupe_by = "doi" if (dedupe and doi) else "none"
+
+    return await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: writer.create_item(
+            item_type=item_type,
+            metadata=metadata,
+            collection_key=collection_key,
+            dedupe_by=dedupe_by,
+            incoming_tag=incoming_tag,
+        ),
+    )
+
+
+@mcp.tool()
+async def add_tags(item_key: str, tags: list[str]) -> dict:
+    """Add tags to an existing Zotero item. Idempotent — skips tags already present.
+
+    Args:
+        item_key: Zotero item key.
+        tags: List of tag strings to add.
+
+    Returns:
+        {"ok": bool, "tags_added": int, "tags_skipped": int}
+
+    Requires ZOTERO_API_KEY and ZOTERO_LIBRARY_ID env vars.
+    """
+    try:
+        writer = await asyncio.get_event_loop().run_in_executor(None, _get_writer)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    return await asyncio.get_event_loop().run_in_executor(
+        None, lambda: writer.add_tags(item_key, tags)
+    )
+
+
+@mcp.tool()
+async def add_note(item_key: str, note_content: str) -> dict:
+    """Add a note to a Zotero item. Converts plain text to HTML.
+
+    Checks for an exact duplicate note before creating — safe to call repeatedly.
+
+    Args:
+        item_key: Zotero item key.
+        note_content: Plain text note content.
+
+    Returns:
+        {"note_key": str, "created": bool}
+
+    Requires ZOTERO_API_KEY and ZOTERO_LIBRARY_ID env vars.
+    """
+    try:
+        writer = await asyncio.get_event_loop().run_in_executor(None, _get_writer)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    # Convert plain text to minimal HTML, preserving newlines as line breaks
+    note_html = (
+        note_content.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\n", "<br />")
+    )
+    note_html = f"<p>{note_html}</p>"
+
+    return await asyncio.get_event_loop().run_in_executor(
+        None, lambda: writer.add_note(item_key, note_html)
+    )
+
+
+@mcp.tool()
+async def link_attachment(item_key: str, url: str, title: str = "PDF") -> dict:
+    """Link a URL as an attachment to a Zotero item (linked URL type, no upload).
+
+    Args:
+        item_key: Zotero item key.
+        url: URL to link.
+        title: Display title for the attachment.
+
+    Returns:
+        {"attachment_key": str}
+
+    Requires ZOTERO_API_KEY and ZOTERO_LIBRARY_ID env vars.
+    """
+    try:
+        writer = await asyncio.get_event_loop().run_in_executor(None, _get_writer)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    return await asyncio.get_event_loop().run_in_executor(
+        None, lambda: writer.add_attachment_from_url(item_key, url, title)
+    )
+
+
+@mcp.tool()
+async def resolve_and_create(
+    identifier: str,
+    incoming_tag: str = "incoming/tja-2026-06",
+    collection_key: Optional[str] = None,
+) -> dict:
+    """One-shot: resolve a paper identifier (DOI or arXiv ID) to metadata + PDF,
+    then create the Zotero item and link the PDF attachment if a free PDF is found.
+
+    Resolution chain:
+      - arXiv ID → arXiv API (always has PDF)
+      - DOI → CrossRef (metadata) + Unpaywall (OA PDF) + Semantic Scholar (fallback)
+
+    If ZOTERO_API_KEY/ZOTERO_LIBRARY_ID are not set, returns resolution metadata
+    only (no Zotero write) — useful for testing the pipeline.
+
+    Args:
+        identifier: DOI or arXiv ID (e.g. "2605.29800", "10.1234/xyz").
+        incoming_tag: Tag for the created item (for reversible batch deletion).
+        collection_key: Optional Zotero collection key.
+
+    Returns:
+        {"item_key", "created", "existing_key", "pdf_url", "pdf_source", "title"}
+
+    Requires ZOTERO_API_KEY and ZOTERO_LIBRARY_ID env vars for Zotero write.
+    Without credentials, returns resolved metadata + error key.
+    """
+    from zotmcp.source_resolver import resolve_paper
+
+    try:
+        paper = await resolve_paper(identifier)
+    except Exception as e:
+        return {"error": f"Failed to resolve paper: {e}", "identifier": identifier}
+
+    # Build creators list for Zotero
+    creators: list[dict] = []
+    for author_name in paper.authors:
+        # Split "First Last" → firstName/lastName; handle single-word names
+        parts = author_name.rsplit(" ", 1)
+        if len(parts) == 2:
+            creators.append(
+                {
+                    "firstName": parts[0],
+                    "lastName": parts[1],
+                    "creatorType": "author",
+                }
+            )
+        else:
+            creators.append({"name": author_name, "creatorType": "author"})
+
+    # Attempt Zotero write
+    try:
+        writer = await asyncio.get_event_loop().run_in_executor(None, _get_writer)
+    except ValueError as e:
+        # No credentials — return resolution result only
+        return {
+            "error": str(e),
+            "title": paper.title,
+            "authors": paper.authors,
+            "year": paper.year,
+            "doi": paper.doi,
+            "arxiv_id": paper.arxiv_id,
+            "item_type": paper.item_type,
+            "pdf_url": paper.pdf_url,
+            "pdf_source": paper.pdf_source,
+            "identifier": identifier,
+            "resolved": True,
+        }
+
+    metadata: dict = {"title": paper.title, "creators": creators}
+    if paper.year:
+        metadata["date"] = str(paper.year)
+    if paper.doi:
+        metadata["doi"] = paper.doi
+    if paper.abstract:
+        metadata["abstractNote"] = paper.abstract
+    if paper.extra:
+        metadata["extra"] = paper.extra
+
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: writer.create_item(
+            item_type=paper.item_type,
+            metadata=metadata,
+            collection_key=collection_key,
+            dedupe_by="doi" if paper.doi else "none",
+            incoming_tag=incoming_tag,
+        ),
+    )
+
+    item_key = result["item_key"]
+
+    # Link PDF attachment if available
+    if paper.pdf_url:
+        try:
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: writer.add_attachment_from_url(item_key, paper.pdf_url, "PDF"),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to link PDF attachment for {item_key}: {e}")
+
+    return {
+        "item_key": item_key,
+        "created": result["created"],
+        "existing_key": result["existing_key"],
+        "pdf_url": paper.pdf_url,
+        "pdf_source": paper.pdf_source,
+        "title": paper.title,
+    }
+
+
 @mcp.prompt()
 def literature_review(question: str, context: str = ""):
     """Academic literature review with systematic search and citation synthesis.

@@ -1,0 +1,24 @@
+Ingesting 5 paper(s) with tag 'incoming/tja-2026-06'
+NOTE: ZOTERO_API_KEY or ZOTERO_LIBRARY_ID not set — resolution only (no Zotero write)
+
+  Resolving 2605.29800 ...
+    → 'Nine Judges, Two Effective Votes: Correlated Errors Undermin' | no_creds | pdf=arxiv
+  Resolving 2406.01297 ...
+    → 'When Can LLMs Actually Correct Their Own Mistakes? A Critica' | no_creds | pdf=arxiv
+  Resolving 2511.15714 ...
+    → 'Majority Rules: LLM Ensemble is a Winning Approach for Conte' | no_creds | pdf=arxiv
+  Resolving 2203.11171 ...
+    → 'Self-Consistency Improves Chain of Thought Reasoning in Lang' | no_creds | pdf=arxiv
+  Resolving 2303.11366 ...
+    → 'Reflexion: Language Agents with Verbal Reinforcement Learnin' | no_creds | pdf=arxiv
+
+Identifier             | Title                                      | Item Key     | Created  | PDF Source         | Status    
+-----------------------+--------------------------------------------+--------------+----------+--------------------+-----------
+2605.29800             | Nine Judges, Two Effective Votes: Correl.. |              | -        | arxiv              | no_creds  
+2406.01297             | When Can LLMs Actually Correct Their Own.. |              | -        | arxiv              | no_creds  
+2511.15714             | Majority Rules: LLM Ensemble is a Winnin.. |              | -        | arxiv              | no_creds  
+2203.11171             | Self-Consistency Improves Chain of Thoug.. |              | -        | arxiv              | no_creds  
+2303.11366             | Reflexion: Language Agents with Verbal R.. |              | -        | arxiv              | no_creds  
+
+Summary: 5 papers | 0 created | 0 existing | 5 no-creds | 0 errors
+         5/5 papers have a free PDF URL
