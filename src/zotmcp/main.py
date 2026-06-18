@@ -1140,10 +1140,49 @@ async def link_attachment(item_key: str, url: str, title: str = "PDF") -> dict:
 
 
 @mcp.tool()
+async def import_attachment(
+    item_key: str, url: str, title: str = "Full Text PDF"
+) -> dict:
+    """Download a PDF and upload it as a STORED (imported_file) attachment.
+
+    Unlike link_attachment (which only stores a URL link), this uploads the actual
+    file bytes so Zotero text-extracts the PDF. Text extraction is the prerequisite
+    for the item entering the full-text semantic index on the next vectorization
+    sync — so this is the tool to use when you want an added paper to become
+    searchable by its full text, not just its metadata.
+
+    Idempotent: a stored attachment with the same title is not re-uploaded.
+
+    Args:
+        item_key: Zotero item key (the parent item).
+        url: URL of the PDF (arXiv / Unpaywall / Semantic Scholar / publisher).
+        title: Display title for the attachment.
+
+    Returns:
+        {"attachment_key": str, "created": bool, "stored": True,
+         "bytes": int | None, "content_type": "application/pdf"}
+
+    Requires ZOTERO_API_KEY and ZOTERO_LIBRARY_ID env vars.
+    """
+    try:
+        writer = await asyncio.get_event_loop().run_in_executor(None, _get_writer)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    try:
+        return await asyncio.get_event_loop().run_in_executor(
+            None, lambda: writer.add_stored_attachment_from_url(item_key, url, title)
+        )
+    except Exception as e:
+        return {"error": str(e), "item_key": item_key, "url": url}
+
+
+@mcp.tool()
 async def resolve_and_create(
     identifier: str,
     incoming_tag: str = "incoming/tja-2026-06",
     collection_key: Optional[str] = None,
+    store_pdf: bool = True,
 ) -> dict:
     """One-shot: resolve a paper identifier (DOI or arXiv ID) to metadata + PDF,
     then create the Zotero item and link the PDF attachment if a free PDF is found.
@@ -1155,13 +1194,23 @@ async def resolve_and_create(
     If ZOTERO_API_KEY/ZOTERO_LIBRARY_ID are not set, returns resolution metadata
     only (no Zotero write) — useful for testing the pipeline.
 
+    When store_pdf=True (default) and a free PDF is found, the PDF bytes are
+    downloaded and uploaded as a STORED (imported_file) attachment so Zotero
+    text-extracts it — making the item eligible for the full-text semantic index
+    on the next vectorization sync. If the download fails or the content is not a
+    real PDF, it falls back to a linked_url attachment (metadata-only, not
+    full-text searchable). store_pdf=False forces the linked_url path.
+
     Args:
         identifier: DOI or arXiv ID (e.g. "2605.29800", "10.1234/xyz").
         incoming_tag: Tag for the created item (for reversible batch deletion).
         collection_key: Optional Zotero collection key.
+        store_pdf: If True (default), upload PDF bytes as a stored attachment so
+            the item becomes full-text searchable. If False, only link the URL.
 
     Returns:
-        {"item_key", "created", "existing_key", "pdf_url", "pdf_source", "title"}
+        {"item_key", "created", "existing_key", "pdf_url", "pdf_source", "title",
+         "pdf_attachment"} where pdf_attachment is "stored", "linked", or "none".
 
     Requires ZOTERO_API_KEY and ZOTERO_LIBRARY_ID env vars for Zotero write.
     Without credentials, returns resolved metadata + error key.
@@ -1231,15 +1280,37 @@ async def resolve_and_create(
 
     item_key = result["item_key"]
 
-    # Link PDF attachment if available
+    # Attach PDF if available. Prefer a STORED attachment (uploads bytes → Zotero
+    # text-extracts → full-text searchable). Fall back to a linked_url attachment
+    # if storing fails, so the reference is never lost.
+    pdf_attachment = "none"
     if paper.pdf_url:
-        try:
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: writer.add_attachment_from_url(item_key, paper.pdf_url, "PDF"),
-            )
-        except Exception as e:
-            logger.warning(f"Failed to link PDF attachment for {item_key}: {e}")
+        loop = asyncio.get_event_loop()
+        if store_pdf:
+            try:
+                await loop.run_in_executor(
+                    None,
+                    lambda: writer.add_stored_attachment_from_url(
+                        item_key, paper.pdf_url, "Full Text PDF"
+                    ),
+                )
+                pdf_attachment = "stored"
+            except Exception as e:
+                logger.warning(
+                    f"Stored PDF attachment failed for {item_key}, "
+                    f"falling back to linked_url: {e}"
+                )
+        if pdf_attachment != "stored":
+            try:
+                await loop.run_in_executor(
+                    None,
+                    lambda: writer.add_attachment_from_url(
+                        item_key, paper.pdf_url, "PDF"
+                    ),
+                )
+                pdf_attachment = "linked"
+            except Exception as e:
+                logger.warning(f"Failed to link PDF attachment for {item_key}: {e}")
 
     return {
         "item_key": item_key,
@@ -1248,6 +1319,7 @@ async def resolve_and_create(
         "pdf_url": paper.pdf_url,
         "pdf_source": paper.pdf_source,
         "title": paper.title,
+        "pdf_attachment": pdf_attachment,
     }
 
 

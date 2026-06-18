@@ -12,15 +12,43 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+import shutil
+import tempfile
 import time
 from typing import Optional
 
+import httpx
 from pyzotero import zotero
 
 logger = logging.getLogger(__name__)
 
 RATE_LIMIT_RETRIES = 3
 RATE_LIMIT_BACKOFF_BASE = 2  # seconds
+
+# PDF download tuning. arXiv/Unpaywall/publisher hosts often require a UA and
+# redirect-following; a generous timeout covers large scanned PDFs.
+PDF_DOWNLOAD_TIMEOUT = 60.0
+PDF_DOWNLOAD_UA = (
+    "Mozilla/5.0 (compatible; zotmcp/1.0; +https://github.com/zotmcp) "
+    "academic-library-ingest"
+)
+PDF_MAX_BYTES = 100 * 1024 * 1024  # 100 MB guard against runaway downloads
+
+
+def _safe_pdf_filename(title: str) -> str:
+    """Derive a filesystem-safe ``<title>.pdf`` basename from an item title.
+
+    The basename becomes the stored filename in Zotero (pyzotero sends
+    ``Path(path).name``), so keep it readable but free of path separators and
+    control characters.
+    """
+    base = re.sub(r"[^\w\-. ]+", "_", (title or "Full Text PDF").strip())
+    base = re.sub(r"\s+", " ", base).strip(" ._") or "Full Text PDF"
+    base = base[:120]  # keep well under filesystem limits
+    if not base.lower().endswith(".pdf"):
+        base += ".pdf"
+    return base
 
 
 def _normalize_doi(doi: str) -> str:
@@ -338,3 +366,139 @@ class ZoteroWriter:
         attachment_key = list(success.values())[0]
         logger.info(f"Linked URL attachment {attachment_key} to {item_key}")
         return {"attachment_key": attachment_key}
+
+    def _existing_stored_pdf(self, item_key: str, title: str) -> Optional[str]:
+        """Return the key of an existing imported (stored) attachment on the item
+        whose title matches, else None.
+
+        Makes the stored-attachment path idempotent: pyzotero's attachment upload
+        always POSTs a *new* child item, so without this guard a second call would
+        create a duplicate attachment. We match on title because the stored
+        filename is derived from it.
+        """
+        children = self._retry_on_rate_limit(self._zot.children, item_key)
+        for child in children:
+            data = child.get("data", {})
+            if (
+                data.get("itemType") == "attachment"
+                and str(data.get("linkMode", "")).startswith("imported")
+                and data.get("title") == title
+            ):
+                return child["key"]
+        return None
+
+    def _download_pdf(self, url: str, timeout: float) -> bytes:
+        """Download a URL and return its bytes, verifying it is actually a PDF.
+
+        Raises ZoteroWriteError if the response is not a PDF (e.g. an OA "PDF"
+        link that actually returns an HTML landing page) so callers can fall back
+        to a linked_url attachment rather than storing junk.
+        """
+        try:
+            with httpx.Client(
+                timeout=timeout,
+                follow_redirects=True,
+                headers={"User-Agent": PDF_DOWNLOAD_UA},
+            ) as client:
+                resp = client.get(url)
+                resp.raise_for_status()
+                content = resp.content
+        except httpx.HTTPError as e:
+            raise ZoteroWriteError(f"Failed to download PDF from {url}: {e}")
+
+        if len(content) > PDF_MAX_BYTES:
+            raise ZoteroWriteError(
+                f"Downloaded file from {url} exceeds {PDF_MAX_BYTES} bytes"
+            )
+        if not content[:5].startswith(b"%PDF"):
+            raise ZoteroWriteError(
+                f"Content from {url} is not a PDF (missing %PDF header); "
+                "refusing to store as imported_file"
+            )
+        return content
+
+    def add_stored_attachment_from_url(
+        self,
+        item_key: str,
+        url: str,
+        title: str = "Full Text PDF",
+        timeout: float = PDF_DOWNLOAD_TIMEOUT,
+    ) -> dict:
+        """Download a PDF and upload it as a STORED (imported_file) attachment.
+
+        Unlike ``add_attachment_from_url`` (which only links a URL), this uploads
+        the actual file bytes. Zotero then text-extracts the stored PDF, which is
+        what makes the item eligible for the full-text vectorization pipeline.
+        This closes the find -> add -> full-text loop for agentic ingestion.
+
+        Idempotent: if a stored attachment with the same title already exists on
+        the item, no download or upload happens.
+
+        Args:
+            item_key: Parent item key.
+            url: URL of the PDF (arXiv / Unpaywall / Semantic Scholar / publisher).
+            title: Display title for the attachment; also seeds the stored filename.
+            timeout: HTTP timeout in seconds.
+
+        Returns:
+            {"attachment_key": str, "created": bool, "stored": True,
+             "bytes": int | None, "content_type": "application/pdf"}
+
+        Raises:
+            ZoteroWriteError if download fails, the content is not a PDF, or the
+            Zotero upload fails.
+        """
+        existing = self._existing_stored_pdf(item_key, title)
+        if existing:
+            logger.info(
+                f"Stored attachment '{title}' already present on {item_key} "
+                f"({existing}); skipping upload"
+            )
+            return {
+                "attachment_key": existing,
+                "created": False,
+                "stored": True,
+                "bytes": None,
+                "content_type": "application/pdf",
+            }
+
+        content = self._download_pdf(url, timeout)
+
+        tmpdir = tempfile.mkdtemp(prefix="zotmcp-pdf-")
+        try:
+            path = os.path.join(tmpdir, _safe_pdf_filename(title))
+            with open(path, "wb") as fh:
+                fh.write(content)
+
+            # attachment_both lets us set a clean title independent of the path.
+            # Returns {"success": [...], "failure": [...], "unchanged": [...]}
+            # where each entry is the attachment item dict carrying "key".
+            result = self._retry_on_rate_limit(
+                self._zot.attachment_both, [(title, path)], item_key
+            )
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+        failure = result.get("failure") or []
+        if failure:
+            raise ZoteroWriteError(f"Failed to upload stored attachment: {failure}")
+
+        success = result.get("success") or []
+        unchanged = result.get("unchanged") or []
+        entries = success or unchanged
+        if not entries:
+            raise ZoteroWriteError(
+                f"Stored attachment upload returned no item for {item_key}: {result}"
+            )
+        attachment_key = entries[0].get("key")
+        logger.info(
+            f"Stored PDF attachment {attachment_key} ({len(content)} bytes) "
+            f"on {item_key}"
+        )
+        return {
+            "attachment_key": attachment_key,
+            "created": bool(success),
+            "stored": True,
+            "bytes": len(content),
+            "content_type": "application/pdf",
+        }

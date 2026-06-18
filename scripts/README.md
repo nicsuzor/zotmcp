@@ -1,8 +1,36 @@
 # ZotMCP Scripts
 
-## update_vectors.sh - Update Zotero Library Vectors
+> **Adding full-text sources?** See [`docs/full-text-ingestion.md`](../docs/full-text-ingestion.md)
+> for the full add → sync → search procedure and the stored-attachment
+> requirement (items need uploaded PDF bytes, not a linked URL, to be full-text
+> searchable).
 
-Updates the ChromaDB vector database with latest items from Zotero.
+## run_vectorization.py - Update Zotero Library Vectors
+
+Updates the ChromaDB vector database with the latest items from Zotero. This is
+the canonical, triggerable, **incremental** full-text index refresh.
+
+```bash
+cd ~/src/zotmcp
+export ZOTERO_LIBRARY_ID="your_library_id"
+export ZOTERO_API_KEY="your_api_key"   # read scope suffices for the sync
+
+# Quick test (10 items):
+uv run python scripts/run_vectorization.py run.limit=10
+# Pick up everything new since the last_version checkpoint:
+uv run python scripts/run_vectorization.py run.limit=null
+```
+
+It is incremental and idempotent: only items newer than the stored
+`last_version` checkpoint are fetched, and `VectorStoreExistenceFilter` skips
+items already in ChromaDB — re-running is safe and will not duplicate or corrupt
+chunks. To force a full re-fetch (rarely needed, e.g. to recover dropped
+records): append `pipeline.source.force_full_sync=true`.
+
+### Legacy note
+
+Earlier docs referenced an `update_vectors.sh` wrapper; the canonical entry point
+is now `run_vectorization.py` (Hydra config in `src/zotmcp/conf/vectorize.yaml`).
 
 ### What it does:
 

@@ -292,6 +292,198 @@ class TestAddNote:
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# ZoteroWriter.add_stored_attachment_from_url (imported_file upload)
+# ────────────────────────────────────────────────────────────────────────────
+
+# Minimal but valid PDF header — the method only checks the %PDF magic bytes.
+PDF_BYTES = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+
+
+class TestStoredAttachment:
+    def test_stored_attachment_success(self):
+        """Happy path: download PDF, upload as imported_file, return key."""
+        writer, mock_zot = _make_writer()
+        mock_zot.children.return_value = []  # no existing attachment
+        mock_zot.attachment_both.return_value = {
+            "success": [{"key": "ATTACHKEY", "title": "Full Text PDF"}],
+            "failure": [],
+            "unchanged": [],
+        }
+
+        with respx.mock:
+            respx.get("https://example.com/paper.pdf").mock(
+                return_value=httpx.Response(200, content=PDF_BYTES)
+            )
+            result = writer.add_stored_attachment_from_url(
+                "PARENTKEY", "https://example.com/paper.pdf"
+            )
+
+        assert result["attachment_key"] == "ATTACHKEY"
+        assert result["created"] is True
+        assert result["stored"] is True
+        assert result["bytes"] == len(PDF_BYTES)
+        assert result["content_type"] == "application/pdf"
+        # Uploaded under the right parent, with title preserved
+        args, _ = mock_zot.attachment_both.call_args
+        assert args[1] == "PARENTKEY"  # parentid
+        assert args[0][0][0] == "Full Text PDF"  # (title, path) tuple title
+
+    def test_stored_attachment_idempotent(self):
+        """An existing imported attachment with the same title → no re-upload."""
+        writer, mock_zot = _make_writer()
+        mock_zot.children.return_value = [
+            {
+                "key": "EXISTATTACH",
+                "data": {
+                    "itemType": "attachment",
+                    "linkMode": "imported_file",
+                    "title": "Full Text PDF",
+                },
+            }
+        ]
+
+        result = writer.add_stored_attachment_from_url(
+            "PARENTKEY", "https://example.com/paper.pdf"
+        )
+
+        assert result["attachment_key"] == "EXISTATTACH"
+        assert result["created"] is False
+        assert result["stored"] is True
+        mock_zot.attachment_both.assert_not_called()
+
+    def test_stored_attachment_rejects_non_pdf(self):
+        """An HTML landing page (not a real PDF) → ZoteroWriteError, no upload."""
+        from zotmcp.zotero_write import ZoteroWriteError
+
+        writer, mock_zot = _make_writer()
+        mock_zot.children.return_value = []
+
+        with respx.mock:
+            respx.get("https://example.com/landing.html").mock(
+                return_value=httpx.Response(200, content=b"<html>not a pdf</html>")
+            )
+            with pytest.raises(ZoteroWriteError):
+                writer.add_stored_attachment_from_url(
+                    "PARENTKEY", "https://example.com/landing.html"
+                )
+
+        mock_zot.attachment_both.assert_not_called()
+
+    def test_stored_attachment_upload_failure_raises(self):
+        """Zotero reports the upload in the failure bucket → ZoteroWriteError."""
+        from zotmcp.zotero_write import ZoteroWriteError
+
+        writer, mock_zot = _make_writer()
+        mock_zot.children.return_value = []
+        mock_zot.attachment_both.return_value = {
+            "success": [],
+            "failure": [{"key": None}],
+            "unchanged": [],
+        }
+
+        with respx.mock:
+            respx.get("https://example.com/paper.pdf").mock(
+                return_value=httpx.Response(200, content=PDF_BYTES)
+            )
+            with pytest.raises(ZoteroWriteError):
+                writer.add_stored_attachment_from_url(
+                    "PARENTKEY", "https://example.com/paper.pdf"
+                )
+
+    def test_stored_attachment_unchanged_treated_as_present(self):
+        """If the file already exists server-side (md5 match) it lands in the
+        'unchanged' bucket — still a valid attachment key, created=False."""
+        writer, mock_zot = _make_writer()
+        mock_zot.children.return_value = []
+        mock_zot.attachment_both.return_value = {
+            "success": [],
+            "failure": [],
+            "unchanged": [{"key": "ATTACHKEY"}],
+        }
+
+        with respx.mock:
+            respx.get("https://example.com/paper.pdf").mock(
+                return_value=httpx.Response(200, content=PDF_BYTES)
+            )
+            result = writer.add_stored_attachment_from_url(
+                "PARENTKEY", "https://example.com/paper.pdf"
+            )
+
+        assert result["attachment_key"] == "ATTACHKEY"
+        assert result["created"] is False
+
+    def test_stored_attachment_oversize_rejected(self):
+        """A response larger than PDF_MAX_BYTES → ZoteroWriteError, no upload."""
+        from zotmcp.zotero_write import ZoteroWriteError
+        import zotmcp.zotero_write as zw
+
+        writer, mock_zot = _make_writer()
+        mock_zot.children.return_value = []
+        big = b"%PDF-1.4" + b"0" * 64  # content; we shrink the cap instead
+
+        with patch.object(zw, "PDF_MAX_BYTES", 8):
+            with respx.mock:
+                respx.get("https://example.com/big.pdf").mock(
+                    return_value=httpx.Response(200, content=big)
+                )
+                with pytest.raises(ZoteroWriteError):
+                    writer.add_stored_attachment_from_url(
+                        "PARENTKEY", "https://example.com/big.pdf"
+                    )
+
+        mock_zot.attachment_both.assert_not_called()
+
+    def test_stored_attachment_http_error_wrapped(self):
+        """A non-2xx download → ZoteroWriteError (wrapped), no upload."""
+        from zotmcp.zotero_write import ZoteroWriteError
+
+        writer, mock_zot = _make_writer()
+        mock_zot.children.return_value = []
+
+        with respx.mock:
+            respx.get("https://example.com/missing.pdf").mock(
+                return_value=httpx.Response(404)
+            )
+            with pytest.raises(ZoteroWriteError):
+                writer.add_stored_attachment_from_url(
+                    "PARENTKEY", "https://example.com/missing.pdf"
+                )
+
+        mock_zot.attachment_both.assert_not_called()
+
+
+class TestSafePdfFilename:
+    def test_basic(self):
+        from zotmcp.zotero_write import _safe_pdf_filename
+
+        assert _safe_pdf_filename("Hello World") == "Hello World.pdf"
+
+    def test_strips_path_separators(self):
+        from zotmcp.zotero_write import _safe_pdf_filename
+
+        out = _safe_pdf_filename("a/b\\c:d")
+        assert "/" not in out and "\\" not in out and ":" not in out
+        assert out.endswith(".pdf")
+
+    def test_empty_falls_back(self):
+        from zotmcp.zotero_write import _safe_pdf_filename
+
+        assert _safe_pdf_filename("") == "Full Text PDF.pdf"
+
+    def test_keeps_existing_pdf_ext(self):
+        from zotmcp.zotero_write import _safe_pdf_filename
+
+        assert _safe_pdf_filename("report.pdf") == "report.pdf"
+
+    def test_length_capped(self):
+        from zotmcp.zotero_write import _safe_pdf_filename
+
+        out = _safe_pdf_filename("x" * 500)
+        assert len(out) <= 124  # 120 cap + ".pdf"
+        assert out.endswith(".pdf")
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # DOI normalisation
 # ────────────────────────────────────────────────────────────────────────────
 
