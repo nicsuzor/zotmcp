@@ -55,6 +55,13 @@ pipeline:
       library_id: ${oc.env:ZOTERO_LIBRARY_ID}
       save_dir: ${oc.env:HOME}/.cache/buttermilk/zotero/items
 
+    # 0b. HARD GATE: native Zotero citationKey is the single authoritative key.
+    # Any item lacking a non-empty native citationKey is EXCLUDED from ingest
+    # (never enters ChromaDB) and appended to an actionable report. Runs before
+    # any expensive extraction/embedding so excluded items cost nothing.
+    - _target_: zotmcp.citation_key_gate.CitationKeyGateProcessor
+      log_exclusions: true
+
     # 1. Extract text using pdftotext (replaces pdfminer extraction)
     - _target_: buttermilk.processors.bash.PDFToTextProcessor
 

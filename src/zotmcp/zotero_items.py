@@ -21,7 +21,8 @@ from pyzotero import zotero
 from buttermilk import bm, logger
 from buttermilk._core.retry import RetryWrapper
 from buttermilk._core.types import BaseRecord
-from buttermilk.libs.zotero import extract_citation_key
+
+from zotmcp.citation_key_gate import extract_native_citation_key
 
 
 class ZoteroItemSource(BaseModel):
@@ -103,6 +104,7 @@ class ZoteroItemSource(BaseModel):
         """
         yielded_count = 0
         skipped_count = 0
+        excluded: list[tuple[str, str]] = []  # (item_key, title) lacking native key
 
         for key in self.item_keys:
             try:
@@ -127,9 +129,25 @@ class ZoteroItemSource(BaseModel):
                     skipped_count += 1
                     continue
 
-                # Extract citation key from 'extra' field
+                # Single authoritative key: Zotero's NATIVE citationKey field only
+                # (populated by BetterBibTeX). No `extra`-field fallback.
                 zotero_data = item.get("data", {})
-                citation_key = extract_citation_key(zotero_data.get("extra"))
+                citation_key = extract_native_citation_key(zotero_data)
+
+                # Hard pre-ingest gate: an item with no native citation key is
+                # EXCLUDED (never enters ChromaDB). Report it so it can be keyed in
+                # BetterBibTeX and re-ingested.
+                if citation_key is None:
+                    title = zotero_data.get("title", "(untitled)")
+                    logger.warning(
+                        "🚫 Excluding item from ingest: no native Zotero "
+                        "citationKey (key it in BetterBibTeX and re-ingest)",
+                        record_id=key,
+                        title=str(title)[:120],
+                    )
+                    excluded.append((key, str(title)))
+                    skipped_count += 1
+                    continue
 
                 # Track item version
                 item_version = item.get("version", 0)
@@ -159,3 +177,11 @@ class ZoteroItemSource(BaseModel):
         logger.info(
             f"✅ Fetch complete: {yielded_count} items yielded, {skipped_count} skipped"
         )
+
+        if excluded:
+            report = "\n".join(f"  {k}\t{t}" for k, t in excluded)
+            logger.warning(
+                f"⚠️ {len(excluded)} item(s) EXCLUDED from ingest for lacking a "
+                f"native Zotero citationKey. Key these in BetterBibTeX and "
+                f"re-ingest:\n{report}"
+            )
