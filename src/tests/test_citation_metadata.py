@@ -1,12 +1,18 @@
-"""Tests that citation and citation_key metadata fields are populated for ChromaDB.
+"""Tests for the native-only citation-key policy and the hard pre-ingest gate.
 
-Two layers:
+Single authoritative key (decision 2026-06-19): the ONLY accepted citation key is
+Zotero's native `citationKey` field (BBT-populated). There is no `extra`-field
+fallback, and un-keyed items are EXCLUDED from ingest — never silent None into
+ChromaDB.
+
+Three layers:
 
 1. Unit tests for the zotmcp monkeypatch of buttermilk's
-   `_sanitize_metadata_for_chroma` (issue #3). These run without any live
-   infrastructure and assert the seam derives/preserves `citation_key` and keeps
-   `citation`.
-2. A live integration test that queries a real ChromaDB collection. It is skipped
+   `_sanitize_metadata_for_chroma` — asserts native-only derivation and that the
+   `extra`-field fallback is gone.
+2. Unit tests for `CitationKeyGateProcessor` — the hard pre-ingest gate that
+   excludes un-keyed items and reports them.
+3. A live integration test that queries a real ChromaDB collection. It is skipped
    automatically when the collection/credentials are unavailable.
 """
 
@@ -19,8 +25,13 @@ from buttermilk import logger
 import zotmcp
 from zotmcp import (
     _derive_citation_key,
-    _extract_extra_from_zotero_data,
+    _extract_native_citation_key,
 )
+from zotmcp.citation_key_gate import (
+    CitationKeyGateProcessor,
+    extract_native_citation_key,
+)
+from buttermilk._core.types import Record
 from buttermilk.data import vector
 
 
@@ -28,7 +39,7 @@ pytestmark = pytest.mark.anyio
 
 
 # --------------------------------------------------------------------------- #
-# Unit tests: the citation-metadata seam (no live infra required)             #
+# Unit tests: the native-only citation-metadata seam (no live infra)          #
 # --------------------------------------------------------------------------- #
 
 
@@ -40,84 +51,176 @@ def test_monkeypatch_installed():
     )
 
 
-def test_extract_extra_from_dict():
+def test_extract_native_from_dict():
     assert (
-        _extract_extra_from_zotero_data({"extra": "Citation Key: foo2020"})
-        == "Citation Key: foo2020"
+        _extract_native_citation_key({"citationKey": "foo2020"}) == "foo2020"
     )
 
 
-def test_extract_extra_from_json_string():
-    payload = json.dumps({"extra": "Citation Key: bar2021"})
-    assert _extract_extra_from_zotero_data(payload) == "Citation Key: bar2021"
+def test_extract_native_from_json_string():
+    payload = json.dumps({"citationKey": "bar2021"})
+    assert _extract_native_citation_key(payload) == "bar2021"
 
 
-def test_extract_extra_handles_missing_and_garbage():
-    assert _extract_extra_from_zotero_data(None) is None
-    assert _extract_extra_from_zotero_data("not json") is None
-    assert _extract_extra_from_zotero_data({"title": "no extra"}) is None
-    assert _extract_extra_from_zotero_data(12345) is None
+def test_extract_native_strips_whitespace():
+    assert _extract_native_citation_key({"citationKey": "  k2017  "}) == "k2017"
+
+
+def test_extract_native_handles_missing_and_garbage():
+    assert _extract_native_citation_key(None) is None
+    assert _extract_native_citation_key("not json") is None
+    assert _extract_native_citation_key({"title": "no key"}) is None
+    assert _extract_native_citation_key({"citationKey": ""}) is None
+    assert _extract_native_citation_key({"citationKey": "   "}) is None
+    assert _extract_native_citation_key(12345) is None
+
+
+def test_no_extra_fallback():
+    """A key present ONLY in `extra` must NOT be derived (fallback removed)."""
+    meta = {"zotero_data": {"extra": "Citation Key: legacy2019"}}
+    assert _derive_citation_key(meta) is None
 
 
 def test_derive_prefers_explicit_citation_key():
-    """An explicit, non-empty citation_key wins over anything derivable."""
+    """An explicit, non-empty citation_key wins over the native field."""
     meta = {
         "citation_key": "explicit2019",
-        "zotero_data": {"extra": "Citation Key: derived2019"},
+        "zotero_data": {"citationKey": "native2019"},
     }
     assert _derive_citation_key(meta) == "explicit2019"
 
 
-def test_derive_from_zotero_data_extra():
-    meta = {"zotero_data": {"extra": "Publisher: HLR\nCitation Key: klonick2017"}}
+def test_derive_from_native_citationkey():
+    meta = {"zotero_data": {"citationKey": "klonick2017", "extra": "Publisher: HLR"}}
     assert _derive_citation_key(meta) == "klonick2017"
 
 
-def test_derive_returns_none_when_unavailable():
+def test_derive_returns_none_when_no_native_key():
     assert _derive_citation_key({"zotero_data": {"title": "x"}}) is None
+    assert _derive_citation_key({"zotero_data": {"extra": "Citation Key: x2020"}}) is None
     assert _derive_citation_key({}) is None
 
 
 def test_sanitize_preserves_citation():
     """The Citator-produced `citation` string must survive sanitization."""
     citation = "Klonick, K. (2017). The New Governors. Harvard Law Review, 131."
-    meta = {"citation": citation, "zotero_data": {"extra": "Citation Key: k2017"}}
+    meta = {"citation": citation, "zotero_data": {"citationKey": "k2017"}}
     result = vector._sanitize_metadata_for_chroma(meta)
     assert result["citation"] == citation
 
 
-def test_sanitize_derives_citation_key_when_absent():
-    """citation_key absent in source -> derived from zotero_data.extra."""
+def test_sanitize_uses_native_citation_key_when_absent():
+    """citation_key absent in source -> read from native zotero_data.citationKey."""
     meta = {
         "citation": "Some citation",
-        "zotero_data": {"extra": "Citation Key: klonick2017newgov"},
+        "zotero_data": {"citationKey": "klonick2017newgov"},
     }
     result = vector._sanitize_metadata_for_chroma(meta)
     assert result["citation_key"] == "klonick2017newgov"
 
 
-def test_sanitize_derives_citation_key_from_json_string():
+def test_sanitize_reads_native_key_from_json_string():
     """Even when zotero_data has already been serialized to JSON."""
-    meta = {"zotero_data": json.dumps({"extra": "Citation Key: derived123"})}
+    meta = {"zotero_data": json.dumps({"citationKey": "native123"})}
     result = vector._sanitize_metadata_for_chroma(meta)
-    assert result["citation_key"] == "derived123"
+    assert result["citation_key"] == "native123"
+
+
+def test_sanitize_ignores_extra_field():
+    """A key only in `extra` must NOT leak into ChromaDB (no fallback)."""
+    meta = {"zotero_data": {"extra": "Citation Key: legacy2019"}}
+    result = vector._sanitize_metadata_for_chroma(meta)
+    assert result["citation_key"] is None
 
 
 def test_sanitize_preserves_none_citation_key_as_queryable_field():
-    """No key available anywhere -> field is preserved as None (not dropped)."""
-    meta = {"zotero_data": {"title": "no extra field here"}}
+    """No native key anywhere -> field preserved as None (defensive last resort)."""
+    meta = {"zotero_data": {"title": "no citationKey field here"}}
     result = vector._sanitize_metadata_for_chroma(meta)
     assert "citation_key" in result
     assert result["citation_key"] is None
 
 
-def test_sanitize_explicit_key_overrides_derivable():
+def test_sanitize_explicit_key_overrides_native():
     meta = {
         "citation_key": "explicit2019",
-        "zotero_data": {"extra": "Citation Key: derived2019"},
+        "zotero_data": {"citationKey": "native2019"},
     }
     result = vector._sanitize_metadata_for_chroma(meta)
     assert result["citation_key"] == "explicit2019"
+
+
+# --------------------------------------------------------------------------- #
+# Unit tests: the hard pre-ingest gate (CitationKeyGateProcessor)             #
+# --------------------------------------------------------------------------- #
+
+
+class _Ctx:
+    """Minimal ProcessingContext stand-in carrying a record."""
+
+    def __init__(self, record: Record):
+        self.record = record
+
+
+async def _run_gate(gate: CitationKeyGateProcessor, record: Record) -> list[Record]:
+    return [r async for r in gate.process(_Ctx(record))]
+
+
+def test_gate_extract_native_helper():
+    assert extract_native_citation_key({"citationKey": "smith2020"}) == "smith2020"
+    assert extract_native_citation_key({"extra": "Citation Key: x"}) is None
+    assert extract_native_citation_key(None) is None
+
+
+async def test_gate_passes_item_with_native_key(tmp_path):
+    gate = CitationKeyGateProcessor(report_path=str(tmp_path / "excluded.txt"))
+    rec = Record(
+        record_id="ABC123",
+        metadata={"title": "A Paper", "zotero_data": {"citationKey": "paper2020"}},
+    )
+    out = await _run_gate(gate, rec)
+    assert len(out) == 1
+    # Authoritative native key is normalised onto citation_key.
+    assert out[0].metadata["citation_key"] == "paper2020"
+
+
+async def test_gate_normalises_citation_key_to_native(tmp_path):
+    """Even if an upstream stage set a (legacy/extra) citation_key, native wins."""
+    gate = CitationKeyGateProcessor(report_path=str(tmp_path / "excluded.txt"))
+    rec = Record(
+        record_id="ABC123",
+        metadata={
+            "title": "A Paper",
+            "citation_key": "legacyExtraKey",
+            "zotero_data": {"citationKey": "native2020"},
+        },
+    )
+    out = await _run_gate(gate, rec)
+    assert out[0].metadata["citation_key"] == "native2020"
+
+
+async def test_gate_excludes_item_without_native_key(tmp_path):
+    report = tmp_path / "excluded.txt"
+    gate = CitationKeyGateProcessor(report_path=str(report))
+    rec = Record(
+        record_id="NOKEY1",
+        metadata={"title": "Unkeyed Paper", "zotero_data": {"extra": "Citation Key: x"}},
+    )
+    out = await _run_gate(gate, rec)
+    assert out == []  # excluded -> never enters ChromaDB
+    # Reported with item key + title.
+    contents = report.read_text()
+    assert "NOKEY1" in contents
+    assert "Unkeyed Paper" in contents
+
+
+async def test_gate_excludes_when_no_zotero_data(tmp_path):
+    report = tmp_path / "excluded.txt"
+    gate = CitationKeyGateProcessor(report_path=str(report))
+    rec = Record(record_id="EMPTY1", metadata={"title": "No Zotero Data"})
+    out = await _run_gate(gate, rec)
+    assert out == []
+    assert "EMPTY1" in report.read_text()
 
 
 # --------------------------------------------------------------------------- #
