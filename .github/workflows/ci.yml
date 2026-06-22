@@ -43,6 +43,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout buttermilk dependency
+        run: |
+          git clone --depth=1 --branch dev \
+            https://github.com/qut-dmrc/buttermilk.git \
+            "$GITHUB_WORKSPACE/../buttermilk"
+
       - name: Install dependencies
         run: uv sync --frozen --no-install-project
         continue-on-error: false
