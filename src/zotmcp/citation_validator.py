@@ -162,8 +162,11 @@ class CitationValidatorProcessor(BaseModel):
 
         # Attempt cleanup if enabled
         if self.attempt_cleanup:
-            citation = clean_citation(citation)
-            metadata["citation"] = citation
+            cleaned = clean_citation(citation)
+            if cleaned != citation:
+                metadata["citation"] = cleaned
+                metadata["citation_cleaned"] = True
+                citation = cleaned
 
         # Validate citation
         result = validate_citation(citation)

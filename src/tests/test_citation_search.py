@@ -77,12 +77,12 @@ async def test_search_papers_basic():
     assert paper["publication_year"] == 2023
     assert paper["cited_by_count"] == 42
     assert paper["doi"] == "https://doi.org/10.1234/example"
-    assert paper["abstract"] == "This is a test abstract"
+    assert paper["abstract_snippet"] == "This is a test abstract"
 
-    # Check authors
+    # Check authors (to_summary returns display names as plain strings)
     assert len(paper["authors"]) == 2
-    assert paper["authors"][0]["display_name"] == "Jane Smith"
-    assert paper["authors"][1]["display_name"] == "John Doe"
+    assert paper["authors"][0] == "Jane Smith"
+    assert paper["authors"][1] == "John Doe"
 
 
 @pytest.mark.anyio
@@ -168,7 +168,7 @@ async def test_search_papers_handles_missing_abstract():
     # Should still include the paper
     assert len(result) == 1
     assert result[0]["title"] == "Paper Without Abstract"
-    assert result[0]["abstract"] is None
+    assert result[0]["abstract_snippet"] is None
 
 
 @pytest.mark.anyio
@@ -230,7 +230,7 @@ async def test_get_paper_citations_basic():
 
     assert result[0]["title"] == "Citing Paper 1"
     assert result[1]["title"] == "Citing Paper 2"
-    assert result[0]["authors"][0]["display_name"] == "Alice Brown"
+    assert result[0]["authors"][0] == "Alice Brown"
     assert result[0]["publication_year"] == 2024
 
 
@@ -381,7 +381,7 @@ async def test_search_openalex_author():
     assert isinstance(result, list)
     assert len(result) == 1
     assert result[0]["title"] == "Paper by Jane"
-    assert result[0]["authors"][0]["display_name"] == "Jane Smith"
+    assert result[0]["authors"][0] == "Jane Smith"
 
 
 @pytest.mark.anyio
