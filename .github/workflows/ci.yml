@@ -63,7 +63,7 @@ jobs:
         run: |
           if [ "${{ steps.pytest.outcome }}" = "success" ]; then
             STATE="success"
-            DESC="All tests passed"
+            DESC="Tests passed (see log for skips)"
           else
             STATE="failure"
             DESC="Tests failed"
