@@ -1,0 +1,77 @@
+# Consumer-owned Python CI for zotmcp.
+# Satisfies the §9 mechanical-CI naming contract: posts test-status commit status.
+# See: nicsuzor/academicOps/specs/workflows/pr-pipeline.md §9
+
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: Pytest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Post pending test-status
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state="pending" \
+            -f context="test-status" \
+            -f description="Running pytest..."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout buttermilk dependency
+        run: |
+          git clone --depth=1 --branch dev \
+            https://github.com/qut-dmrc/buttermilk.git \
+            "$GITHUB_WORKSPACE/../buttermilk"
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-install-project
+        continue-on-error: false
+
+      - name: Run pytest
+        id: pytest
+        run: uv run pytest --tb=short -q
+        continue-on-error: true
+
+      - name: Post test-status result
+        if: always()
+        run: |
+          if [ "${{ steps.pytest.outcome }}" = "success" ]; then
+            STATE="success"
+            DESC="All tests passed"
+          else
+            STATE="failure"
+            DESC="Tests failed"
+          fi
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state="$STATE" \
+            -f context="test-status" \
+            -f description="$DESC"
+          [ "$STATE" = "success" ]
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

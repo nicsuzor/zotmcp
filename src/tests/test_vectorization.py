@@ -35,6 +35,7 @@ class TestButtermilkBugs:
         """
         from buttermilk.data.vector import SemanticSplitter
         from buttermilk._core.types import BaseRecord
+        from buttermilk._core.processing_context import ProcessingContext
 
         # Create a minimal record without a title attribute
         record = BaseRecord(
@@ -51,10 +52,11 @@ class TestButtermilkBugs:
         # Create semantic splitter
         splitter = SemanticSplitter(chunk_size=20, chunk_overlap=5)
 
-        # This should fail with AttributeError: 'BaseRecord' object has no attribute 'title'
-        # But buttermilk catches the exception and logs it, so we get 0 chunks
+        # Wrap in ProcessingContext per Unified Processor Architecture
+        context = ProcessingContext(session_id="test", record=record)
+
         chunks = []
-        async for chunked_record in splitter.process(record):
+        async for chunked_record in splitter.process(context):
             chunks.append(chunked_record)
 
         # Bug manifests as no chunks being generated (exception was caught and logged)

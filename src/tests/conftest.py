@@ -174,7 +174,12 @@ async def bm_vectorize():
     """Get Zotero configuration."""
 
     conf_dir = str(Path(__file__).parent.parent / "zotmcp" / "conf")
-    bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=[])
+    try:
+        bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=[])
+    except Exception as e:
+        if any(kw in str(e) for kw in ("credential", "GCP", "ZOTERO", "DefaultCredentials", "not found")):
+            pytest.skip(f"External credentials not available: {e}")
+        raise
     yield bm
 
     await bm.graceful_shutdown()
@@ -188,7 +193,12 @@ async def bm_dev():
     to allow tests to run without GCP credentials.
     """
     conf_dir = str(Path(__file__).parent.parent / "zotmcp" / "conf")
-    bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=["db=dev"])
+    try:
+        bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=["db=dev"])
+    except Exception as e:
+        if any(kw in str(e) for kw in ("credential", "GCP", "ZOTERO", "DefaultCredentials", "not found")):
+            pytest.skip(f"External credentials not available: {e}")
+        raise
     yield bm
     await bm.graceful_shutdown()
 
