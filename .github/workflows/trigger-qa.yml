@@ -19,7 +19,7 @@ jobs:
       id-token: write
       issues: write
       actions: read
-    uses: nicsuzor/academicOps/.github/workflows/agent-qa.yml@pipeline-v1
+    uses: nicsuzor/academicOps/.github/workflows/agent-qa.yml@dev
     with:
       pr_number: ${{ github.event.pull_request.number }}
       ref: ${{ github.event.pull_request.head.ref }}
