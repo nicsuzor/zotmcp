@@ -177,7 +177,7 @@ async def bm_vectorize():
     try:
         bm = await init_async(config_dir=conf_dir, config_name="vectorize", overrides=[])
     except Exception as e:
-        if any(kw in str(e) for kw in ("credential", "GCP", "ZOTERO", "DefaultCredentials", "not found")):
+        if any(kw in str(e) for kw in ("credential", "GCP", "ZOTERO", "DefaultCredentials")):
             pytest.skip(f"External credentials not available: {e}")
         raise
     yield bm
@@ -196,7 +196,7 @@ async def bm_dev():
     try:
         bm = await init_async(config_dir=conf_dir, config_name="mcp", overrides=["db=dev"])
     except Exception as e:
-        if any(kw in str(e) for kw in ("credential", "GCP", "ZOTERO", "DefaultCredentials", "not found")):
+        if any(kw in str(e) for kw in ("credential", "GCP", "ZOTERO", "DefaultCredentials")):
             pytest.skip(f"External credentials not available: {e}")
         raise
     yield bm
