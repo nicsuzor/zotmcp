@@ -11,15 +11,16 @@ It assumes the write tools (PR #13) are deployed and credentialed
 ## Why a *stored* attachment is mandatory
 
 The full-text semantic index is built by the vectorization pipeline
-(`scripts/run_vectorization.py`), which pulls **Zotero's extracted text** for
-each item. Zotero only extracts text from **stored/imported** attachments
-(`linkMode: imported_file` / `imported_url`) — it never extracts text from a
-`linked_url` attachment (a bare URL link). So:
+(`scripts/run_vectorization.py`). The pipeline selects attachments where
+`attachmentType == application/pdf` with a downloadable **enclosure href**, then
+runs `zot.dump()` + pdftotext to extract text (`fulltext_item()` is a fallback
+only). A `linked_url` attachment stores only a URL — it carries no enclosure
+href — so the pipeline skips it entirely. Hence stored bytes are required:
 
-| Attachment type        | Tool                              | Zotero extracts text? | Enters full-text index? |
-| ---------------------- | --------------------------------- | --------------------- | ----------------------- |
-| `linked_url` (link)    | `link_attachment`                 | No                    | No (metadata only)      |
-| `imported_file` (bytes)| `import_attachment` / `resolve_and_create(store_pdf=True)` | Yes | Yes (after next sync) |
+| Attachment type        | Tool                              | Enclosure href (bytes)? | Enters full-text index? |
+| ---------------------- | --------------------------------- | ----------------------- | ----------------------- |
+| `linked_url` (link)    | `link_attachment`                 | No                      | No (metadata only)      |
+| `imported_file` (bytes)| `import_attachment` / `resolve_and_create(store_pdf=True)` | Yes                     | Yes (after next sync)   |
 
 An item with only metadata or a linked URL is searchable by title/author/abstract
 but **not** by its body text. To be full-text searchable it needs uploaded PDF
@@ -92,10 +93,6 @@ Idempotency / safety guarantees (see `conf/vectorize.yaml`):
 Cost: ~$0.002 per **new** item (Gemini Flash citation + gemini-embedding-001).
 A no-op re-run costs only Zotero API calls.
 
-> Note: a newly uploaded PDF must finish Zotero's server-side text extraction
-> before the sync can pull its text. This is usually quick but is not instant;
-> if a just-added item returns no full text, re-run the sync (it is idempotent).
-
 ## Step 3 — Verify it is full-text searchable
 
 After the sync advances:
@@ -107,9 +104,8 @@ search("<a distinctive phrase from the paper body>")   # semantic full-text quer
 
 A successful end-to-end run: `get_item` returns chunk text (not an error) and a
 semantic `search` for a phrase that only appears in the body returns the new
-item. If `get_item` errors with zero full-text bytes, the item never got a
-stored, text-extracted PDF — go back to Step 1 and confirm `pdf_attachment` was
-`"stored"`.
+item. If `get_item` errors with zero full-text bytes, the item's attachment has no
+enclosure href — go back to Step 1 and confirm `pdf_attachment` was `"stored"`.
 
 ## Troubleshooting
 
